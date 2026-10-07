@@ -93,8 +93,8 @@ final class CandidatePanel: NSPanel {
       guard let candidate = state.frame?.candidates[index] else { continue }
       let number = index - state.visibleIndices.lowerBound + 1
       let chinese = ActionButton(
-        "\(index == state.active ? "›" : " ") \(number)   \(candidate.text)",
-        label: "输出中文 \(candidate.text)"
+        "\(index == state.active ? "›" : " ") \(number)   \(candidate.text)\(candidate.personal == true ? " · 记忆" : "")",
+        label: "输出中文 \(candidate.text)\(candidate.personal == true ? "，个人词库" : "")"
       ) { [weak self] in self?.onChinese?(index) }
       chinese.alignment = .left
       chinese.font = NSFont(name: "MiSans", size: 16) ?? .systemFont(ofSize: 16, weight: .medium)
@@ -120,7 +120,8 @@ final class CandidatePanel: NSPanel {
         if candidate.translations.isEmpty {
           views.append(
             label(
-              candidate.text.count >= 3 ? (index == state.active ? "整句译文见下方" : "选中后翻译") : "暂无译词",
+              candidate.text.count >= 3 || (candidate.personal == true && candidate.text.count >= 2)
+                ? (index == state.active ? "整句译文见下方" : "选中后翻译") : "暂无译词",
               secondary: true))
         }
         views.append(NSView())

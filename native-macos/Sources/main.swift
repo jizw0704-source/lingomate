@@ -44,16 +44,28 @@ if arguments.contains("--setup-translation") {
   app.run()
   exit(0)
 }
+let isPreview =
+  arguments.contains("--preview") || arguments.contains("--preview-sentence")
+  || arguments.contains("--preview-paging") || arguments.contains("--preview-learning")
 do {
   guard let resources = Bundle.main.resourceURL else { throw EngineFailure.unavailable }
-  Runtime.engine = try EngineClient(resources: resources)
+  let memoryURL =
+    isPreview
+    ? nil
+    : FileManager.default.homeDirectoryForCurrentUser
+      .appendingPathComponent(
+        "Library/Application Support/BilingualCompanion/PersonalVocabulary/words.json")
+  Runtime.engine = try EngineClient(resources: resources, memoryURL: memoryURL)
+  if arguments.contains("--preview-learning") { try Preview.prepareLearning(resources: resources) }
 } catch { Runtime.failure = error.localizedDescription }
 
-if arguments.contains("--preview") || arguments.contains("--preview-sentence")
-  || arguments.contains("--preview-paging")
-{
+if isPreview {
   Preview.start()
   app.run()
+  Runtime.engine?.terminate()
+  if let directory = Preview.learningDirectory {
+    try? FileManager.default.removeItem(at: directory)
+  }
 } else {
   app.setActivationPolicy(.prohibited)
   let server = IMKServer(

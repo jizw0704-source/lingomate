@@ -39,7 +39,10 @@ bash -n tools/cargo.sh
 bash tools/cargo.sh fmt -- --check
 bash tools/cargo.sh clippy --release --locked -- -D warnings
 ../runtime/python/bin/python tests/engine_test.py
+../runtime/python/bin/python tests/memory_test.py
 ../runtime/python/bin/python tests/http_test.py
 ```
 
 The HTTP checks require `pnpm serve`. Browser checks must exercise Chinese/English/third-sense commits, mode switching, remaining Pinyin, rapid queries, errors/retry, focus and narrow layouts. Do not claim true mobile-device or system IME verification from responsive browser checks.
+
+Bridge personal vocabulary is opt-in with --memory PATH, only normal native service enables the real store. Web remains memory-disabled. Require explicit post-output confirmation and context-bound single-use receipts. Tests must use isolated temporary stores and never inspect user vocabulary.

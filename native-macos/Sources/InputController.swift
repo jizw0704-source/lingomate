@@ -7,6 +7,7 @@ import InputMethodKit
 final class BilingualInputController: IMKInputController {
   private var state = SessionState()
   private var textClient: IMKTextInput?
+  private let learningContext = UUID().uuidString
   private let sentenceTranslator = SentenceTranslator()
   private lazy var panel: CandidatePanel = {
     let panel = CandidatePanel()
@@ -158,6 +159,7 @@ final class BilingualInputController: IMKInputController {
 
   private func refresh() {
     if state.input.isEmpty {
+      Runtime.engine?.cancelLearning(context: learningContext)
       sentenceTranslator.cancel()
       state.sentence = .none
       textClient?.setMarkedText(
@@ -167,7 +169,9 @@ final class BilingualInputController: IMKInputController {
     }
     do {
       guard let engine = Runtime.engine else { throw EngineFailure.unavailable }
-      state.frame = try engine.request(EngineRequest(action: "query", input: state.input))
+      state.frame = try engine.request(
+        EngineRequest(action: "query", input: state.input, context: learningContext))
+      Runtime.memoryWarning = state.frame?.memoryWarning
       let marked = state.frame?.marked.isEmpty == false ? state.frame!.marked : state.input
       textClient?.setMarkedText(
         marked, selectionRange: NSRange(location: marked.utf16.count, length: 0),
@@ -182,7 +186,8 @@ final class BilingualInputController: IMKInputController {
 
   private func updateSentenceTranslation(force: Bool = false) {
     guard Runtime.bilingual, !state.input.isEmpty, let candidate = state.candidate,
-      candidate.translations.isEmpty, candidate.text.count >= 3
+      candidate.translations.isEmpty,
+      candidate.text.count >= 3 || (candidate.personal == true && candidate.text.count >= 2)
     else {
       sentenceTranslator.cancel()
       state.sentence = .none
@@ -227,7 +232,7 @@ final class BilingualInputController: IMKInputController {
     let candidate = candidates[index]
     var request = EngineRequest(
       action: "commit", input: state.input, candidate: candidate.text,
-      syllables: candidate.syllables)
+      syllables: candidate.syllables, context: learningContext)
     var sentenceEnglish: String?
     if let sense {
       guard Runtime.bilingual else { return }
@@ -258,6 +263,11 @@ final class BilingualInputController: IMKInputController {
       state.clear()
       sentenceTranslator.cancel()
       textClient?.insertText(sentenceEnglish ?? committed, replacementRange: noReplacement)
+      if Runtime.remember {
+        engine.confirmSelection(next, context: learningContext, chinese: sense == nil)
+      } else {
+        engine.cancelLearning(context: learningContext)
+      }
       state.input = next.input
       state.frame = next
       refresh()
@@ -268,6 +278,7 @@ final class BilingualInputController: IMKInputController {
   }
 
   private func rawCommit() {
+    if !state.input.isEmpty { Runtime.engine?.cancelLearning(context: learningContext) }
     sentenceTranslator.cancel()
     let raw = state.input
     state.clear()
@@ -276,6 +287,7 @@ final class BilingualInputController: IMKInputController {
   }
 
   private func discard() {
+    Runtime.engine?.cancelLearning(context: learningContext)
     sentenceTranslator.cancel()
     state.clear()
     panel.orderOut(nil)
@@ -316,6 +328,17 @@ final class BilingualInputController: IMKInputController {
         title: "准备本地整句翻译…", action: #selector(prepareTranslation(_:)), keyEquivalent: "")
       setup.target = self
       menu.addItem(setup)
+      let memory = NSMenuItem(
+        title: Runtime.remember ? "选词记忆（本次开启）" : "选词记忆（本次暂停）", action: #selector(toggleMemory(_:)),
+        keyEquivalent: "")
+      memory.target = self
+      memory.state = Runtime.remember ? .on : .off
+      menu.addItem(memory)
+      if let warning = Runtime.memoryWarning {
+        let item = NSMenuItem(title: warning, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        menu.addItem(item)
+      }
       if let failure = Runtime.failure {
         let item = NSMenuItem(title: failure, action: nil, keyEquivalent: "")
         item.isEnabled = false
@@ -332,6 +355,13 @@ final class BilingualInputController: IMKInputController {
     state.sense = 0
     updateSentenceTranslation()
     draw()
+  }
+
+  @objc private func toggleMemory(_ sender: Any?) {
+    mainSync {
+      Runtime.remember.toggle()
+      Runtime.engine?.cancelLearning(context: learningContext)
+    }
   }
 
   @objc private func prepareTranslation(_ sender: Any?) {

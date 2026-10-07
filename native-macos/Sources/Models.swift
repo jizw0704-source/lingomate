@@ -13,6 +13,7 @@ struct EngineCandidate: Codable {
   let syllables: [String]
   let translations: [TranslationDetail]
   let hasDetails: Bool
+  var personal: Bool? = nil
 }
 
 struct EngineFrame: Codable {
@@ -20,6 +21,8 @@ struct EngineFrame: Codable {
   let marked: String
   let candidates: [EngineCandidate]
   let committed: String?
+  var learningToken: UInt64? = nil
+  var memoryWarning: String? = nil
 }
 
 struct EngineRequest: Encodable {
@@ -28,6 +31,15 @@ struct EngineRequest: Encodable {
   var candidate: String?
   var syllables: [String]?
   var english: String?
+  var context: String? = nil
+  var learningToken: UInt64? = nil
+  var chineseOutput: Bool? = nil
+
+  enum CodingKeys: String, CodingKey {
+    case action, input, candidate, syllables, english, context
+    case learningToken = "learning_token"
+    case chineseOutput = "chinese_output"
+  }
 }
 
 enum EngineFailure: LocalizedError {

@@ -9,6 +9,25 @@ enum Preview {
   static var explanation: NSTextField?
   static var candidateView: NSView?
   static let sentenceTranslator = SentenceTranslator()
+  static var learningDirectory: URL?
+  static func prepareLearning(resources: URL) throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    learningDirectory = directory
+    let file = directory.appendingPathComponent("words.json")
+    let engine = try EngineClient(resources: resources, memoryURL: file)
+    let frame = try engine.request(EngineRequest(action: "query", input: "shi"))
+    guard let candidate = frame.candidates.first(where: { $0.text == "市" }) else {
+      throw EngineFailure.message("预览候选缺失。")
+    }
+    let committed = try engine.request(
+      EngineRequest(
+        action: "commit", input: "shi", candidate: candidate.text,
+        syllables: candidate.syllables, context: "preview"))
+    engine.confirmSelection(committed, context: "preview", chinese: true)
+    engine.terminate()
+    Runtime.engine?.terminate()
+    Runtime.engine = try EngineClient(resources: resources, memoryURL: file)
+  }
   static func start() {
     NSApplication.shared.setActivationPolicy(.regular)
     let window = NSWindow(
@@ -17,6 +36,9 @@ enum Preview {
     window.title = "中英输入实验版 · 候选窗预览（非系统输入测试）"
     window.center()
     let label = NSTextField(wrappingLabelWithString: "这是原生候选窗预览。点击中英文检查按钮，真实输入请从系统输入源选择。")
+    if learningDirectory != nil {
+      label.stringValue = "选词记忆预览：已在隔离词库中选过‘市’并重启引擎。此预览不写入个人词库。"
+    }
     label.frame = NSRect(x: 24, y: 115, width: 610, height: 40)
     let output = NSTextField(string: "尚未选择")
     output.isEditable = false
@@ -29,7 +51,7 @@ enum Preview {
     text = output
     explanation = label
     panel = CandidatePanel()
-    if CommandLine.arguments.contains("--preview-paging") {
+    if CommandLine.arguments.contains("--preview-paging") || learningDirectory != nil {
       state.input = "shi"
     } else {
       state.input =

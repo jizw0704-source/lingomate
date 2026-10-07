@@ -9,14 +9,32 @@ final class EngineClient {
   private var buffer = Data()
   private let lock = NSLock()
 
-  init(resources: URL) throws {
+  init(resources: URL, memoryURL: URL? = nil) throws {
     process.executableURL = resources.appendingPathComponent("bilingual-ime-bridge")
     process.arguments = [resources.path]
+    if let memoryURL { process.arguments! += ["--memory", memoryURL.path] }
     process.standardInput = input
     process.standardOutput = output
     process.standardError = FileHandle.nullDevice
     try process.run()
     _ = try request(EngineRequest(action: "query", input: ""), timeout: 5)
+  }
+
+  func confirmSelection(_ frame: EngineFrame, context: String, chinese: Bool) {
+    guard let token = frame.learningToken else { return }
+    do {
+      let confirmation = try request(
+        EngineRequest(
+          action: "confirm", input: "", context: context, learningToken: token,
+          chineseOutput: chinese))
+      Runtime.memoryWarning = confirmation.memoryWarning
+    } catch {
+      Runtime.memoryWarning = "文字已输出，选词记忆暂未保存。"
+    }
+  }
+
+  func cancelLearning(context: String) {
+    _ = try? request(EngineRequest(action: "cancel", input: "", context: context))
   }
 
   func request(_ request: EngineRequest, timeout: TimeInterval = 0.5) throws -> EngineFrame {
