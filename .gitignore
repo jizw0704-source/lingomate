@@ -1,0 +1,13 @@
+/upstream/
+/runtime/
+/evidence/
+__pycache__/
+*.pyc
+.ruff_cache/
+.DS_Store
+.env
+.env.*
+node_modules/
+/prototype/dist/
+/prototype/bridge/target/
+/native-macos/build/

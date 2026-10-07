@@ -1,0 +1,404 @@
+{
+  "学习": [
+    {
+      "word": "study",
+      "pos": "v.",
+      "note": "有计划地读书或研究，强调学习过程。",
+      "example": "I study English every evening."
+    },
+    {
+      "word": "learn",
+      "pos": "v.",
+      "note": "获得知识或技能，强调学会和掌握。",
+      "example": "I want to learn to swim."
+    },
+    {
+      "word": "learning",
+      "pos": "n.",
+      "note": "指学习这个过程，用在名词位置。",
+      "example": "Learning takes time."
+    }
+  ],
+  "喜欢": [
+    {
+      "word": "like",
+      "pos": "v.",
+      "note": "一般的喜欢，适用于事物或活动。",
+      "example": "I like this book."
+    },
+    {
+      "word": "enjoy",
+      "pos": "v.",
+      "note": "享受某项活动，常接动词 -ing。",
+      "example": "I enjoy reading."
+    },
+    {
+      "word": "be fond of",
+      "pos": "phr.",
+      "note": "对某人或某物有喜爱之情。",
+      "example": "She is fond of music."
+    }
+  ],
+  "方便": [
+    {
+      "word": "convenient",
+      "pos": "adj.",
+      "note": "时间、地点或安排便利。",
+      "example": "Is this time convenient for you?"
+    },
+    {
+      "word": "handy",
+      "pos": "adj.",
+      "note": "工具实用，或东西在手边容易使用。",
+      "example": "This tool is handy."
+    }
+  ],
+  "苹果": [
+    {
+      "word": "apple",
+      "pos": "n.",
+      "note": "水果苹果；一个苹果常用 an apple。",
+      "example": "I ate an apple."
+    }
+  ],
+  "开发": [
+    {
+      "word": "develop",
+      "pos": "v.",
+      "note": "开发软件、产品或能力。",
+      "example": "We develop software."
+    },
+    {
+      "word": "exploit",
+      "pos": "v.",
+      "note": "开发利用资源；也可能含剥削或过度利用之意。",
+      "example": "They exploit mineral resources."
+    },
+    {
+      "word": "development",
+      "pos": "n.",
+      "note": "开发这一过程，用在名词位置。",
+      "example": "Software development takes time."
+    }
+  ],
+  "银行": [
+    {
+      "word": "bank",
+      "pos": "n.",
+      "note": "提供金融服务的机构。",
+      "example": "The bank opens at nine."
+    }
+  ],
+  "行": [
+    {
+      "word": "OK",
+      "pos": "int.",
+      "note": "表示同意，例如“行，就这样”。",
+      "example": "OK, let us try."
+    },
+    {
+      "word": "work",
+      "pos": "v.",
+      "note": "表示办法可行，例如“这个方法行”。",
+      "example": "This approach works."
+    }
+  ],
+  "工作": [
+    {
+      "word": "work",
+      "pos": "n.",
+      "note": "工作这一活动，通常不可数。",
+      "example": "I have work to do."
+    },
+    {
+      "word": "job",
+      "pos": "n.",
+      "note": "一份工作或具体任务，可数。",
+      "example": "She has a new job."
+    },
+    {
+      "word": "operate",
+      "pos": "v.",
+      "note": "机器或系统正常运转的“工作”。",
+      "example": "The system operates normally."
+    }
+  ],
+  "问题": [
+    {
+      "word": "problem",
+      "pos": "n.",
+      "note": "需要解决的困难或故障。",
+      "example": "We need to solve this problem."
+    },
+    {
+      "word": "question",
+      "pos": "n.",
+      "note": "需要回答的疑问或提问。",
+      "example": "May I ask a question?"
+    },
+    {
+      "word": "issue",
+      "pos": "n.",
+      "note": "需要讨论或处理的议题。",
+      "example": "We discussed the issue."
+    }
+  ],
+  "明天": [
+    {
+      "word": "tomorrow",
+      "pos": "adv.",
+      "note": "在明天，可作时间副词。",
+      "example": "We will meet tomorrow."
+    }
+  ],
+  "今天": [
+    {
+      "word": "today",
+      "pos": "adv.",
+      "note": "在今天，可作时间副词。",
+      "example": "I am working today."
+    }
+  ],
+  "你好": [
+    {
+      "word": "hello",
+      "pos": "int.",
+      "note": "通用问候。",
+      "example": "Hello, nice to meet you."
+    },
+    {
+      "word": "hi",
+      "pos": "int.",
+      "note": "更随意的问候。",
+      "example": "Hi, how are you?"
+    }
+  ],
+  "朋友": [
+    {
+      "word": "friend",
+      "pos": "n.",
+      "note": "朋友，复数是 friends。",
+      "example": "She is my friend."
+    }
+  ],
+  "可以": [
+    {
+      "word": "can",
+      "pos": "v.",
+      "note": "能力或许可，后接动词原形。",
+      "example": "You can sit here."
+    },
+    {
+      "word": "may",
+      "pos": "v.",
+      "note": "表示许可时较正式。",
+      "example": "May I come in?"
+    }
+  ],
+  "需要": [
+    {
+      "word": "need",
+      "pos": "v.",
+      "note": "需要某物或做某事。",
+      "example": "I need some help."
+    },
+    {
+      "word": "require",
+      "pos": "v.",
+      "note": "条件或规则要求，较正式。",
+      "example": "This task requires patience."
+    }
+  ],
+  "知道": [
+    {
+      "word": "know",
+      "pos": "v.",
+      "note": "知道事实或如何做某事。",
+      "example": "I know the answer."
+    }
+  ],
+  "研究": [
+    {
+      "word": "research",
+      "pos": "v.",
+      "note": "系统调查一个问题或领域。",
+      "example": "We research new materials."
+    },
+    {
+      "word": "study",
+      "pos": "v.",
+      "note": "仔细考察对象，也可指学习。",
+      "example": "We study battery performance."
+    }
+  ],
+  "材料": [
+    {
+      "word": "material",
+      "pos": "n.",
+      "note": "原料或物质，种类常用复数 materials。",
+      "example": "This material is lightweight."
+    }
+  ],
+  "电池": [
+    {
+      "word": "battery",
+      "pos": "n.",
+      "note": "电池或电池组，复数 batteries。",
+      "example": "The battery needs charging."
+    }
+  ],
+  "会议": [
+    {
+      "word": "meeting",
+      "pos": "n.",
+      "note": "工作讨论或日常会议。",
+      "example": "The meeting starts at ten."
+    },
+    {
+      "word": "conference",
+      "pos": "n.",
+      "note": "通常规模更大的专业会议。",
+      "example": "She attended a scientific conference."
+    }
+  ],
+  "计划": [
+    {
+      "word": "plan",
+      "pos": "n.",
+      "note": "一个计划或安排。",
+      "example": "We have a plan."
+    },
+    {
+      "word": "plan",
+      "pos": "v.",
+      "note": "计划做某事。",
+      "example": "We plan to start tomorrow."
+    }
+  ],
+  "设计": [
+    {
+      "word": "design",
+      "pos": "v.",
+      "note": "设计产品或方案。",
+      "example": "We design useful tools."
+    },
+    {
+      "word": "design",
+      "pos": "n.",
+      "note": "设计方案或设计本身。",
+      "example": "The design is simple."
+    }
+  ],
+  "重要": [
+    {
+      "word": "important",
+      "pos": "adj.",
+      "note": "重要的。",
+      "example": "This is an important decision."
+    },
+    {
+      "word": "significant",
+      "pos": "adj.",
+      "note": "具有明显意义或影响；科研中需看具体含义。",
+      "example": "The result is significant."
+    }
+  ],
+  "时间": [
+    {
+      "word": "time",
+      "pos": "n.",
+      "note": "时间，问几点常用 What time。",
+      "example": "We need more time."
+    }
+  ],
+  "了解": [
+    {
+      "word": "understand",
+      "pos": "v.",
+      "note": "理解意思或情况。",
+      "example": "I understand the problem."
+    },
+    {
+      "word": "learn about",
+      "pos": "phr.",
+      "note": "获取信息，了解新主题。",
+      "example": "I want to learn about this project."
+    }
+  ],
+  "决定": [
+    {
+      "word": "decide",
+      "pos": "v.",
+      "note": "作出决定，常接 to 或 on。",
+      "example": "We decided to leave."
+    },
+    {
+      "word": "decision",
+      "pos": "n.",
+      "note": "一个决定，用在名词位置。",
+      "example": "That was a difficult decision."
+    }
+  ],
+  "免费": [
+    {
+      "word": "free",
+      "pos": "adj.",
+      "note": "免费的，也可指自由，需看语境。",
+      "example": "Admission is free."
+    },
+    {
+      "word": "free of charge",
+      "pos": "phr.",
+      "note": "明确表示不收费。",
+      "example": "The service is free of charge."
+    }
+  ],
+  "支持": [
+    {
+      "word": "support",
+      "pos": "v.",
+      "note": "支持某人、观点或功能。",
+      "example": "I support your idea."
+    },
+    {
+      "word": "support",
+      "pos": "n.",
+      "note": "支持或帮助，用在名词位置。",
+      "example": "Thank you for your support."
+    }
+  ],
+  "选择": [
+    {
+      "word": "choose",
+      "pos": "v.",
+      "note": "选择，后接对象。",
+      "example": "Choose a language."
+    },
+    {
+      "word": "select",
+      "pos": "v.",
+      "note": "从一组对象中挑选，较正式。",
+      "example": "Select a candidate."
+    },
+    {
+      "word": "choice",
+      "pos": "n.",
+      "note": "选择或选项，用在名词位置。",
+      "example": "You have a choice."
+    }
+  ],
+  "谢谢": [
+    {
+      "word": "thank you",
+      "pos": "phr.",
+      "note": "完整的感谢表达。",
+      "example": "Thank you for your help."
+    },
+    {
+      "word": "thanks",
+      "pos": "int.",
+      "note": "更随意的感谢。",
+      "example": "Thanks for coming."
+    }
+  ]
+}

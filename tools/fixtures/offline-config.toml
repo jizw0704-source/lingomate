@@ -1,0 +1,6 @@
+[general]
+learning_language = "en"
+input_log = false
+
+[predict]
+enabled = false

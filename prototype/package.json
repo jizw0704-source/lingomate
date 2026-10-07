@@ -1,0 +1,22 @@
+{
+  "name": "bilingual-ime-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "node --test tests/*.test.ts",
+    "serve": "../runtime/python/bin/python tools/server.py"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.1.0"
+  }
+}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#F7F7F7" />
+    <title>中英输入实验室</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="wordmark" href="/">中英输入实验室 <span>交互原型 01</span></a>
+      <span class="local-status">本地运行</span>
+    </header>
+    <main>
+      <div class="intro">
+        <p class="eyebrow">输入，也是一次小小的学习</p>
+        <h1>拼音照常打，<br />中英随你选。</h1>
+        <p>看见译词，理解区别，把想表达的文字直接写下来。</p>
+      </div>
+      <div class="app-grid">
+        <section class="workspace" aria-label="双语输入体验">
+          <div class="workspace-top">
+            <h2>试着写点什么</h2>
+            <fieldset class="mode-switch"><legend class="sr-only">候选显示模式</legend>
+              <button id="bilingual" type="button" aria-pressed="true">中英候选</button>
+              <button id="chinese" type="button" aria-pressed="false">普通中文</button>
+            </fieldset>
+          </div>
+          <label class="sr-only" for="output">已输出文本</label>
+          <textarea id="output" placeholder="选中的中文或英文会写在这里，也可以直接编辑。" spellcheck="false"></textarea>
+          <div class="output-toolbar">
+            <span id="count">0 字符</span>
+            <div><button class="quiet" id="undo" type="button" disabled>撤销上次输出</button><button class="quiet" id="clear" type="button" disabled>清空</button><button class="quiet" id="copy" type="button" disabled>复制文本</button></div>
+          </div>
+          <div class="compose-area">
+            <div class="compose-label"><label for="pinyin">输入拼音</label><span id="marked">xue'xi</span></div>
+            <div class="input-line">
+              <input id="pinyin" type="text" value="xuexi" placeholder="例如 xuexi" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="80" aria-describedby="input-help query-status" />
+              <button class="quiet" id="clear-pinyin" type="button" aria-label="清除拼音">清除</button>
+            </div>
+            <p id="input-help">请用系统英文键盘输入拼音字母；点击中文或英文即可输出。</p>
+            <div class="candidate-heading"><span>中文候选</span><span id="english-heading">英文译法</span><span class="sr-only">更多译法</span></div>
+            <section id="candidates" aria-label="中文和英文候选"></section>
+            <div id="query-status" role="status" aria-live="polite"></div>
+            <button id="retry" class="quiet" type="button" hidden>重试查询</button>
+          </div>
+          <div class="keyboard-help"><span><kbd>空格</kbd> 中文</span><span id="english-key"><kbd>Shift</kbd> + <kbd>空格</kbd> 英文</span><span><kbd>↑</kbd> <kbd>↓</kbd> 换候选</span><span><kbd>Enter</kbd> 原样拼音</span></div>
+        </section>
+        <aside class="inspector" aria-label="译法详情">
+          <div class="inspector-top"><div><p class="eyebrow">多看一眼，多懂一点</p><h2 id="detail-title">学习</h2></div><button id="collapse" class="quiet" type="button" hidden>收起</button></div>
+          <p id="detail-summary">同一个中文词，英文表达可以不同。</p>
+          <div id="details"></div>
+          <button id="expand" class="expand-button" type="button" aria-expanded="false">展开更多译法与用法 <span aria-hidden="true">↗</span></button>
+          <p class="detail-note" id="detail-note">用法说明为原型示例，当前覆盖 30 个常用词。</p>
+        </aside>
+      </div>
+      <section class="examples" aria-label="试用示例"><span>换个词试试</span><button type="button" data-example="xuexi">学习 <span>xuexi</span></button><button type="button" data-example="kaifa">开发 <span>kaifa</span></button><button type="button" data-example="gongzuo">工作 <span>gongzuo</span></button><button type="button" data-example="fangbian">方便 <span>fangbian</span></button></section>
+      <footer><span>当前是页面内输入原型，尚未接入系统输入法。</span><span id="engine-state">连接本地引擎…</span></footer>
+    </main>
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
