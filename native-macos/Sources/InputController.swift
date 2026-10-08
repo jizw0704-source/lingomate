@@ -7,6 +7,8 @@ import InputMethodKit
 final class BilingualInputController: IMKInputController {
   private var state = SessionState()
   private var punctuation = PunctuationState()
+  private var shiftTap = ShiftTap()
+  private var modeNotice = UUID()
   private var textClient: IMKTextInput?
   private let learningContext = UUID().uuidString
   private let sentenceTranslator = SentenceTranslator()
@@ -28,6 +30,7 @@ final class BilingualInputController: IMKInputController {
       self?.draw()
     }
     panel.onMode = { [weak self] in self?.toggleMode(nil) }
+    panel.onTypingMode = { [weak self] in self?.toggleTyping(nil) }
     panel.onPunctuation = { [weak self] in self?.cyclePunctuation() }
     panel.onRetryTranslation = { [weak self] in self?.updateSentenceTranslation(force: true) }
     panel.onSetupTranslation = { [weak self] in
@@ -45,15 +48,32 @@ final class BilingualInputController: IMKInputController {
 
   override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
     mainSync {
-      guard let event, let client = sender as? IMKTextInput, event.type == .keyDown else {
+      guard let event, let client = sender as? IMKTextInput else {
         return false
       }
       textClient = client
       if IsSecureEventInputEnabled() {
         discard()
         punctuation.resetContext()
+        shiftTap.reset()
         return false
       }
+      if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type) {
+        rawCommit()
+        punctuation.resetContext()
+        shiftTap.reset()
+        return false
+      }
+      guard event.type == .keyDown || event.type == .flagsChanged else { return false }
+      if shiftTap.observe(
+        type: event.type, key: event.keyCode,
+        flags: event.modifierFlags, time: event.timestamp)
+      {
+        toggleTyping(nil)
+      }
+      guard event.type == .keyDown else { return false }
+      // Every normal key, including punctuation and shortcuts, belongs to the host in English.
+      guard Runtime.typingMode == .chinese else { return false }
       let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
       if event.keyCode == kVK_ANSI_P, flags.contains([.control, .shift]),
         !flags.contains(.command), !flags.contains(.option)
@@ -185,6 +205,8 @@ final class BilingualInputController: IMKInputController {
     }
   }
 
+  override func recognizedEvents(_ sender: Any!) -> Int { Int(ShiftTap.events.rawValue) }
+
   private func changePage(_ delta: Int) {
     guard state.changePage(delta) else { return }
     updateSentenceTranslation()
@@ -242,7 +264,8 @@ final class BilingualInputController: IMKInputController {
   }
 
   private func draw() {
-    guard !state.input.isEmpty, let client = textClient else {
+    modeNotice = UUID()
+    guard Runtime.typingMode == .chinese, !state.input.isEmpty, let client = textClient else {
       panel.orderOut(nil)
       return
     }
@@ -355,12 +378,17 @@ final class BilingualInputController: IMKInputController {
   }
 
   override func activateServer(_ sender: Any!) {
-    mainSync { textClient = sender as? IMKTextInput }
+    mainSync {
+      shiftTap.reset()
+      textClient = sender as? IMKTextInput
+    }
   }
 
   override func deactivateServer(_ sender: Any!) {
     mainSync {
       rawCommit()
+      shiftTap.reset()
+      modeNotice = UUID()
       punctuation.resetContext()
       textClient = nil
     }
@@ -373,15 +401,26 @@ final class BilingualInputController: IMKInputController {
     }
   }
 
-  override func hidePalettes() { mainSync { panel.orderOut(nil) } }
+  override func hidePalettes() {
+    mainSync {
+      modeNotice = UUID()
+      panel.orderOut(nil)
+    }
+  }
 
   override func menu() -> NSMenu! {
     mainSync {
       let menu = NSMenu(title: "中英输入实验版")
+      let typing = NSMenuItem(
+        title: "\(Runtime.typingMode.title) · 单按 Shift 切换",
+        action: #selector(toggleTyping(_:)), keyEquivalent: "")
+      typing.target = self
+      menu.addItem(typing)
       let mode = NSMenuItem(
         title: Runtime.bilingual ? "中英候选（已开启）" : "开启中英候选", action: #selector(toggleMode(_:)),
         keyEquivalent: "")
       mode.target = self
+      mode.isEnabled = Runtime.typingMode == .chinese
       mode.state = Runtime.bilingual ? .on : .off
       menu.addItem(mode)
       let punctuationItem = NSMenuItem(
@@ -397,6 +436,7 @@ final class BilingualInputController: IMKInputController {
         choices.addItem(item)
       }
       punctuationItem.submenu = choices
+      punctuationItem.isEnabled = Runtime.typingMode == .chinese
       menu.addItem(punctuationItem)
       let setup = NSMenuItem(
         title: "准备本地整句翻译…", action: #selector(prepareTranslation(_:)), keyEquivalent: "")
@@ -430,6 +470,29 @@ final class BilingualInputController: IMKInputController {
     state.sense = 0
     updateSentenceTranslation()
     draw()
+  }
+
+  @objc private func toggleTyping(_ sender: Any?) {
+    mainSync {
+      rawCommit()
+      shiftTap.reset()
+      Runtime.typingMode = Runtime.typingMode.next
+      punctuation.resetContext()
+      punctuation.confirm(Runtime.typingMode == .english ? .english : .chinese)
+      let notice = UUID()
+      modeNotice = notice
+      guard let client = textClient else { return }
+      var anchor = NSRect.zero
+      _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &anchor)
+      if anchor == .zero {
+        anchor = NSRect(origin: NSEvent.mouseLocation, size: NSSize(width: 1, height: 20))
+      }
+      panel.showTypingMode(Runtime.typingMode, anchor: anchor)
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        guard let self, self.modeNotice == notice else { return }
+        self.panel.orderOut(nil)
+      }
+    }
   }
 
   private func cyclePunctuation() {

@@ -10,6 +10,7 @@ final class CandidatePanel: NSPanel {
   var onExpand: ((Int) -> Void)?
   var onCollapse: (() -> Void)?
   var onMode: (() -> Void)?
+  var onTypingMode: (() -> Void)?
   var onPunctuation: (() -> Void)?
   var onRetryTranslation: (() -> Void)?
   var onSetupTranslation: (() -> Void)?
@@ -86,6 +87,9 @@ final class CandidatePanel: NSPanel {
     let mode = ActionButton(bilingual ? "中英候选 · F6" : "普通中文 · F6", label: "切换中英候选显示") {
       [weak self] in self?.onMode?()
     }
+    let typing = ActionButton("中文拼音 · Shift", label: "切换到英文直输，单按 Shift") {
+      [weak self] in self?.onTypingMode?()
+    }
     mode.contentTintColor = green
     let punctuation = ActionButton(
       punctuationLabel, label: "\(punctuationLabel)，切换标点模式，Control Shift P"
@@ -94,7 +98,7 @@ final class CandidatePanel: NSPanel {
     }
     punctuation.toolTip = "自动 → 固定中文 → 固定英文；Control＋Shift＋P 切换"
     let head = row([
-      label(state.frame?.marked ?? state.input, size: 18), NSView(), punctuation, mode,
+      label(state.frame?.marked ?? state.input, size: 18), NSView(), typing, punctuation, mode,
     ])
     stack.addArrangedSubview(head)
     head.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
@@ -273,6 +277,30 @@ final class CandidatePanel: NSPanel {
     let y = below >= bounds.minY + 8 ? below : min(anchor.maxY + 8, bounds.maxY - actualHeight - 8)
     setFrame(
       NSRect(x: x, y: max(bounds.minY + 8, y), width: width, height: actualHeight), display: true)
+    orderFrontRegardless()
+  }
+
+  func showTypingMode(_ mode: TypingMode, anchor: NSRect) {
+    let content = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 76))
+    content.wantsLayer = true
+    content.layer?.backgroundColor = NSColor.white.cgColor
+    content.layer?.cornerRadius = 16
+    content.layer?.borderWidth = 1
+    content.layer?.borderColor =
+      NSColor(srgbRed: 228 / 255, green: 228 / 255, blue: 228 / 255, alpha: 1).cgColor
+    let toggle = ActionButton(mode == .english ? "切回中文 · Shift" : "切到英文 · Shift") {
+      [weak self] in self?.onTypingMode?()
+    }
+    let views = row([label(mode.title, size: 16), NSView(), toggle])
+    views.frame = NSRect(x: 16, y: 16, width: 328, height: 44)
+    content.addSubview(views)
+    contentView = content
+    let bounds =
+      (NSScreen.screens.first { $0.frame.intersects(anchor) } ?? NSScreen.main)?.visibleFrame
+      ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+    let x = min(max(anchor.minX, bounds.minX + 8), bounds.maxX - 368)
+    let y = min(max(anchor.minY - 84, bounds.minY + 8), bounds.maxY - 84)
+    setFrame(NSRect(x: x, y: y, width: 360, height: 76), display: true)
     orderFrontRegardless()
   }
 }

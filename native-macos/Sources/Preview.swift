@@ -13,6 +13,9 @@ enum Preview {
   static var punctuation = PunctuationState()
   static var punctuationView: NSView?
   static let punctuationPreview = CommandLine.arguments.contains("--preview-punctuation")
+  static let typingPreview = CommandLine.arguments.contains("--preview-typing")
+  static var shiftTap = ShiftTap()
+  static var eventMonitor: Any?
   static func prepareLearning(resources: URL) throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     learningDirectory = directory
@@ -44,6 +47,19 @@ enum Preview {
     }
     if punctuationPreview {
       label.stringValue = "标点预览：选择中文或英文，再点标点按钮。此窗口只检查共享规则，不写入个人词库。"
+    }
+    if typingPreview {
+      label.stringValue = "单按 Shift 或点模式按钮切换。英文直输在此窗口的原生编辑框中演示；中文为候选预览。"
+      eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) {
+        event in
+        if shiftTap.observe(
+          type: event.type, key: event.keyCode,
+          flags: event.modifierFlags, time: event.timestamp)
+        {
+          toggleTyping()
+        }
+        return event
+      }
     }
     label.frame = NSRect(x: 24, y: 115, width: 610, height: 40)
     let output = NSTextField(string: "尚未选择")
@@ -101,6 +117,7 @@ enum Preview {
       translateSentence()
       draw()
     }
+    panel?.onTypingMode = { toggleTyping() }
     panel?.onPunctuation = {
       Runtime.punctuationMode = Runtime.punctuationMode.next
       punctuation.resetContext()
@@ -115,7 +132,9 @@ enum Preview {
     draw()
   }
   static func translateSentence() {
-    guard Runtime.bilingual, let candidate = state.candidate, candidate.translations.isEmpty else {
+    guard Runtime.typingMode == .chinese, Runtime.bilingual, let candidate = state.candidate,
+      candidate.translations.isEmpty
+    else {
       sentenceTranslator.cancel()
       state.sentence = .none
       return
@@ -126,12 +145,29 @@ enum Preview {
       draw()
     }
   }
+  static func toggleTyping() {
+    window?.makeFirstResponder(nil)
+    Runtime.typingMode = Runtime.typingMode.next
+    punctuation.resetContext()
+    punctuation.confirm(Runtime.typingMode == .english ? .english : .chinese)
+    text?.isEditable = typingPreview && Runtime.typingMode == .english
+    if Runtime.typingMode == .english { text?.stringValue = "" }
+    if text?.isEditable == true { window?.makeFirstResponder(text) }
+    translateSentence()
+    draw()
+  }
   static func draw() {
     guard let window else { return }
-    panel?.show(
-      state, bilingual: Runtime.bilingual,
-      anchor: NSRect(x: window.frame.minX + 24, y: window.frame.minY, width: 1, height: 20),
-      punctuationLabel: punctuation.label(mode: Runtime.punctuationMode))
+    if Runtime.typingMode == .english {
+      panel?.showTypingMode(
+        .english,
+        anchor: NSRect(x: window.frame.minX + 24, y: window.frame.minY, width: 1, height: 20))
+    } else {
+      panel?.show(
+        state, bilingual: Runtime.bilingual,
+        anchor: NSRect(x: window.frame.minX + 24, y: window.frame.minY, width: 1, height: 20),
+        punctuationLabel: punctuation.label(mode: Runtime.punctuationMode))
+    }
     // 预览将同一候选视图放进标准窗口，方便检查；此模式不验证宿主焦点。
     guard let panel, let view = panel.contentView else { return }
     panel.orderOut(nil)
@@ -144,7 +180,7 @@ enum Preview {
     explanation?.frame.origin.y += extra
     view.removeFromSuperview()
     window.contentView?.addSubview(view)
-    view.frame = NSRect(x: 24, y: 24, width: 600, height: height)
+    view.frame = NSRect(x: 24, y: 24, width: panel.frame.width, height: height)
     candidateView = view
     punctuationView?.removeFromSuperview()
     if punctuationPreview {

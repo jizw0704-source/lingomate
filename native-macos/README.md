@@ -1,4 +1,4 @@
-# 中英输入实验版 · macOS 0.5.0
+# 中英输入实验版 · macOS 0.6.0
 
 原生输入法使用 Swift / AppKit / InputMethodKit 和随包的青简 Rust 引擎，将选中的中文或英文提交到原应用。中文及词语释义支持 Apple Silicon Mac、macOS 13 以上；整句翻译需要 macOS 26 以上和已下载的中英文翻译语言。网页原型仍在 `../prototype/`，本次整句功能只接入原生版。
 
@@ -15,6 +15,7 @@
 
 | 操作 | 结果 |
 | --- | --- |
+| 单按并松开 Shift，或“中文拼音”按钮 / 输入源菜单 | 中文拼音 ↔ 英文直输 |
 | 空格，或数字 1–5 | 输出当前页中文候选 |
 | Shift＋空格 | 输出当前词语译法，或已完成的当前整句译文 |
 | ↑ / ↓ | 在当前页切换中文候选，整句译文随之更新 |
@@ -29,6 +30,16 @@
 每页显示5项，显示页码与总候选数；桥接层最多返回64项，数量取决于词典实际候选。翻页不提交文字，清除上一候选的展开与译文；首末页不循环。Mac没有专用翻页键时可用Fn＋↑/↓或减号/等号。
 
 一次组合输入最多 240 个拼音字符。英文按原样提交，连续英文词之间请另按空格。快捷键交还宿主前、切换应用或输入源时，会原样提交未完成拼音。安全输入开启时不处理按键。整句任务在继续输入、换候选、取消或提交时失效，不把旧句译文提交到新句。
+
+## 直接打英文
+
+0.6支持常驻英文直输。选择“中英输入实验版”后，轻按并松开一次左或右 **Shift**（0.7秒内），切到英文直输；直接输入 `Hello, world!`，字母、大小写、数字、空格及半角标点交给原应用，不查拼音、不翻译、不学习词条。再轻按一次Shift，切回中文拼音。
+
+Shift配合字母、空格、Tab或其他快捷键时不会切换，仍保留大写、符号、选区和Shift＋空格选译文。长按Shift、同时按两个Shift、与Control/Command/Option/Fn搭配均不作为单按切换。也可点击候选窗“中文拼音 · Shift”按钮或输入源菜单中的当前模式条目；切换后有约1.5秒的状态提示，并可点击反向切换。提示不会成为键盘焦点，也不会隐藏新出现的候选。
+
+切换前若还存在未确认拼音，会把字母原样输出并取消待定翻译/组词记忆，不替你猜选中文。已输出的正文和已保存词条保留。中文模式继续使用原有分页、词语/整句翻译和选词记忆；F6仍切换普通中文 / 中英候选显示，和Shift的英文直输开关分别保留。英文直输不执行中文标点转换，即使此前固定中文标点；切回中文恢复原标点设置，自动模式从中文开始。
+
+英文直输时F6、Control＋Shift＋P及其他普通按键都交给宿主；中文模式才拦截对应功能快捷键。当前输入模式在本次服务中跨应用保留，重启服务后默认中文；无需切到系统ABC。应用的智能引号或自动更正仍可能改变最终文本。单Shift的真实系统事件和跨应用焦点需要实际键盘试用，预览不能代替验收。
 
 ## 中英文标点
 
@@ -69,6 +80,8 @@ build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-paging
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-learning
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-punctuation
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-typing
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --typing-test
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --punctuation-test
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-sentence
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --setup-translation
@@ -77,7 +90,7 @@ build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --sentence-integr
 "$HOME/Library/Input Methods/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --register
 ```
 
-构建使用项目 Rust 运行时、既有锁文件和 Apple Command Line Tools，不需要完整 Xcode；Translation 框架弱链接，旧系统跳过整句功能，旧系统运行仍待实测。检查包括 Swift 格式、类型检查、Rust 格式与 Clippy、8 项真实引擎回归、10 项隔离词库记忆回归、标点映射/语言/边界及真实引擎组合提交检查、随包资源自测、翻译取消与过期结果检查、属性和本地签名验证。整句联调需 macOS 26 和本地语言；预览与联调不能代替真实宿主输入验收。
+构建使用项目 Rust 运行时、既有锁文件和 Apple Command Line Tools，不需要完整 Xcode；Translation 框架弱链接，旧系统跳过整句功能，旧系统运行仍待实测。检查包括 Swift 格式、类型检查、Rust 格式与 Clippy、8 项真实引擎回归、10 项隔离词库记忆回归、Shift单按/组合保护/焦点边界及中文引擎恢复检查、标点映射/语言/边界及真实引擎组合提交检查、随包资源自测、翻译取消与过期结果检查、属性和本地签名验证。整句联调需 macOS 26 和本地语言；预览与联调不能代替真实宿主输入验收。
 
 `install.py` 只替换相同 bundle ID 的实验版，旧包保留在 `../evidence/native-backups/`，安装记录为 `../evidence/native-install.json`。安装与注册不主动切换输入源。更新已运行的服务时先切到 ABC，停止该实验版进程、安装并注册，再选择实验输入源；必要时从已安装路径启动服务。不要同时运行构建目录的普通 IMK 服务和已安装服务。
 
@@ -91,7 +104,7 @@ build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --sentence-integr
 
 ## 状态和许可
 
-0.5 已在本机完成构建、本地系统翻译、真实引擎拼音消耗和原生预览按钮检查，并安装更新。自动界面工具的测试按键绕过输入法，连自带简体拼音也只输出原样字母，因此没有据此宣称真实键盘、宿主焦点或跨应用验收完成。具体证据和待验证项见 [QA.md](QA.md)。
+0.6 已在本机完成构建、本地系统翻译、真实引擎拼音消耗和原生预览按钮检查，并安装更新。自动界面工具的测试按键绕过输入法，连自带简体拼音也只输出原样字母，因此没有据此宣称真实键盘、宿主焦点或跨应用验收完成。具体证据和待验证项见 [QA.md](QA.md)。
 
 当前候选最多64项；已支持本地选词记忆；尚无整句多译法、学习统计页面、词库管理界面、持久设置或跨平台接入。沿用 GPL-3.0-or-later。青简源码保持原样，不使用其商标、图标或外观；来源说明随包保留为 `GLOSSARY-NOTICE.md` 和 `LEXICON-NOTICE.md`。这是本地实验包，未做发行签名、公证或公开发布审核。
 

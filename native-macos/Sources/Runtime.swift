@@ -8,4 +8,5 @@ enum Runtime {
   static var memoryWarning: String?
   static var remember = true
   static var punctuationMode = PunctuationMode.automatic
+  static var typingMode = TypingMode.chinese
 }
