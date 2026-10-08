@@ -1,6 +1,6 @@
-# 中英输入实验版 · macOS 0.9.0
+# 中英输入实验版 · macOS 0.10.0
 
-原生输入法使用 Swift / AppKit / InputMethodKit 和随包的青简 Rust 引擎，将选中的中文或英文提交到原应用。中文及词语释义支持 Apple Silicon Mac、macOS 13 以上；整句翻译需要 macOS 26 以上和已下载的中英文翻译语言。网页原型仍在 `../prototype/`，本次整句功能只接入原生版。
+原生输入法使用 Swift / AppKit / InputMethodKit 和随包的青简 Rust 引擎，将选中的中文或英文提交到原应用。中文及词语释义支持 Apple Silicon Mac、macOS 13 以上；Apple本机整句翻译需要 macOS 26 以上和已下载的中英文翻译语言；可选MiniMax模式使用在线API，不要求下载Apple语言，旧系统实机运行待测。网页原型仍在 `../prototype/`，本次整句功能只接入原生版。
 
 ## 开始试用
 
@@ -77,7 +77,7 @@ Shift配合字母、空格、Tab或其他快捷键时不会切换，仍保留大
 
 自建服务采用邮箱验证码登录：服务设置填写部署后的HTTPS地址 → 发送验证码 → 输入邮箱中的六位验证码 → 验证并登录。验证码过期或失效须重新获取；邮箱发送间隔60秒。短信尚未实现。
 
-登录后的英文词表提交产生“已学习”记录，包含所选英文、对应中文、词性及选用次数。多词译法可以作为一个词条；“已学习”不代表掌握。手动标记掌握或撤销，支持搜索及全部/待掌握/已掌握筛选；较多词条先显示50条，再点“显示更多”，保留滚动位置。整句本机译文、中文选择、英文直输、取消和原样拼音不加入学习单词。正常词语选用后后台尝试同步；学习页打开和“同步”按钮也可刷新。离线保留操作，事件去重避免重试增加多次计数。退出后不继续记录此前账号，缓存按账号和服务地址分开；退出不会删除云端数据。
+登录后的英文词表提交产生“已学习”记录，包含所选英文、对应中文、词性及选用次数。多词译法可以作为一个词条；“已学习”不代表掌握。手动标记掌握或撤销，支持搜索及全部/待掌握/已掌握筛选；较多词条先显示50条，再点“显示更多”，保留滚动位置。整句本机或AI译文、中文选择、英文直输、取消和原样拼音不加入学习单词。正常词语选用后后台尝试同步；学习页打开和“同步”按钮也可刷新。离线保留操作，事件去重避免重试增加多次计数。退出后不继续记录此前账号，缓存按账号和服务地址分开；退出不会删除云端数据。
 
 凭据仅在独立账号辅助进程中访问系统钥匙串；本机学习缓存和待同步队列保存在`~/Library/Application Support/BilingualCompanion/Learning/`。服务地址保存在该目录`service.json`，不是密码。不要把学习目录、凭据、验证码或个人词库提交Git或复制到Obsidian。
 
@@ -89,13 +89,29 @@ Shift配合字母、空格、Tab或其他快捷键时不会切换，仍保留大
 
 例如第一次输入 `shi`，翻页选择“市”；再输入 `shi`，“市”会来到第一项。输入法不会在仅输入拼音、浏览候选、取消或原样输出拼音时学习。
 
-同一段拼音分次选出的中文会合成一个新词。测试示例：输入 `shiqing`，先选“市”，再从剩余 `qing` 选择“青”；下次输入 `shiqing` 可直接选择“市青”。这只是用于检查的新词示例；修改/取消拼音或切换应用会中断合成，两个独立输入的词不会自动拼起来。当前只保存最多16个汉字的词/短语，词库最多5000条拼音映射。词库中没有释义的两字及以上新词可使用本机翻译。
+同一段拼音分次选出的中文会合成一个新词。测试示例：输入 `shiqing`，先选“市”，再从剩余 `qing` 选择“青”；下次输入 `shiqing` 可直接选择“市青”。这只是用于检查的新词示例；修改/取消拼音或切换应用会中断合成，两个独立输入的词不会自动拼起来。当前只保存最多16个汉字的词/短语，词库最多5000条拼音映射。词库中没有释义的两字及以上新词可使用当前选择的本机或AI翻译。
 
 输入源菜单的“选词记忆（本次开启/本次暂停）”可暂停新增学习，已有词仍可优先显示；该开关重启服务后恢复开启。个人词库仅保存在 `~/Library/Application Support/BilingualCompanion/PersonalVocabulary/words.json`，不会同步到 GitHub 或 Obsidian。文件损坏时保留原文件并暂停写入；保存失败不会撤回已输出文字，可在输入源菜单查看提示。
 
+## MiniMax AI 翻译
+
+0.10增加可选在线整句翻译，默认关闭，词语的随包释义继续在本机使用。
+
+1. 在macOS输入源菜单选择“AI 翻译设置…”，或在整句候选区点击“本机翻译”。打开设置时未确认拼音会原样输出，不记作单词。
+2. 选择“MiniMax 国内”或“MiniMax 国际”。预设完整接口分别为`https://api.minimax.cn/v1/chat/completions`和`https://api.minimax.io/v1/chat/completions`，模型`MiniMax-M2.7-highspeed`；模型名可按账号实际权限修改。国内、国际平台须使用各自对应的密钥，预设只填字段，不启用或联网。
+3. 自己填写对应平台的API密钥，点“保存并启用 AI”。首次留空不会启用；后续留空只保留同一完整地址的已保存密钥。保存本身不调用API，也没有假“连接成功”。状态显示启用只代表配置保存成功，密钥/模型权限由首次实际请求检验。
+4. 重新输入`wojintianxiangxuexiyingyu`，先核对中文。没有词表释义且至少三个中文字的候选（个人词库候选至少两个字）停顿约850毫秒后开始在线翻译；候选区标记“AI 在线翻译”。空格选中文，Shift＋空格或“选英文”选译文。译文尚未完成不能提交旧英文。
+5. 随时回设置点“使用本机翻译”。关闭AI保留钥匙串密钥，不会自动删除。设置变化、继续输入、换候选或取消会使旧结果失效；不会自动把旧句再次上传，需要重新输入或重试。
+
+接口采用[MiniMax官方OpenAI兼容格式](https://platform.minimax.cn/docs/api-reference/text-openai-api)，将思考内容单独返回，仅显示最终译文。只发送当前候选和固定翻译指令，不发送原始拼音、宿主正文、历史、个人词库或登录信息。最大候选512字符，MiniMax单次生成上限4096 token（含思考），单次请求超时20秒；拒绝重定向、截断、空输出和含思考标签的响应。AI不是自动纠错：中文候选同音错字仍需用户核对。当前整句仍只有一种译法，整句AI译文不加入学习账号的单词记录。
+
+密钥通过独立设置/翻译辅助进程访问系统钥匙串，按完整接口地址隔离，不保存到设置JSON、进程参数、临时文件、日志、仓库或Obsidian。公开配置位于`~/Library/Application Support/BilingualCompanion/AITranslation/settings.json`，不要提交本机目录。API可能产生费用，数据处理按所选服务商政策；取消本机任务无法保证撤销服务商已经处理的请求或费用。连续打字会取消旧任务，但每次停顿和手动重试仍可能产生请求，当前没有用量账单或配额管理。
+
+鉴权失败、限流、断网或不完整输出会显示提示，中文仍可选；可重试或显式切回本机，不静默换来源。隔离测试不读取真实密钥、不发送付费请求。本轮没有真实MiniMax密钥，因此速度、译文质量、实际Keychain授权和真实宿主键盘仍待试用；现有Apple三句模型联调继续通过。
+
 ## 翻译与隐私
 
-词语使用随包青简英文释义表，固定快照含232,213个不重复中文条目；上游释义由离线大模型生成。30个词附本项目多译法和手工用法示例，未经过专业审校。至少三个中文字（个人词库候选至少两个字）且没有词表释义的当前候选，交给 Apple Translation 框架本机翻译，停止输入约 350 毫秒后开始。框架优先使用低延迟策略（macOS 26.4 以上）。没有接入云端翻译接口，本机选词记忆保存已确认中文词、拼音、使用次数及最近选择顺序，不保存逐次输入过程、不读剪贴板、不采集宿主上下文；用户登录后独立账号服务只同步所选英文词条、对应中文、词性、次数和手动掌握状态，不上传整句、拼音或个人词库；下载语言资源需要联网。系统框架可能收集语言、应用标识和性能等非文本统计，见 [Apple Translation 文档](https://developer.apple.com/documentation/translation/translating-text-within-your-app)。本应用不声称关闭操作系统自身的统计。
+词语使用随包青简英文释义表，固定快照含232,213个不重复中文条目；上游释义由离线大模型生成。30个词附本项目多译法和手工用法示例，未经过专业审校。默认将至少三个中文字（个人词库候选至少两个字）且没有词表释义的当前候选，交给 Apple Translation 框架本机翻译，停止输入约 350 毫秒后开始。框架优先使用低延迟策略（macOS 26.4 以上）。默认未接入云端翻译接口；用户显式启用AI时按上一节发送当前候选，本机选词记忆保存已确认中文词、拼音、使用次数及最近选择顺序，不保存逐次输入过程、不读剪贴板、不采集宿主上下文；用户登录后独立账号服务只同步所选英文词条、对应中文、词性、次数和手动掌握状态，不上传整句、拼音或个人词库；下载语言资源需要联网。系统框架可能收集语言、应用标识和性能等非文本统计，见 [Apple Translation 文档](https://developer.apple.com/documentation/translation/translating-text-within-your-app)。本应用不声称关闭操作系统自身的统计。
 
 翻译只针对选中的中文候选，不自动纠正同音错字，也不利用前文上下文。很长的拼音可能需要多次选择中文片段；翻译失败或未准备时保留中文选择和重试入口。
 
@@ -110,6 +126,10 @@ build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --preview-narrow
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --theme dark
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --appearance-test
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --ai-test
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --ai-settings-preview
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --ai-settings-preview --preview-narrow --theme dark
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --ui-state ai-failed
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --ui-state failed
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-paging
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-learning
@@ -124,7 +144,7 @@ build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --sentence-integr
 "$HOME/Library/Input Methods/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --register
 ```
 
-构建使用项目 Rust 运行时、既有锁文件和 Apple Command Line Tools，不需要完整 Xcode；Translation 框架弱链接，旧系统跳过整句功能，旧系统运行仍待实测。检查包括隔离外观保存/子进程读回、环境继承和双主题对比度，Swift 格式、类型检查、Rust 格式与 Clippy、8 项真实引擎回归、10 项隔离词库记忆回归、Shift单按/组合保护/焦点边界及中文引擎恢复检查、标点映射/语言/边界及真实引擎组合提交检查、随包资源自测、翻译取消与过期结果检查、属性和本地签名验证。整句联调需 macOS 26 和本地语言；预览与联调不能代替真实宿主输入验收。
+构建使用项目 Rust 运行时、既有锁文件和 Apple Command Line Tools，不需要完整 Xcode；Translation 框架弱链接，旧系统跳过Apple本机整句功能，旧系统运行仍待实测。检查包括隔离外观保存/子进程读回、环境继承和双主题对比度，Swift 格式、类型检查、Rust 格式与 Clippy、8 项真实引擎回归、10 项隔离词库记忆回归、Shift单按/组合保护/焦点边界及中文引擎恢复检查、标点映射/语言/边界及真实引擎组合提交检查、随包资源自测、翻译取消与过期结果检查、属性和本地签名验证。整句联调需 macOS 26 和本地语言；预览与联调不能代替真实宿主输入验收。
 
 `install.py` 只替换相同 bundle ID 的实验版，旧包保留在 `../evidence/native-backups/`，安装记录为 `../evidence/native-install.json`。安装与注册不主动切换输入源。更新已运行的服务时先切到 ABC，停止该实验版进程、安装并注册，再选择实验输入源；必要时从已安装路径启动服务。不要同时运行构建目录的普通 IMK 服务和已安装服务。
 

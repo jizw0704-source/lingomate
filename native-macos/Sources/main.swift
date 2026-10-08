@@ -31,6 +31,14 @@ if let index = arguments.firstIndex(of: "--appearance-readback-test"), arguments
   AppearanceTests.readback(arguments[index + 1], expected: arguments[index + 2])
 }
 let app = NSApplication.shared
+if arguments.contains("--ai-test") {
+  Task { @MainActor in
+    await AITests.run()
+    exit(0)
+  }
+  app.run()
+  exit(0)
+}
 if arguments.contains("--account-test") {
   Task { @MainActor in
     await AccountTests.run()
@@ -67,6 +75,7 @@ let isPreview =
   || arguments.contains("--preview-paging") || arguments.contains("--preview-learning")
   || arguments.contains("--preview-punctuation")
   || arguments.contains("--preview-typing") || arguments.contains("--account-preview")
+  || arguments.contains("--ai-settings-preview")
 let previewTheme: AppearanceChoice? = {
   guard let index = arguments.firstIndex(of: "--theme"), arguments.count > index + 1 else {
     return nil
@@ -75,6 +84,28 @@ let previewTheme: AppearanceChoice? = {
 }()
 AppearanceSettings.configure(
   isolated: isPreview || arguments.contains("--isolated-appearance"), initial: previewTheme)
+let aiDirectory =
+  isPreview
+  ? FileManager.default.temporaryDirectory.appendingPathComponent(
+    "bilingual-ai-" + UUID().uuidString)
+  : FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
+    "Library/Application Support/BilingualCompanion/AITranslation")
+AISettings.store = AISettingsStore(directory: aiDirectory)
+if arguments.contains("--ai-translate") {
+  app.setActivationPolicy(.prohibited)
+  Task { @MainActor in
+    await HybridSentenceTranslation.helper()
+    exit(0)
+  }
+  app.run()
+  exit(0)
+}
+if arguments.contains("--ai-settings") || arguments.contains("--ai-settings-preview") {
+  AISettingsWindow.start(preview: isPreview)
+  app.run()
+  if isPreview { try? FileManager.default.removeItem(at: aiDirectory) }
+  exit(0)
+}
 let learningDirectory =
   isPreview
   ? FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -86,6 +117,7 @@ if arguments.contains("--account") || arguments.contains("--account-preview") {
   AccountWindow.start(preview: isPreview)
   app.run()
   if isPreview { try? FileManager.default.removeItem(at: learningDirectory) }
+  if isPreview { try? FileManager.default.removeItem(at: aiDirectory) }
   exit(0)
 }
 if arguments.contains("--sync-learning") {
@@ -119,6 +151,7 @@ if isPreview {
   app.run()
   Runtime.engine?.terminate()
   try? FileManager.default.removeItem(at: learningDirectory)
+  try? FileManager.default.removeItem(at: aiDirectory)
   if let directory = Preview.learningDirectory {
     try? FileManager.default.removeItem(at: directory)
   }

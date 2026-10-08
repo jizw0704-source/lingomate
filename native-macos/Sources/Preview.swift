@@ -107,6 +107,11 @@ enum Preview {
       panel?.orderOut(nil)
       AccountWindow.start(preview: true)
     }
+    panel?.onAISettings = {
+      window.orderOut(nil)
+      panel?.orderOut(nil)
+      AISettingsWindow.start(preview: true)
+    }
     panel?.onChinese = { index in
       text?.stringValue = state.frame?.candidates[index].text ?? ""
       punctuation.confirm(.chinese)
@@ -172,6 +177,7 @@ enum Preview {
           input: state.input, marked: state.input, candidates: [], committed: nil)
       case "loading": state.sentence = .loading
       case "failed": state.sentence = .failed
+      case "ai-failed": state.sentence = .aiFailed(.denied)
       case "missing": state.sentence = .missingModels
       case "unavailable": state.sentence = .unavailable
       case "overflow":

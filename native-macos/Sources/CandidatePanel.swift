@@ -5,6 +5,7 @@ final class CandidatePanel: NSPanel {
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }
   var onLearning: (() -> Void)?
+  var onAISettings: (() -> Void)?
   var onChinese: ((Int) -> Void)?
   var onEnglish: ((Int, Int) -> Void)?
   var onPage: ((Int) -> Void)?
@@ -274,10 +275,18 @@ final class CandidatePanel: NSPanel {
   private func addSentence(_ state: SessionState, candidate: EngineCandidate, to stack: NSStackView)
   {
     add(divider(), to: stack)
+    let translationLabel: String
+    if case .aiFailed = state.sentence {
+      translationLabel = "AI 在线翻译"
+    } else {
+      translationLabel = AISettings.label
+    }
     add(
       row([
         NativeTheme.label("整句译文", size: 16, weight: .medium), NSView(),
-        NativeTheme.label("本机翻译", size: 11, secondary: true),
+        ActionButton(translationLabel, label: "打开翻译设置，选择本机或 AI 在线翻译") { [weak self] in
+          self?.onAISettings?()
+        },
       ]), to: stack)
     let status: String
     var ready = false
@@ -289,6 +298,7 @@ final class CandidatePanel: NSPanel {
     case .missingModels: status = "首次使用需准备中英文语言，下载后可在本机翻译。"
     case .unavailable: status = "整句翻译需要 macOS 26 或以上，词语译法仍可使用。"
     case .failed: status = "暂未完成翻译，请重试；中文仍可选择。"
+    case .aiFailed(let error): status = error.localizedDescription
     case .none: status = ""
     }
     add(NativeTheme.label(status, size: 15, secondary: !ready), to: stack)

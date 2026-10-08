@@ -18,6 +18,10 @@ final class BilingualInputController: IMKInputController {
       self?.rawCommit()
       AccountWindow.launch()
     }
+    panel.onAISettings = { [weak self] in
+      self?.rawCommit()
+      AISettingsWindow.launch()
+    }
     panel.onChinese = { [weak self] in self?.submit(index: $0) }
     panel.onEnglish = { [weak self] in self?.submit(index: $0, sense: $1) }
     panel.onPage = { [weak self] in self?.changePage($0) }
@@ -307,7 +311,7 @@ final class BilingualInputController: IMKInputController {
           NSSound.beep()
           return false
         }
-        // 译文只来自当前本地任务；用中文候选消耗拼音，不放宽桥接器的译词校验。
+        // 译文只来自当前选定翻译任务；用中文候选消耗拼音，不放宽桥接器的译词校验。
         sentenceEnglish = english
       } else if candidate.translations.indices.contains(sense) {
         request.english = candidate.translations[sense].word
@@ -451,6 +455,10 @@ final class BilingualInputController: IMKInputController {
       appearance.submenu = AppearanceSettings.current.menu(
         target: self, action: #selector(setAppearance(_:)))
       menu.addItem(appearance)
+      let ai = NSMenuItem(
+        title: "AI 翻译设置…", action: #selector(openAISettings(_:)), keyEquivalent: "")
+      ai.target = self
+      menu.addItem(ai)
       let learning = NSMenuItem(
         title: "登录与学习记录…", action: #selector(openLearning(_:)), keyEquivalent: "")
       learning.target = self
@@ -489,6 +497,12 @@ final class BilingualInputController: IMKInputController {
     mainSync {
       rawCommit()
       AccountWindow.launch()
+    }
+  }
+  @objc private func openAISettings(_ sender: Any?) {
+    mainSync {
+      rawCommit()
+      AISettingsWindow.launch()
     }
   }
 

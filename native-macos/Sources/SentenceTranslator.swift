@@ -9,6 +9,7 @@ enum SentenceTranslation: Equatable {
   case missingModels
   case unavailable
   case failed
+  case aiFailed(AIError)
 }
 
 enum LocalTranslationError: Error { case missingModels, unavailable, empty }
@@ -43,13 +44,18 @@ final class SentenceTranslator {
   private var generation = UUID()
   private let translate: (String) async throws -> String
   private let delay: UInt64
+  private var observer: NSObjectProtocol?
+  private var currentChange: ((SentenceTranslation) -> Void)?
 
   init(
     delay: UInt64 = 350_000_000,
-    translate: @escaping (String) async throws -> String = LocalSentenceTranslation.translate
+    translate: @escaping (String) async throws -> String = HybridSentenceTranslation.translate
   ) {
     self.delay = delay
     self.translate = translate
+    observer = DistributedNotificationCenter.default().addObserver(
+      forName: AISettings.notification, object: nil, queue: .main
+    ) { [weak self] _ in self?.settingsChanged() }
   }
 
   func cancel() {
@@ -57,12 +63,14 @@ final class SentenceTranslator {
     task = nil
     key = nil
     generation = UUID()
+    currentChange = nil
   }
 
   func request(key: String, source: String, onChange: @escaping (SentenceTranslation) -> Void) {
     guard self.key != key else { return }
     cancel()
     self.key = key
+    currentChange = onChange
     let token = generation
     let translate = self.translate
     let delay = self.delay
@@ -75,7 +83,9 @@ final class SentenceTranslator {
         onChange(.ready(source: source, english: english))
       } catch {
         guard let self, self.generation == token, !Task.isCancelled else { return }
-        if case LocalTranslationError.missingModels = error {
+        if let aiError = error as? AIError {
+          onChange(.aiFailed(aiError))
+        } else if case LocalTranslationError.missingModels = error {
           onChange(.missingModels)
         } else if case LocalTranslationError.unavailable = error {
           onChange(.unavailable)
@@ -86,5 +96,14 @@ final class SentenceTranslator {
     }
   }
 
-  deinit { task?.cancel() }
+  func settingsChanged() {
+    let change = currentChange
+    cancel()
+    change?(.none)
+  }
+
+  deinit {
+    task?.cancel()
+    if let observer { DistributedNotificationCenter.default().removeObserver(observer) }
+  }
 }
