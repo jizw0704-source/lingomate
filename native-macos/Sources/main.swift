@@ -18,6 +18,10 @@ if arguments.contains("--selftest") {
   SelfTests.run()
   exit(0)
 }
+if arguments.contains("--punctuation-test") {
+  PunctuationTests.run()
+  exit(0)
+}
 
 let app = NSApplication.shared
 if arguments.contains("--sentence-state-test") || arguments.contains("--sentence-integration-test")
@@ -47,6 +51,7 @@ if arguments.contains("--setup-translation") {
 let isPreview =
   arguments.contains("--preview") || arguments.contains("--preview-sentence")
   || arguments.contains("--preview-paging") || arguments.contains("--preview-learning")
+  || arguments.contains("--preview-punctuation")
 do {
   guard let resources = Bundle.main.resourceURL else { throw EngineFailure.unavailable }
   let memoryURL =

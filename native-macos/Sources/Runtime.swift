@@ -7,4 +7,5 @@ enum Runtime {
   static var failure: String?
   static var memoryWarning: String?
   static var remember = true
+  static var punctuationMode = PunctuationMode.automatic
 }

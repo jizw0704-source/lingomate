@@ -6,6 +6,7 @@ import InputMethodKit
 @objc(BilingualInputController)
 final class BilingualInputController: IMKInputController {
   private var state = SessionState()
+  private var punctuation = PunctuationState()
   private var textClient: IMKTextInput?
   private let learningContext = UUID().uuidString
   private let sentenceTranslator = SentenceTranslator()
@@ -27,6 +28,7 @@ final class BilingualInputController: IMKInputController {
       self?.draw()
     }
     panel.onMode = { [weak self] in self?.toggleMode(nil) }
+    panel.onPunctuation = { [weak self] in self?.cyclePunctuation() }
     panel.onRetryTranslation = { [weak self] in self?.updateSentenceTranslation(force: true) }
     panel.onSetupTranslation = { [weak self] in
       self?.discard()
@@ -49,11 +51,19 @@ final class BilingualInputController: IMKInputController {
       textClient = client
       if IsSecureEventInputEnabled() {
         discard()
+        punctuation.resetContext()
         return false
       }
       let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+      if event.keyCode == kVK_ANSI_P, flags.contains([.control, .shift]),
+        !flags.contains(.command), !flags.contains(.option)
+      {
+        if !event.isARepeat { cyclePunctuation() }
+        return true
+      }
       if flags.contains(.command) || flags.contains(.control) || flags.contains(.option) {
         rawCommit()
+        punctuation.resetContext()
         return false
       }
       if event.keyCode == 97 {
@@ -63,12 +73,16 @@ final class BilingualInputController: IMKInputController {
       guard Runtime.engine != nil else { return false }
       switch event.keyCode {
       case 51:
-        guard !state.input.isEmpty else { return false }
+        guard !state.input.isEmpty else {
+          punctuation.resetContext()
+          return false
+        }
         state.input.removeLast()
         state.resetSelection()
         refresh()
         return true
       case 53:
+        punctuation.resetContext()
         if state.expanded {
           state.expanded = false
           draw()
@@ -78,7 +92,10 @@ final class BilingualInputController: IMKInputController {
         discard()
         return true
       case 125, 126:
-        guard !state.input.isEmpty else { return false }
+        guard !state.input.isEmpty else {
+          punctuation.resetContext()
+          return false
+        }
         state.move(event.keyCode == 125 ? 1 : -1)
         updateSentenceTranslation()
         draw()
@@ -88,6 +105,7 @@ final class BilingualInputController: IMKInputController {
         changePage(event.keyCode == 116 ? -1 : 1)
         return true
       case 48:
+        punctuation.clearLiteral()
         guard !state.input.isEmpty, Runtime.bilingual else {
           rawCommit()
           return false
@@ -101,6 +119,7 @@ final class BilingualInputController: IMKInputController {
         draw()
         return true
       case 49:
+        punctuation.clearLiteral()
         guard !state.input.isEmpty else { return false }
         if !event.isARepeat {
           submit(
@@ -109,6 +128,7 @@ final class BilingualInputController: IMKInputController {
         }
         return true
       case 36, 76:
+        punctuation.resetContext()
         guard !state.input.isEmpty else { return false }
         if state.expanded && Runtime.bilingual {
           submit(index: state.active, sense: state.sense)
@@ -116,13 +136,20 @@ final class BilingualInputController: IMKInputController {
           rawCommit()
         }
         return true
-      case 123, 124:
+      case 115, 119, 123, 124:
+        punctuation.resetContext()
         guard !state.input.isEmpty else { return false }
         rawCommit()
         return false
       default: break
       }
       guard let characters = event.characters, !characters.isEmpty else { return false }
+      if state.input.isEmpty, punctuation.isLatinLiteral,
+        characters.utf8.allSatisfy({ (33...126).contains($0) })
+      {
+        punctuation.observeLiteral(characters)
+        return false
+      }
       if !state.input.isEmpty, !flags.contains(.shift), characters == "-" || characters == "=" {
         changePage(characters == "-" ? -1 : 1)
         return true
@@ -137,6 +164,12 @@ final class BilingualInputController: IMKInputController {
         }
         return true
       }
+      if let action = PunctuationState.action(
+        key: characters, input: state.input,
+        hasCandidate: state.candidate != nil, mode: Runtime.punctuationMode)
+      {
+        return submitPunctuation(characters, action: action)
+      }
       let lower = characters.lowercased()
       if lower.utf8.allSatisfy({ (97...122).contains($0) || $0 == 39 }),
         state.input.count + lower.count <= 240
@@ -147,6 +180,7 @@ final class BilingualInputController: IMKInputController {
         return true
       }
       rawCommit()
+      punctuation.observeLiteral(characters)
       return false
     }
   }
@@ -217,17 +251,19 @@ final class BilingualInputController: IMKInputController {
     if anchor == .zero {
       anchor = NSRect(origin: NSEvent.mouseLocation, size: NSSize(width: 1, height: 20))
     }
-    panel.show(state, bilingual: Runtime.bilingual, anchor: anchor)
+    panel.show(
+      state, bilingual: Runtime.bilingual, anchor: anchor,
+      punctuationLabel: punctuation.label(mode: Runtime.punctuationMode))
   }
 
-  private func submit(index: Int, sense: Int? = nil) {
+  @discardableResult private func submit(index: Int, sense: Int? = nil) -> Bool {
     guard textClient != nil, !IsSecureEventInputEnabled() else {
       discard()
-      return
+      return false
     }
     guard let candidates = state.frame?.candidates, candidates.indices.contains(index) else {
       NSSound.beep()
-      return
+      return false
     }
     let candidate = candidates[index]
     var request = EngineRequest(
@@ -235,13 +271,13 @@ final class BilingualInputController: IMKInputController {
       syllables: candidate.syllables, context: learningContext)
     var sentenceEnglish: String?
     if let sense {
-      guard Runtime.bilingual else { return }
+      guard Runtime.bilingual else { return false }
       if candidate.translations.isEmpty {
         guard sense == 0, index == state.active,
           case .ready(let source, let english) = state.sentence, source == candidate.text
         else {
           NSSound.beep()
-          return
+          return false
         }
         // 译文只来自当前本地任务；用中文候选消耗拼音，不放宽桥接器的译词校验。
         sentenceEnglish = english
@@ -249,7 +285,7 @@ final class BilingualInputController: IMKInputController {
         request.english = candidate.translations[sense].word
       } else {
         NSSound.beep()
-        return
+        return false
       }
     }
     do {
@@ -263,6 +299,7 @@ final class BilingualInputController: IMKInputController {
       state.clear()
       sentenceTranslator.cancel()
       textClient?.insertText(sentenceEnglish ?? committed, replacementRange: noReplacement)
+      punctuation.confirm(sense == nil ? .chinese : .english)
       if Runtime.remember {
         engine.confirmSelection(next, context: learningContext, chinese: sense == nil)
       } else {
@@ -271,10 +308,29 @@ final class BilingualInputController: IMKInputController {
       state.input = next.input
       state.frame = next
       refresh()
+      return true
     } catch {
       Runtime.failure = error.localizedDescription
       NSSound.beep()
+      return false
     }
+  }
+
+  private func submitPunctuation(_ key: String, action: PunctuationAction) -> Bool {
+    switch action {
+    case .raw: rawCommit()
+    case .commitChinese:
+      guard submit(index: state.active) else { return true }
+      // A partial candidate may have been output; retain its remaining composition.
+      guard state.input.isEmpty else {
+        NSSound.beep()
+        return true
+      }
+    case .symbol: break
+    }
+    guard let symbol = punctuation.render(key, mode: Runtime.punctuationMode) else { return false }
+    textClient?.insertText(symbol, replacementRange: noReplacement)
+    return true
   }
 
   private func rawCommit() {
@@ -283,7 +339,10 @@ final class BilingualInputController: IMKInputController {
     let raw = state.input
     state.clear()
     panel.orderOut(nil)
-    if !raw.isEmpty { textClient?.insertText(raw, replacementRange: noReplacement) }
+    if !raw.isEmpty {
+      textClient?.insertText(raw, replacementRange: noReplacement)
+      punctuation.observeLiteral(raw)
+    }
   }
 
   private func discard() {
@@ -302,6 +361,7 @@ final class BilingualInputController: IMKInputController {
   override func deactivateServer(_ sender: Any!) {
     mainSync {
       rawCommit()
+      punctuation.resetContext()
       textClient = nil
     }
   }
@@ -324,6 +384,20 @@ final class BilingualInputController: IMKInputController {
       mode.target = self
       mode.state = Runtime.bilingual ? .on : .off
       menu.addItem(mode)
+      let punctuationItem = NSMenuItem(
+        title: punctuation.label(mode: Runtime.punctuationMode),
+        action: nil, keyEquivalent: "")
+      let choices = NSMenu(title: "标点")
+      for choice in PunctuationMode.allCases {
+        let item = NSMenuItem(
+          title: choice.title, action: #selector(setPunctuation(_:)), keyEquivalent: "")
+        item.tag = choice.rawValue
+        item.target = self
+        item.state = Runtime.punctuationMode == choice ? .on : .off
+        choices.addItem(item)
+      }
+      punctuationItem.submenu = choices
+      menu.addItem(punctuationItem)
       let setup = NSMenuItem(
         title: "准备本地整句翻译…", action: #selector(prepareTranslation(_:)), keyEquivalent: "")
       setup.target = self
@@ -351,10 +425,26 @@ final class BilingualInputController: IMKInputController {
 
   @objc private func toggleMode(_ sender: Any?) {
     Runtime.bilingual.toggle()
+    if !Runtime.bilingual { punctuation.confirm(.chinese) }
     state.expanded = false
     state.sense = 0
     updateSentenceTranslation()
     draw()
+  }
+
+  private func cyclePunctuation() {
+    Runtime.punctuationMode = Runtime.punctuationMode.next
+    punctuation.resetContext()
+    draw()
+  }
+
+  @objc private func setPunctuation(_ sender: NSMenuItem) {
+    mainSync {
+      guard let mode = PunctuationMode(rawValue: sender.tag) else { return }
+      Runtime.punctuationMode = mode
+      punctuation.resetContext()
+      draw()
+    }
   }
 
   @objc private func toggleMemory(_ sender: Any?) {

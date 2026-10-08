@@ -21,6 +21,8 @@ build.sh uses the parent local Rust runtime with Cargo.lock and existing Apple C
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-paging
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-learning
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-punctuation
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --punctuation-test
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-sentence
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --setup-translation
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --sentence-integration-test
@@ -35,3 +37,5 @@ Sentence integration checks require downloaded languages; check.sh runs cancella
 Paging uses absolute engine indices internally and local 1–5 slot numbers per page. Never pass a local slot directly to commit. Page changes invalidate sentence translation and expanded senses; first/last page boundaries preserve state. Engine candidates are capped at64, keep remaining Pinyin and English validation intact.
 
 Learning requires a valid context-bound commit receipt confirmed after host insertText. Cancel, raw submission and edits discard pending receipts/composition chains. English output learns the underlying Chinese word but never joins an English output into a composed new word. Personal vocabulary lives outside the repository in ~/Library/Application Support/BilingualCompanion/PersonalVocabulary/words.json. Keep malformed files intact. Memory integration tests use temporary stores; --preview-learning seeds and reloads its own temporary store. Pause is session-only and does not erase existing vocabulary.
+
+Punctuation state is per-controller and follows confirmed Chinese/English output; manual override is process-local. Never inspect host text. Keep apostrophe within Pinyin and paging shortcuts intact. Submit punctuation only after a successful full Chinese commit; preserve leftover Pinyin after partial commits. Numeric protection is automatic; fixed Chinese can force a sentence period. Recognized schemes/www/email or fixed English preserve raw letters and use temporary ASCII passthrough until a boundary. --punctuation-test uses bundled real engine without a personal store; --preview-punctuation checks shared rule rendering, not IMK keyboard delivery.

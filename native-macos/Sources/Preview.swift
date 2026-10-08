@@ -10,6 +10,9 @@ enum Preview {
   static var candidateView: NSView?
   static let sentenceTranslator = SentenceTranslator()
   static var learningDirectory: URL?
+  static var punctuation = PunctuationState()
+  static var punctuationView: NSView?
+  static let punctuationPreview = CommandLine.arguments.contains("--preview-punctuation")
   static func prepareLearning(resources: URL) throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     learningDirectory = directory
@@ -39,6 +42,9 @@ enum Preview {
     if learningDirectory != nil {
       label.stringValue = "选词记忆预览：已在隔离词库中选过‘市’并重启引擎。此预览不写入个人词库。"
     }
+    if punctuationPreview {
+      label.stringValue = "标点预览：选择中文或英文，再点标点按钮。此窗口只检查共享规则，不写入个人词库。"
+    }
     label.frame = NSRect(x: 24, y: 115, width: 610, height: 40)
     let output = NSTextField(string: "尚未选择")
     output.isEditable = false
@@ -58,7 +64,11 @@ enum Preview {
         CommandLine.arguments.contains("--preview-sentence") ? "wojintianxiangxuexiyingyu" : "xuexi"
     }
     state.frame = try? Runtime.engine?.request(EngineRequest(action: "query", input: state.input))
-    panel?.onChinese = { index in text?.stringValue = state.frame?.candidates[index].text ?? "" }
+    panel?.onChinese = { index in
+      text?.stringValue = state.frame?.candidates[index].text ?? ""
+      punctuation.confirm(.chinese)
+      draw()
+    }
     panel?.onPage = { delta in
       guard state.changePage(delta) else { return }
       translateSentence()
@@ -68,9 +78,12 @@ enum Preview {
       guard let candidate = state.frame?.candidates[index] else { return }
       if candidate.translations.indices.contains(sense) {
         text?.stringValue = candidate.translations[sense].word
+        punctuation.confirm(.english)
       } else if case .ready(let source, let english) = state.sentence, source == candidate.text {
         text?.stringValue = english
+        punctuation.confirm(.english)
       }
+      draw()
     }
     panel?.onExpand = { index in
       state.active = index
@@ -84,7 +97,13 @@ enum Preview {
     }
     panel?.onMode = {
       Runtime.bilingual.toggle()
+      if !Runtime.bilingual { punctuation.confirm(.chinese) }
       translateSentence()
+      draw()
+    }
+    panel?.onPunctuation = {
+      Runtime.punctuationMode = Runtime.punctuationMode.next
+      punctuation.resetContext()
       draw()
     }
     panel?.onRetryTranslation = {
@@ -111,19 +130,38 @@ enum Preview {
     guard let window else { return }
     panel?.show(
       state, bilingual: Runtime.bilingual,
-      anchor: NSRect(x: window.frame.minX + 24, y: window.frame.minY, width: 1, height: 20))
+      anchor: NSRect(x: window.frame.minX + 24, y: window.frame.minY, width: 1, height: 20),
+      punctuationLabel: punctuation.label(mode: Runtime.punctuationMode))
     // 预览将同一候选视图放进标准窗口，方便检查；此模式不验证宿主焦点。
     guard let panel, let view = panel.contentView else { return }
     panel.orderOut(nil)
     candidateView?.removeFromSuperview()
     let height = panel.frame.height
-    window.setContentSize(NSSize(width: 660, height: height + 180))
+    let extra: CGFloat = punctuationPreview ? 56 : 0
+    window.setContentSize(NSSize(width: 660, height: height + 180 + extra))
     explanation?.frame = NSRect(x: 24, y: height + 115, width: 610, height: 40)
-    text?.frame = NSRect(x: 24, y: height + 65, width: 610, height: 36)
+    text?.frame = NSRect(x: 24, y: height + 65 + extra, width: 610, height: 36)
+    explanation?.frame.origin.y += extra
     view.removeFromSuperview()
     window.contentView?.addSubview(view)
     view.frame = NSRect(x: 24, y: 24, width: 600, height: height)
     candidateView = view
+    punctuationView?.removeFromSuperview()
+    if punctuationPreview {
+      let controls = NSStackView(
+        views: [",", ".", "!", "?", "\"", "(", ")"].map { key in
+          ActionButton(key, label: "预览标点 \(key)") {
+            if let symbol = punctuation.render(key, mode: Runtime.punctuationMode) {
+              text?.stringValue += symbol
+            }
+          }
+        })
+      controls.orientation = .horizontal
+      controls.spacing = 8
+      controls.frame = NSRect(x: 24, y: height + 64, width: 600, height: 44)
+      window.contentView?.addSubview(controls)
+      punctuationView = controls
+    }
     window.center()
   }
 }

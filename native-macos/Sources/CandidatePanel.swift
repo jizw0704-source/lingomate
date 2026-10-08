@@ -10,6 +10,7 @@ final class CandidatePanel: NSPanel {
   var onExpand: ((Int) -> Void)?
   var onCollapse: (() -> Void)?
   var onMode: (() -> Void)?
+  var onPunctuation: (() -> Void)?
   var onRetryTranslation: (() -> Void)?
   var onSetupTranslation: (() -> Void)?
   private let ink = NSColor(srgbRed: 16 / 255, green: 16 / 255, blue: 16 / 255, alpha: 1)
@@ -57,7 +58,10 @@ final class CandidatePanel: NSPanel {
     return view
   }
 
-  func show(_ state: SessionState, bilingual: Bool, anchor: NSRect) {
+  func show(
+    _ state: SessionState, bilingual: Bool, anchor: NSRect,
+    punctuationLabel: String = "标点：中文 · 自动"
+  ) {
     let width: CGFloat = 600
     let content = NSView()
     content.wantsLayer = true
@@ -83,7 +87,15 @@ final class CandidatePanel: NSPanel {
       [weak self] in self?.onMode?()
     }
     mode.contentTintColor = green
-    let head = row([label(state.frame?.marked ?? state.input, size: 18), NSView(), mode])
+    let punctuation = ActionButton(
+      punctuationLabel, label: "\(punctuationLabel)，切换标点模式，Control Shift P"
+    ) {
+      [weak self] in self?.onPunctuation?()
+    }
+    punctuation.toolTip = "自动 → 固定中文 → 固定英文；Control＋Shift＋P 切换"
+    let head = row([
+      label(state.frame?.marked ?? state.input, size: 18), NSView(), punctuation, mode,
+    ])
     stack.addArrangedSubview(head)
     head.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
     let line = divider()

@@ -1,4 +1,4 @@
-# 中英输入实验版 · macOS 0.4.0
+# 中英输入实验版 · macOS 0.5.0
 
 原生输入法使用 Swift / AppKit / InputMethodKit 和随包的青简 Rust 引擎，将选中的中文或英文提交到原应用。中文及词语释义支持 Apple Silicon Mac、macOS 13 以上；整句翻译需要 macOS 26 以上和已下载的中英文翻译语言。网页原型仍在 `../prototype/`，本次整句功能只接入原生版。
 
@@ -23,11 +23,24 @@
 | 中文 / 英文 / 展开按钮 | 直接选择或查看词语用法 |
 | Esc | 先收起展开状态，再取消组合输入和翻译任务 |
 | Enter | 展开状态输出英文；未展开时输出原样拼音 |
+| Control＋Shift＋P，或标点按钮 / 输入源菜单 | 自动 → 固定中文 → 固定英文标点 |
 | F6，或模式按钮 | 切换普通中文和中英候选，保留拼音 |
 
 每页显示5项，显示页码与总候选数；桥接层最多返回64项，数量取决于词典实际候选。翻页不提交文字，清除上一候选的展开与译文；首末页不循环。Mac没有专用翻页键时可用Fn＋↑/↓或减号/等号。
 
 一次组合输入最多 240 个拼音字符。英文按原样提交，连续英文词之间请另按空格。快捷键交还宿主前、切换应用或输入源时，会原样提交未完成拼音。安全输入开启时不处理按键。整句任务在继续输入、换候选、取消或提交时失效，不把旧句译文提交到新句。
+
+## 中英文标点
+
+0.5 默认自动跟随当前会话最近确认输出的语言。选中文后，逗号/句号/问号等输出 `，。！？：；`，括号输出 `（）【】《》`，单、双引号分别交替输出 `‘’`、`“”`；选择词语英文或整句英文后，使用对应半角符号。切到普通中文模式会把自动标点恢复为中文。
+
+例如输入 `nihao` 并选择“你好”，再按逗号键，输出“你好，”；选择 `xuexi` 的 `learn` 后按逗号，输出 `learn,`。自动模式下，拼音仍在候选窗且按标点时，会先输出当前中文候选，再补标点；如果只消耗部分拼音，则先输出该片段、保留剩余拼音并提示音，待继续选词后再按标点，不丢弃剩余字母。无候选时原样提交字母。
+
+点击候选窗的“标点”按钮，或按 **Control＋Shift＋P**，依次切换自动 / 固定中文 / 固定英文；输入源菜单可直接选择。固定模式优先于最近输出语言，重启服务后恢复自动。固定英文时，标点前尚未确认的字母会原样提交，便于输入域名；若要中文文字搭配半角标点，请先确认中文候选。
+
+自动模式下数字后的点号、冒号及斜线保留半角，例如 `3.14`、`12:30`。数字后直接按点号会优先视为小数点；需要中文句号时可切到固定中文。网址前缀 `https:`、`http:`、`www.` 和邮箱中的 `@` 会进入临时字母直输，后续地址符号保持半角，空格/换行、移动光标或确认中文会结束；不带前缀的 `example.com` 请先切到固定英文，以免被当作拼音。输入正文已有的数字、标点或网址不在检测范围，本功能不读取原应用正文。
+
+拼音组合中的单引号仍用于分音，例如 `xi'an`；未组合时才用作引号。半角英文标点不会自动补空格。切换应用、移动光标或删除文字后会重置引号开闭及临时地址/数字状态。宿主应用自己的智能引号、自动更正可能再次改变字符，需在实际应用中核对。
 
 ## 选词记忆
 
@@ -55,6 +68,8 @@ bash tools/check.sh
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-paging
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-learning
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-punctuation
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --punctuation-test
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-sentence
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --setup-translation
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --sentence-integration-test
@@ -62,7 +77,7 @@ build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --sentence-integr
 "$HOME/Library/Input Methods/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --register
 ```
 
-构建使用项目 Rust 运行时、既有锁文件和 Apple Command Line Tools，不需要完整 Xcode；Translation 框架弱链接，旧系统跳过整句功能，旧系统运行仍待实测。检查包括 Swift 格式、类型检查、Rust 格式与 Clippy、8 项真实引擎回归、10 项隔离词库记忆回归、随包资源自测、翻译取消与过期结果检查、属性和本地签名验证。整句联调需 macOS 26 和本地语言；预览与联调不能代替真实宿主输入验收。
+构建使用项目 Rust 运行时、既有锁文件和 Apple Command Line Tools，不需要完整 Xcode；Translation 框架弱链接，旧系统跳过整句功能，旧系统运行仍待实测。检查包括 Swift 格式、类型检查、Rust 格式与 Clippy、8 项真实引擎回归、10 项隔离词库记忆回归、标点映射/语言/边界及真实引擎组合提交检查、随包资源自测、翻译取消与过期结果检查、属性和本地签名验证。整句联调需 macOS 26 和本地语言；预览与联调不能代替真实宿主输入验收。
 
 `install.py` 只替换相同 bundle ID 的实验版，旧包保留在 `../evidence/native-backups/`，安装记录为 `../evidence/native-install.json`。安装与注册不主动切换输入源。更新已运行的服务时先切到 ABC，停止该实验版进程、安装并注册，再选择实验输入源；必要时从已安装路径启动服务。不要同时运行构建目录的普通 IMK 服务和已安装服务。
 
@@ -76,7 +91,7 @@ build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --sentence-integr
 
 ## 状态和许可
 
-0.4 已在本机完成构建、本地系统翻译、真实引擎拼音消耗和原生预览按钮检查，并安装更新。自动界面工具的测试按键绕过输入法，连自带简体拼音也只输出原样字母，因此没有据此宣称真实键盘、宿主焦点或跨应用验收完成。具体证据和待验证项见 [QA.md](QA.md)。
+0.5 已在本机完成构建、本地系统翻译、真实引擎拼音消耗和原生预览按钮检查，并安装更新。自动界面工具的测试按键绕过输入法，连自带简体拼音也只输出原样字母，因此没有据此宣称真实键盘、宿主焦点或跨应用验收完成。具体证据和待验证项见 [QA.md](QA.md)。
 
 当前候选最多64项；已支持本地选词记忆；尚无整句多译法、学习统计页面、词库管理界面、持久设置或跨平台接入。沿用 GPL-3.0-or-later。青简源码保持原样，不使用其商标、图标或外观；来源说明随包保留为 `GLOSSARY-NOTICE.md` 和 `LEXICON-NOTICE.md`。这是本地实验包，未做发行签名、公证或公开发布审核。
 
