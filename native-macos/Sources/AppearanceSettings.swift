@@ -43,7 +43,7 @@ final class AppearanceSettings: NSObject {
 
   static func configure(isolated: Bool, initial: AppearanceChoice?) {
     let settings = AppearanceSettings(
-      store: isolated ? nil : UserDefaults(suiteName: "org.local.bilingualcompanion"))
+      store: isolated ? nil : UserDefaults.standard)
     configured = settings
     if let initial, isolated { settings.choice = initial }
     settings.apply()
