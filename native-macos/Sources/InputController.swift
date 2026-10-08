@@ -6,6 +6,7 @@ import InputMethodKit
 @objc(BilingualInputController)
 final class BilingualInputController: IMKInputController {
   private var state = SessionState()
+  var hasComposition: Bool { !state.input.isEmpty }
   private var punctuation = PunctuationState()
   private var shiftTap = ShiftTap()
   private var modeNotice = UUID()
@@ -56,11 +57,15 @@ final class BilingualInputController: IMKInputController {
 
   override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
     mainSync {
+      InputDiagnostics.events += 1
+      InputDiagnostics.controller = self
       guard let event, let client = sender as? IMKTextInput else {
+        InputDiagnostics.rejectedClients += 1
         return false
       }
       textClient = client
       if IsSecureEventInputEnabled() {
+        InputDiagnostics.secureRejections += 1
         discard()
         punctuation.resetContext()
         shiftTap.reset()
@@ -392,6 +397,8 @@ final class BilingualInputController: IMKInputController {
 
   override func activateServer(_ sender: Any!) {
     mainSync {
+      InputDiagnostics.activations += 1
+      InputDiagnostics.controller = self
       shiftTap.reset()
       textClient = sender as? IMKTextInput
     }
@@ -399,6 +406,7 @@ final class BilingualInputController: IMKInputController {
 
   override func deactivateServer(_ sender: Any!) {
     mainSync {
+      InputDiagnostics.deactivations += 1
       rawCommit()
       shiftTap.reset()
       modeNotice = UUID()

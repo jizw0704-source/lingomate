@@ -1,4 +1,4 @@
-# 中英输入实验版 · macOS 0.10.0
+# 中英输入实验版 · macOS 0.10.1
 
 原生输入法使用 Swift / AppKit / InputMethodKit 和随包的青简 Rust 引擎，将选中的中文或英文提交到原应用。中文及词语释义支持 Apple Silicon Mac、macOS 13 以上；Apple本机整句翻译需要 macOS 26 以上和已下载的中英文翻译语言；可选MiniMax模式使用在线API，不要求下载Apple语言，旧系统实机运行待测。网页原型仍在 `../prototype/`，本次整句功能只接入原生版。
 
@@ -155,6 +155,20 @@ build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --sentence-integr
 ```
 
 测试后恢复测试前输入源；本次用户已经使用实验输入法，不沿用 0.1 安装记录中的旧简体拼音恢复目标。`--disable` 仅用于主动停用，保留应用与资源。
+
+## 输入无响应时的状态检查
+
+0.10.1增加只读检查，正常输入法进程只保留内存中的会话激活/失活、按键到达、客户端拒绝和安全输入拒绝计数，以及中文/英文模式、引擎是否可用、是否存在组合输入、是否允许窗口和候选窗是否可见等布尔状态。不会保存按键字符、拼音、候选、宿主名称、聊天内容或密钥，不写输入日志。退出进程计数归零。
+
+```sh
+"$HOME/Library/Input Methods/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --input-status
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --input-diagnostic-test
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --input-window-test
+```
+
+查询通过当前用户下的辅助通知请求现有服务，2秒无响应会报错，不启动新IMK实例。输入源显示选中、进程存在或计数增加，都不能单独证明文字已在宿主上屏。需实体键盘确认中文及英文选择；自动工具在钉钉中也未触发苹果拼音的真实候选流程。
+
+此次实体键盘排查确认事件已到达、组合输入已建立，客户端/安全输入拒绝均为0。发现正常服务使用了禁止窗口的 `.prohibited` 策略，已改为 `.accessory`；候选面板继续使用非激活窗口，不能成为键盘或主窗口。独立窗口检查在560/440pt下验证显示、隐藏和前台焦点保留，使用隔离词库，不启动IMKServer；它仍不代表钉钉提交已验收。服务启动同时检查ObjC控制器注册。需要在钉钉实体键盘重试确认修复效果；不自动重启钉钉或系统，不绕过安全输入。苹果[窗口策略说明](https://developer.apple.com/documentation/appkit/nsapplication/activationpolicy-swift.enum/prohibited)。
 
 ## 状态和许可
 

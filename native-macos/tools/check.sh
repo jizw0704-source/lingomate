@@ -20,6 +20,8 @@ bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --appearance-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --account-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --ai-test
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --input-diagnostic-test
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --input-window-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --selftest
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --punctuation-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --typing-test

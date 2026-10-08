@@ -3,6 +3,14 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if arguments.contains("--input-status") {
+  InputDiagnostics.query()
+  exit(0)
+}
+if arguments.contains("--input-diagnostic-test") {
+  InputDiagnostics.checks()
+  exit(0)
+}
 if arguments.contains("--sources") {
   InputSources.list(includeDisabled: arguments.contains("--all"))
   exit(0)
@@ -31,6 +39,10 @@ if let index = arguments.firstIndex(of: "--appearance-readback-test"), arguments
   AppearanceTests.readback(arguments[index + 1], expected: arguments[index + 2])
 }
 let app = NSApplication.shared
+if arguments.contains("--input-window-test") {
+  InputPresentation.checks()
+  exit(0)
+}
 if arguments.contains("--ai-test") {
   Task { @MainActor in
     await AITests.run()
@@ -156,7 +168,16 @@ if isPreview {
     try? FileManager.default.removeItem(at: directory)
   }
 } else {
-  app.setActivationPolicy(.prohibited)
+  InputPresentation.configure()
+  // 明确引用注册的ObjC类，避免仅字符串查找时退回基类。
+  InputDiagnostics.controllerRegistered = NSClassFromString("BilingualInputController") != nil
+  guard NSStringFromClass(BilingualInputController.self) == "BilingualInputController",
+    NSClassFromString("BilingualInputController") == BilingualInputController.self
+  else {
+    fputs("输入控制器注册失败\n", stderr)
+    exit(1)
+  }
+  InputDiagnostics.start()
   let server = IMKServer(
     name: "org.local.bilingualcompanion_Connection",
     bundleIdentifier: "org.local.bilingualcompanion")
