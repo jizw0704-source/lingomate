@@ -7,6 +7,7 @@ enum Preview {
   static var state = SessionState()
   static var text: NSTextField?
   static var explanation: NSTextField?
+  static var outputCaption: NSTextField?
   static var candidateView: NSView?
   static let sentenceTranslator = SentenceTranslator()
   static var learningDirectory: URL?
@@ -16,6 +17,15 @@ enum Preview {
   static let typingPreview = CommandLine.arguments.contains("--preview-typing")
   static var shiftTap = ShiftTap()
   static var eventMonitor: Any?
+  static let narrowPreview = CommandLine.arguments.contains("--preview-narrow")
+  static let fixture: String? = {
+    let arguments = CommandLine.arguments
+    guard let index = arguments.firstIndex(of: "--ui-state"), arguments.count > index + 1 else {
+      return nil
+    }
+    return arguments[index + 1]
+  }()
+  static var hasPresented = false
   static func prepareLearning(resources: URL) throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     learningDirectory = directory
@@ -40,6 +50,8 @@ enum Preview {
       contentRect: NSRect(x: 0, y: 0, width: 660, height: 180),
       styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
     window.title = "中英输入实验版 · 候选窗预览（非系统输入测试）"
+    window.appearance = NSAppearance(named: .aqua)
+    window.backgroundColor = .white
     window.center()
     let label = NSTextField(wrappingLabelWithString: "这是原生候选窗预览。点击中英文检查按钮，真实输入请从系统输入源选择。")
     if learningDirectory != nil {
@@ -61,23 +73,34 @@ enum Preview {
         return event
       }
     }
+    if fixture != nil { label.stringValue = "界面状态样例，内容为测试数据；不代表真实翻译结果。" }
+    label.font = NativeTheme.font(13)
+    label.textColor = NativeTheme.muted
     label.frame = NSRect(x: 24, y: 115, width: 610, height: 40)
     let output = NSTextField(string: "尚未选择")
     output.isEditable = false
+    output.font = NativeTheme.font(16)
+    output.textColor = NativeTheme.ink
+    output.backgroundColor = NativeTheme.surface
     output.frame = NSRect(x: 24, y: 55, width: 610, height: 36)
     window.contentView?.addSubview(label)
     window.contentView?.addSubview(output)
+    let caption = NativeTheme.label("输出预览", size: 11, secondary: true)
+    caption.translatesAutoresizingMaskIntoConstraints = true
+    window.contentView?.addSubview(caption)
     window.makeKeyAndOrderFront(nil)
     NSApplication.shared.activate(ignoringOtherApps: true)
     self.window = window
     text = output
     explanation = label
+    outputCaption = caption
     panel = CandidatePanel()
     if CommandLine.arguments.contains("--preview-paging") || learningDirectory != nil {
       state.input = "shi"
     } else {
       state.input =
-        CommandLine.arguments.contains("--preview-sentence") ? "wojintianxiangxuexiyingyu" : "xuexi"
+        CommandLine.arguments.contains("--preview-sentence") || fixture != nil
+        ? "wojintianxiangxuexiyingyu" : "xuexi"
     }
     state.frame = try? Runtime.engine?.request(EngineRequest(action: "query", input: state.input))
     panel?.onChinese = { index in
@@ -104,6 +127,7 @@ enum Preview {
     panel?.onExpand = { index in
       state.active = index
       state.expanded = true
+      state.sense = 0
       translateSentence()
       draw()
     }
@@ -132,6 +156,36 @@ enum Preview {
     draw()
   }
   static func translateSentence() {
+    if let fixture {
+      sentenceTranslator.cancel()
+      if !Runtime.bilingual || Runtime.typingMode == .english {
+        state.sentence = .none
+        return
+      }
+      switch fixture {
+      case "empty":
+        state.frame = EngineFrame(
+          input: state.input, marked: state.input, candidates: [], committed: nil)
+      case "loading": state.sentence = .loading
+      case "failed": state.sentence = .failed
+      case "missing": state.sentence = .missingModels
+      case "unavailable": state.sentence = .unavailable
+      case "overflow":
+        state.input = String(repeating: "wojintianxiangxuexiyingyu", count: 10)
+        let chinese = String(repeating: "我想学习英语并了解不同的文化。", count: 6)
+        state.frame = EngineFrame(
+          input: state.input, marked: state.input,
+          candidates: [
+            EngineCandidate(text: chinese, syllables: [], translations: [], hasDetails: false)
+          ], committed: nil)
+        state.sentence = .ready(
+          source: chinese,
+          english: String(
+            repeating: "I want to learn English and understand different cultures. ", count: 20))
+      default: break
+      }
+      return
+    }
     guard Runtime.typingMode == .chinese, Runtime.bilingual, let candidate = state.candidate,
       candidate.translations.isEmpty
     else {
@@ -166,7 +220,9 @@ enum Preview {
       panel?.show(
         state, bilingual: Runtime.bilingual,
         anchor: NSRect(x: window.frame.minX + 24, y: window.frame.minY, width: 1, height: 20),
-        punctuationLabel: punctuation.label(mode: Runtime.punctuationMode))
+        punctuationLabel: punctuation.label(mode: Runtime.punctuationMode),
+        maximumWidth: narrowPreview ? 480 : 600,
+        maximumHeight: max(240, (window.screen?.visibleFrame.height ?? 900) - 220))
     }
     // 预览将同一候选视图放进标准窗口，方便检查；此模式不验证宿主焦点。
     guard let panel, let view = panel.contentView else { return }
@@ -174,9 +230,12 @@ enum Preview {
     candidateView?.removeFromSuperview()
     let height = panel.frame.height
     let extra: CGFloat = punctuationPreview ? 56 : 0
-    window.setContentSize(NSSize(width: 660, height: height + 180 + extra))
-    explanation?.frame = NSRect(x: 24, y: height + 115, width: 610, height: 40)
-    text?.frame = NSRect(x: 24, y: height + 65 + extra, width: 610, height: 36)
+    let oldFrame = window.frame
+    let width = max(panel.frame.width, narrowPreview ? 480 : 600) + 48
+    window.setContentSize(NSSize(width: width, height: height + 180 + extra))
+    explanation?.frame = NSRect(x: 24, y: height + 127, width: width - 48, height: 40)
+    outputCaption?.frame = NSRect(x: 24, y: height + 107 + extra, width: width - 48, height: 16)
+    text?.frame = NSRect(x: 24, y: height + 57 + extra, width: width - 48, height: 44)
     explanation?.frame.origin.y += extra
     view.removeFromSuperview()
     window.contentView?.addSubview(view)
@@ -198,6 +257,11 @@ enum Preview {
       window.contentView?.addSubview(controls)
       punctuationView = controls
     }
-    window.center()
+    if hasPresented {
+      window.setFrameOrigin(NSPoint(x: oldFrame.minX, y: oldFrame.maxY - window.frame.height))
+    } else {
+      window.center()
+      hasPresented = true
+    }
   }
 }

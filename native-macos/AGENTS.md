@@ -19,6 +19,8 @@ build.sh uses the parent local Rust runtime with Cargo.lock and existing Apple C
 
 ```sh
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --preview-narrow
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --ui-state overflow
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-paging
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-learning
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-punctuation
@@ -37,6 +39,8 @@ Registration does not select the source. --select selects it for authorized test
 Sentence integration checks require downloaded languages; check.sh runs cancellation tests without them. Do not run two normal IMK servers with the same connection name. Earlier CUA targeted key delivery did not invoke either this IME or Apple's Pinyin in TextEdit; native preview delivery has also shown interference from the selected system IME. Isolate preview checks with ABC and restore the original source. Neither pathway proves physical-keyboard acceptance; CUA cannot send standalone Shift on this machine.
 
 Paging uses absolute engine indices internally and local 1–5 slot numbers per page. Never pass a local slot directly to commit. Page changes invalidate sentence translation and expanded senses; first/last page boundaries preserve state. Engine candidates are capped at64, keep remaining Pinyin and English validation intact.
+
+UI tokens are centralized in NativeTheme.swift. Candidate rows retain absolute callbacks, wrap Chinese, and truncate only inline English with full accessibility/tooltips. Narrow widths stack languages; flipped documents start at the top inside a fixed rounded scroll frame. ActionButton draws immediate hover/press/focus states without stealing host focus. UI fixtures (empty/loading/failed/missing/unavailable/overflow) require --preview --ui-state NAME, never load personal vocabulary, and never prove real translation success.
 
 Learning requires a valid context-bound commit receipt confirmed after host insertText. Cancel, raw submission and edits discard pending receipts/composition chains. English output learns the underlying Chinese word but never joins an English output into a composed new word. Personal vocabulary lives outside the repository in ~/Library/Application Support/BilingualCompanion/PersonalVocabulary/words.json. Keep malformed files intact. Memory integration tests use temporary stores; --preview-learning seeds and reloads its own temporary store. Pause is session-only and does not erase existing vocabulary.
 
