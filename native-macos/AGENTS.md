@@ -1,7 +1,7 @@
 # Native macOS bilingual IME experiment
 
 - User authorized moving the existing prototype into a real input method. macOS is the first local test platform. Keep upstream pristine and preserve the browser prototype.
-- Swift/AppKit/InputMethodKit shell, existing Rust bridge and local datasets. No cloud requests, chronological input logs, context harvesting or other input-method settings reads. The user-authorized local personal vocabulary stores only confirmed Chinese words, Pinyin, usage counts and recency; never load it in tests/previews.
+- Swift/AppKit/InputMethodKit shell, existing Rust bridge and local datasets. No cloud input translation, chronological input logs, context harvesting or other input-method settings reads. User authorized a separate self-hosted email-OTP account service and per-user selected-word sync; never upload sentences, raw Pinyin, personal Chinese vocabulary or host content. The user-authorized local personal vocabulary stores only confirmed Chinese words, Pinyin, usage counts and recency; never load it in tests/previews.
 - Pheno v1.4 applies to this native UI, with native system fonts as fallback and no borrowed Qingjian brand assets. Normal typing has no animation. Candidate buttons must not activate the IME or steal the host editor's focus.
 - Installation is user-local under ~/Library/Input Methods/BilingualCompanion.app. Never overwrite an unrelated app or automatically log out/restart. Restore the previously selected input source after agent testing.
 - Sentence translation uses Apple Translation on macOS 26+ with installed zh-Hans/en languages. Resource preparation is an explicit separate SwiftUI helper; never send input to a cloud API. Invalidate asynchronous results on composition/candidate changes and cancellation. Keep bridge English validation strict; consume the verified Chinese candidate before submitting locally generated English.
@@ -21,6 +21,9 @@ build.sh uses the parent local Rust runtime with Cargo.lock and existing Apple C
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --preview-narrow
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --theme dark
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --account-preview
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --account-preview --account-state words --preview-narrow --theme dark
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --account-test
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --appearance-test
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --ui-state overflow
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-paging
@@ -51,3 +54,5 @@ Punctuation state is per-controller and follows confirmed Chinese/English output
 Typing mode is process-local, default Chinese. Standalone Shift uses flagsChanged on press/release with a 0.7s tap limit; any intervening key, other modifier, mouse/focus boundary or two Shift keys cancels the gesture. Include mouse-down in recognizedEvents and explicitly raw-commit/pass it because the SDK default mouse handling applies only to the keyDown-only mask. English keyDown returns false before engine/punctuation/shortcut processing. Switching preserves raw Pinyin, cancels translation/learning and resets gesture state. --typing-test uses synthetic metadata and isolated engine; --preview-typing uses local native events and a standard editable field, not IMK acceptance. Never synthesize system keys outside CUA.
 
 AppearanceSettings stores only the authorized app-owned appearanceChoice (light/dark/system), defaults to white, and broadcasts only that setting to its helper. Previews use memory-only settings; appearance tests use a temporary preferences suite and subprocess readback, never real preferences or vocabulary. Dynamic AppKit colors and layer viewDidChangeEffectiveAppearance update existing views without requerying/committing/resetting input. System mode removes the app appearance override; never change global macOS appearance for testing without user authorization.
+
+Account helpers (--account / --sync-learning) run before engine initialization and use Keychain; the normal IME only reads account identity and queues verified English glossary selections after host insertText. Store uses file locks, per-login session identity and event UUIDs; logout/relogin cannot accept stale queued submissions. Preview/test stores are temporary, fake transport/vault only in --account-test; never contact SMTP or use real Keychain there. Read ../backend/README.md for deployment. Real public login remains unavailable until an HTTPS service and SMTP are configured.

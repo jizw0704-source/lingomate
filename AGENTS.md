@@ -3,7 +3,7 @@
 - Native macOS implementation is user-authorized in `native-macos/`; retain the browser prototype in `prototype/`. Follow each directory's instructions.
 - Keep pinned upstream checkouts pristine. Do not commit runtime, generated evidence, applications, personal configuration, input content or credentials. Preserve Cargo.lock and pnpm-lock.yaml.
 - UI follows the installed Pheno v1.4 skill when available. Keep existing neutral native styling, system-font fallback and no typing animation; do not copy upstream branding.
-- No cloud input translation, clipboard reads or context harvesting. Sentence translation uses the system local model. Invalidate results on input/candidate/page changes. Always validate candidates and consume remaining Pinyin through the real engine.
+- User authorized self-hosted email OTP and sync of selected word metadata only. Never upload sentences, raw Pinyin, personal Chinese vocabulary or host content. No cloud input translation, clipboard reads or context harvesting. Sentence translation uses the system local model. Invalidate results on input/candidate/page changes. Always validate candidates and consume remaining Pinyin through the real engine.
 - System installation is only within the user's authorized native testing scope. Preserve old app versions and restore the input source selected before testing. Never auto-log out or reboot.
 - Keep README, native usage and QA, docs/PROGRESS.md and Obsidian mirrors consistent. State actual verification limits; do not count preview success as real keyboard acceptance.
 
@@ -32,6 +32,10 @@ pnpm --dir prototype build
 pnpm --dir prototype serve
 runtime/python/bin/python prototype/tests/http_test.py
 runtime/python/bin/python tools/test_sync_obsidian.py
+runtime/python/bin/ruff format --check backend
+runtime/python/bin/ruff check backend
+runtime/python/bin/python -m unittest discover -s backend -v
+runtime/python/bin/python -m compileall -q backend
 ```
 
 HTTP tests need the local service. Sentence integration needs installed Chinese/English languages; see native instructions. Root Rust research commands use `tools/qingjian-cargo.sh`, fixtures disable logging/prediction. History and pinned dependencies: RESEARCH.md.

@@ -14,6 +14,10 @@ final class BilingualInputController: IMKInputController {
   private let sentenceTranslator = SentenceTranslator()
   private lazy var panel: CandidatePanel = {
     let panel = CandidatePanel()
+    panel.onLearning = { [weak self] in
+      self?.rawCommit()
+      AccountWindow.launch()
+    }
     panel.onChinese = { [weak self] in self?.submit(index: $0) }
     panel.onEnglish = { [weak self] in self?.submit(index: $0, sense: $1) }
     panel.onPage = { [weak self] in self?.changePage($0) }
@@ -289,6 +293,7 @@ final class BilingualInputController: IMKInputController {
       return false
     }
     let candidate = candidates[index]
+    let account = LearningRuntime.account()
     var request = EngineRequest(
       action: "commit", input: state.input, candidate: candidate.text,
       syllables: candidate.syllables, context: learningContext)
@@ -323,6 +328,10 @@ final class BilingualInputController: IMKInputController {
       sentenceTranslator.cancel()
       textClient?.insertText(sentenceEnglish ?? committed, replacementRange: noReplacement)
       punctuation.confirm(sense == nil ? .chinese : .english)
+      if let sense, candidate.translations.indices.contains(sense), sentenceEnglish == nil {
+        LearningRuntime.confirmed(
+          candidate.translations[sense], chinese: candidate.text, account: account)
+      }
       if Runtime.remember {
         engine.confirmSelection(next, context: learningContext, chinese: sense == nil)
       } else {
@@ -442,6 +451,15 @@ final class BilingualInputController: IMKInputController {
       appearance.submenu = AppearanceSettings.current.menu(
         target: self, action: #selector(setAppearance(_:)))
       menu.addItem(appearance)
+      let learning = NSMenuItem(
+        title: "登录与学习记录…", action: #selector(openLearning(_:)), keyEquivalent: "")
+      learning.target = self
+      menu.addItem(learning)
+      if let warning = LearningRuntime.warning {
+        let item = NSMenuItem(title: warning, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        menu.addItem(item)
+      }
       let setup = NSMenuItem(
         title: "准备本地整句翻译…", action: #selector(prepareTranslation(_:)), keyEquivalent: "")
       setup.target = self
@@ -464,6 +482,13 @@ final class BilingualInputController: IMKInputController {
       }
       menu.addItem(NSMenuItem(title: "实验版 · 本地引擎 · 30 词用法示例", action: nil, keyEquivalent: ""))
       return menu
+    }
+  }
+
+  @objc private func openLearning(_ sender: Any?) {
+    mainSync {
+      rawCommit()
+      AccountWindow.launch()
     }
   }
 

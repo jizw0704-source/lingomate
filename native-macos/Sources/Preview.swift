@@ -102,6 +102,11 @@ enum Preview {
         ? "wojintianxiangxuexiyingyu" : "xuexi"
     }
     state.frame = try? Runtime.engine?.request(EngineRequest(action: "query", input: state.input))
+    panel?.onLearning = {
+      window.orderOut(nil)
+      panel?.orderOut(nil)
+      AccountWindow.start(preview: true)
+    }
     panel?.onChinese = { index in
       text?.stringValue = state.frame?.candidates[index].text ?? ""
       punctuation.confirm(.chinese)
@@ -220,7 +225,7 @@ enum Preview {
         state, bilingual: Runtime.bilingual,
         anchor: NSRect(x: window.frame.minX + 24, y: window.frame.minY, width: 1, height: 20),
         punctuationLabel: punctuation.label(mode: Runtime.punctuationMode),
-        maximumWidth: narrowPreview ? 480 : 600,
+        maximumWidth: narrowPreview ? 440 : 560,
         maximumHeight: max(240, (window.screen?.visibleFrame.height ?? 900) - 220))
     }
     // 预览将同一候选视图放进标准窗口，方便检查；此模式不验证宿主焦点。
@@ -230,7 +235,7 @@ enum Preview {
     let height = panel.frame.height
     let extra: CGFloat = punctuationPreview ? 56 : 0
     let oldFrame = window.frame
-    let width = max(panel.frame.width, narrowPreview ? 480 : 600) + 48
+    let width = max(panel.frame.width, narrowPreview ? 440 : 560) + 48
     window.setContentSize(NSSize(width: width, height: height + 180 + extra))
     explanation?.frame = NSRect(x: 24, y: height + 127, width: width - 48, height: 40)
     outputCaption?.frame = NSRect(x: 24, y: height + 107 + extra, width: width - 48, height: 16)

@@ -4,6 +4,7 @@ import AppKit
 final class CandidatePanel: NSPanel {
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }
+  var onLearning: (() -> Void)?
   var onChinese: ((Int) -> Void)?
   var onEnglish: ((Int, Int) -> Void)?
   var onPage: ((Int) -> Void)?
@@ -17,7 +18,7 @@ final class CandidatePanel: NSPanel {
 
   init() {
     super.init(
-      contentRect: NSRect(x: 0, y: 0, width: 600, height: 360),
+      contentRect: NSRect(x: 0, y: 0, width: 560, height: 360),
       styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     isOpaque = false
     backgroundColor = .clear
@@ -90,35 +91,34 @@ final class CandidatePanel: NSPanel {
 
   func show(
     _ state: SessionState, bilingual: Bool, anchor: NSRect,
-    punctuationLabel: String = "标点：中文 · 自动", maximumWidth: CGFloat = 600,
+    punctuationLabel: String = "标点：中文 · 自动", maximumWidth: CGFloat = 560,
     maximumHeight: CGFloat? = nil
   ) {
     let bounds = screenBounds(anchor)
     let width = min(maximumWidth, bounds.width - 16)
-    let bodyWidth = width - 32
-    let narrow = width < 520
+    let bodyWidth = width - 24
+    let narrow = width < 500
     let hasCandidates = state.frame?.candidates.isEmpty == false
     let content = surface()
-    let stack = column([], spacing: 8)
+    let stack = column([], spacing: 4)
     stack.translatesAutoresizingMaskIntoConstraints = false
     content.addSubview(stack)
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
-      stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
-      stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 16),
-      stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -16),
+      stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+      stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+      stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
+      stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
     ])
-    let heading = row([
-      NativeTheme.label("正在输入", size: 11, secondary: true), NSView(),
-      NativeTheme.label(bilingual ? "中英候选" : "中文候选", size: 11, secondary: true),
-      AppearanceSettings.current.button(),
-    ])
-    add(heading, to: stack)
-    let pinyin = NativeTheme.label(state.frame?.marked ?? state.input, size: 20, weight: .medium)
+    let pinyin = NativeTheme.label(state.frame?.marked ?? state.input, size: 16, weight: .medium)
     pinyin.maximumNumberOfLines = 2
     pinyin.lineBreakMode = .byTruncatingTail
     pinyin.toolTip = pinyin.stringValue
-    add(pinyin, to: stack)
+    let learning = ActionButton("学习", label: "打开账号登录与学习记录") { [weak self] in
+      self?.onLearning?()
+    }
+    learning.font = NativeTheme.font(12)
+    learning.widthAnchor.constraint(equalToConstant: 60).isActive = true
+    add(row([pinyin, NSView(), learning, AppearanceSettings.current.button()]), to: stack)
     let typing = ActionButton("中文 · Shift", label: "中文拼音，切换到英文直输，单按 Shift") {
       [weak self] in self?.onTypingMode?()
     }
@@ -140,15 +140,6 @@ final class CandidatePanel: NSPanel {
     }
     add(row([typing, mode, NSView(), punctuation]), to: stack)
     add(divider(), to: stack)
-    if !narrow && bilingual && hasCandidates {
-      let inset = NSView()
-      inset.widthAnchor.constraint(equalToConstant: 36).isActive = true
-      let chineseTitle = NativeTheme.label("中文 · 空格", size: 11, secondary: true)
-      chineseTitle.widthAnchor.constraint(equalToConstant: 148).isActive = true
-      add(
-        row([inset, chineseTitle, NativeTheme.label("英文 · Shift＋空格", size: 11, secondary: true)]),
-        to: stack)
-    }
     for index in state.visibleIndices {
       guard let candidate = state.frame?.candidates[index] else { continue }
       let number = NativeTheme.label(
@@ -156,20 +147,21 @@ final class CandidatePanel: NSPanel {
         size: 13, secondary: index != state.active, weight: .medium)
       number.widthAnchor.constraint(equalToConstant: 24).isActive = true
       let fullChinese = !bilingual || narrow || candidate.translations.isEmpty
-      let chineseWidth = fullChinese ? bodyWidth - 32 : 148
+      let chineseWidth =
+        (fullChinese ? bodyWidth - 32 : 128) - (candidate.personal == true ? 32 : 0)
       let chinese = fittedButton(
-        candidate.text, width: chineseWidth, size: 18,
+        candidate.text, width: chineseWidth, size: 16,
         label: "输出中文 \(candidate.text)\(candidate.personal == true ? "，个人词库" : "")"
       ) { [weak self] in self?.onChinese?(index) }
-      chinese.font = NativeTheme.font(18, weight: .medium)
-      let chineseGroup = column([chinese])
+      chinese.font = NativeTheme.font(16, weight: .medium)
+      let chineseGroup = row([chinese])
       if candidate.personal == true {
-        add(NativeTheme.label("记忆", size: 11, secondary: true), to: chineseGroup)
+        chineseGroup.addArrangedSubview(NativeTheme.label("记忆", size: 11, secondary: true))
       }
       let chineseRow = row([number, chineseGroup])
       var candidateRow: NSView
       if bilingual && !candidate.translations.isEmpty {
-        let englishWidth = fullChinese ? bodyWidth - 32 : bodyWidth - 188
+        let englishWidth = fullChinese ? bodyWidth - 32 : bodyWidth - 168
         var englishViews: [NSView] = []
         let senses = Array(candidate.translations.prefix(2))
         let senseWidth =
@@ -200,7 +192,7 @@ final class CandidatePanel: NSPanel {
         } else {
           candidateRow = row([chineseRow, englishRow])
         }
-      } else if bilingual {
+      } else if bilingual && index == state.active && state.sentence == .none {
         let status =
           candidate.text.count >= 3 || (candidate.personal == true && candidate.text.count >= 2)
           ? (index == state.active ? "当前候选的整句译文见下方" : "选中后可翻译整句") : "暂无英文译词"
@@ -269,14 +261,10 @@ final class CandidatePanel: NSPanel {
       add(
         NativeTheme.label(
           bilingual
-            ? "空格 选中文 · Shift＋空格 选英文 · ↑↓ 换候选 · Tab 更多译法"
-            : "空格 选中文 · ↑↓ 换候选 · F6 中英候选",
-          size: 11, secondary: true), to: stack)
-      add(
-        NativeTheme.label("1–5 选本页中文 · PageUp / PageDown 或 − / = 翻页", size: 11, secondary: true),
-        to: stack)
+            ? "1–5 / 空格 选中文 · Shift＋空格 英文 · Tab 译法 · − / = 翻页"
+            : "1–5 / 空格 选中文 · − / = 翻页 · F6 双语", size: 11, secondary: true), to: stack)
     } else {
-      add(NativeTheme.label("Esc 取消 · Shift 切换英文直输", size: 11, secondary: true), to: stack)
+      add(NativeTheme.label("Esc 取消 · Shift 英文直输", size: 11, secondary: true), to: stack)
     }
     present(
       content, stack: stack, width: width, anchor: anchor, bounds: bounds,
@@ -321,7 +309,11 @@ final class CandidatePanel: NSPanel {
     }
     retry.isEnabled = state.sentence != .loading && state.sentence != .unavailable
     add(row([english, chinese, NSView(), retry]), to: stack)
-    add(NativeTheme.label("译文对应当前中文候选；换候选会重新翻译。", size: 11, secondary: true), to: stack)
+    statusLabelTooltip(stack, text: "译文对应当前中文候选；换候选会重新翻译。")
+  }
+
+  private func statusLabelTooltip(_ stack: NSStackView, text: String) {
+    stack.toolTip = text
   }
 
   private func addDetails(
@@ -366,7 +358,7 @@ final class CandidatePanel: NSPanel {
   ) {
     content.setFrameSize(NSSize(width: width, height: 400))
     content.layoutSubtreeIfNeeded()
-    let height = ceil(stack.fittingSize.height) + 32
+    let height = ceil(stack.fittingSize.height) + 24
     let actualHeight = min(height, maximumHeight ?? bounds.height - 16)
     content.setFrameSize(NSSize(width: width, height: height))
     let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: width, height: actualHeight))
@@ -409,16 +401,16 @@ final class CandidatePanel: NSPanel {
     views.translatesAutoresizingMaskIntoConstraints = false
     content.addSubview(views)
     NSLayoutConstraint.activate([
-      views.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
-      views.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
-      views.topAnchor.constraint(equalTo: content.topAnchor, constant: 16),
+      views.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+      views.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+      views.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
       views.heightAnchor.constraint(equalToConstant: 44),
     ])
     contentView = content
     let bounds = screenBounds(anchor)
-    let x = min(max(anchor.minX, bounds.minX + 8), bounds.maxX - 408)
-    let y = min(max(anchor.minY - 84, bounds.minY + 8), bounds.maxY - 84)
-    setFrame(NSRect(x: x, y: y, width: 400, height: 76), display: true)
+    let x = min(max(anchor.minX, bounds.minX + 8), bounds.maxX - 368)
+    let y = min(max(anchor.minY - 76, bounds.minY + 8), bounds.maxY - 76)
+    setFrame(NSRect(x: x, y: y, width: 360, height: 68), display: true)
     orderFrontRegardless()
   }
 }

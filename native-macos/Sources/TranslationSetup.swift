@@ -49,11 +49,11 @@ private struct TranslationSetupView: View {
   @SetupState private var working = false
   @SetupState private var message = "首次使用需要准备中英文语言模型。下载由 macOS 完成，翻译文字在本机处理。"
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
+    VStack(alignment: .leading, spacing: 12) {
       Text("本机翻译").font(.system(size: 12)).foregroundStyle(Color(nsColor: NativeTheme.muted))
-      Text("让整句也能选英文").font(.system(size: 24, weight: .semibold))
+      Text("让整句也能选英文").font(.system(size: 20, weight: .semibold))
       Text(message).font(.system(size: 15)).foregroundStyle(Color(nsColor: NativeTheme.muted))
-        .frame(minHeight: 64, alignment: .topLeading)
+        .frame(minHeight: 44, alignment: .topLeading)
       HStack(spacing: 12) {
         Button(working ? "正在准备…" : "准备中英文语言") {
           working = true
@@ -74,7 +74,7 @@ private struct TranslationSetupView: View {
       Text("不上传输入正文，不保存输入记录。准备完毕后重新输入句子即可。")
         .font(.system(size: 12)).foregroundStyle(
           Color(nsColor: NativeTheme.muted))
-    }.padding(24).frame(width: 512, alignment: .leading).background(
+    }.padding(16).frame(width: 512, alignment: .leading).background(
       Color(nsColor: NativeTheme.background)
     )
     .translationTask(configuration) { session in

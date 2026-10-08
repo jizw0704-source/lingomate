@@ -31,6 +31,14 @@ if let index = arguments.firstIndex(of: "--appearance-readback-test"), arguments
   AppearanceTests.readback(arguments[index + 1], expected: arguments[index + 2])
 }
 let app = NSApplication.shared
+if arguments.contains("--account-test") {
+  Task { @MainActor in
+    await AccountTests.run()
+    exit(0)
+  }
+  app.run()
+  exit(0)
+}
 if arguments.contains("--appearance-test") {
   AppearanceTests.run()
   exit(0)
@@ -58,7 +66,7 @@ let isPreview =
   arguments.contains("--preview") || arguments.contains("--preview-sentence")
   || arguments.contains("--preview-paging") || arguments.contains("--preview-learning")
   || arguments.contains("--preview-punctuation")
-  || arguments.contains("--preview-typing")
+  || arguments.contains("--preview-typing") || arguments.contains("--account-preview")
 let previewTheme: AppearanceChoice? = {
   guard let index = arguments.firstIndex(of: "--theme"), arguments.count > index + 1 else {
     return nil
@@ -67,6 +75,28 @@ let previewTheme: AppearanceChoice? = {
 }()
 AppearanceSettings.configure(
   isolated: isPreview || arguments.contains("--isolated-appearance"), initial: previewTheme)
+let learningDirectory =
+  isPreview
+  ? FileManager.default.temporaryDirectory.appendingPathComponent(
+    "bilingual-study-" + UUID().uuidString)
+  : FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
+    "Library/Application Support/BilingualCompanion/Learning")
+LearningRuntime.store = LearningStore(directory: learningDirectory)
+if arguments.contains("--account") || arguments.contains("--account-preview") {
+  AccountWindow.start(preview: isPreview)
+  app.run()
+  if isPreview { try? FileManager.default.removeItem(at: learningDirectory) }
+  exit(0)
+}
+if arguments.contains("--sync-learning") {
+  app.setActivationPolicy(.prohibited)
+  Task { @MainActor in
+    await AccountWindow.sync()
+    exit(0)
+  }
+  app.run()
+  exit(0)
+}
 if arguments.contains("--setup-translation") {
   TranslationSetup.start()
   app.run()
@@ -88,6 +118,7 @@ if isPreview {
   Preview.start()
   app.run()
   Runtime.engine?.terminate()
+  try? FileManager.default.removeItem(at: learningDirectory)
   if let directory = Preview.learningDirectory {
     try? FileManager.default.removeItem(at: directory)
   }

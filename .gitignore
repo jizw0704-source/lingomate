@@ -11,3 +11,4 @@ node_modules/
 /prototype/dist/
 /prototype/bridge/target/
 /native-macos/build/
+/backend/state/
