@@ -17,6 +17,7 @@ bash "$RESEARCH_DIR/prototype/tools/cargo.sh" clippy --release --locked --all-ta
 bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/engine_test.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/memory_test.py"
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --appearance-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --selftest
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --punctuation-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --typing-test

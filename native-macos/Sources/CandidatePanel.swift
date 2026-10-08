@@ -24,7 +24,6 @@ final class CandidatePanel: NSPanel {
     hasShadow = true
     hidesOnDeactivate = false
     becomesKeyOnlyIfNeeded = true
-    appearance = NSAppearance(named: .aqua)
     title = "中英输入实验版候选"
     collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     level = .popUpMenu
@@ -53,9 +52,9 @@ final class CandidatePanel: NSPanel {
   }
 
   private func divider() -> NSView {
-    let view = NSView()
+    let view = CandidateDocumentView()
     view.wantsLayer = true
-    view.layer?.backgroundColor = NativeTheme.divider.cgColor
+    view.fill = NativeTheme.divider
     view.heightAnchor.constraint(equalToConstant: 1).isActive = true
     return view
   }
@@ -63,10 +62,10 @@ final class CandidatePanel: NSPanel {
   private func surface() -> NSView {
     let view = CandidateDocumentView()
     view.wantsLayer = true
-    view.layer?.backgroundColor = NSColor.white.cgColor
+    view.fill = NativeTheme.background
     view.layer?.cornerRadius = 16
     view.layer?.borderWidth = 1
-    view.layer?.borderColor = NativeTheme.divider.cgColor
+    view.border = NativeTheme.divider
     return view
   }
 
@@ -112,6 +111,7 @@ final class CandidatePanel: NSPanel {
     let heading = row([
       NativeTheme.label("正在输入", size: 11, secondary: true), NSView(),
       NativeTheme.label(bilingual ? "中英候选" : "中文候选", size: 11, secondary: true),
+      AppearanceSettings.current.button(),
     ])
     add(heading, to: stack)
     let pinyin = NativeTheme.label(state.frame?.marked ?? state.input, size: 20, weight: .medium)
@@ -167,7 +167,7 @@ final class CandidatePanel: NSPanel {
         add(NativeTheme.label("记忆", size: 11, secondary: true), to: chineseGroup)
       }
       let chineseRow = row([number, chineseGroup])
-      let candidateRow: NSStackView
+      var candidateRow: NSView
       if bilingual && !candidate.translations.isEmpty {
         let englishWidth = fullChinese ? bodyWidth - 32 : bodyWidth - 188
         var englishViews: [NSView] = []
@@ -215,8 +215,19 @@ final class CandidatePanel: NSPanel {
       }
       candidateRow.wantsLayer = true
       if index == state.active {
-        candidateRow.layer?.backgroundColor = NativeTheme.surface.cgColor
-        candidateRow.layer?.cornerRadius = 10
+        let highlight = CandidateDocumentView()
+        highlight.wantsLayer = true
+        highlight.fill = NativeTheme.surface
+        highlight.layer?.cornerRadius = 10
+        candidateRow.translatesAutoresizingMaskIntoConstraints = false
+        highlight.addSubview(candidateRow)
+        NSLayoutConstraint.activate([
+          candidateRow.leadingAnchor.constraint(equalTo: highlight.leadingAnchor),
+          candidateRow.trailingAnchor.constraint(equalTo: highlight.trailingAnchor),
+          candidateRow.topAnchor.constraint(equalTo: highlight.topAnchor),
+          candidateRow.bottomAnchor.constraint(equalTo: highlight.bottomAnchor),
+        ])
+        candidateRow = highlight
       }
       add(candidateRow, to: stack)
       if state.expanded, bilingual, index == state.active, !candidate.translations.isEmpty {

@@ -20,6 +20,8 @@ build.sh uses the parent local Rust runtime with Cargo.lock and existing Apple C
 ```sh
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --preview-narrow
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --theme dark
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --appearance-test
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --ui-state overflow
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-paging
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-learning
@@ -47,3 +49,5 @@ Learning requires a valid context-bound commit receipt confirmed after host inse
 Punctuation state is per-controller and follows confirmed Chinese/English output; manual override is process-local. Never inspect host text. Keep apostrophe within Pinyin and paging shortcuts intact. Submit punctuation only after a successful full Chinese commit; preserve leftover Pinyin after partial commits. Numeric protection is automatic; fixed Chinese can force a sentence period. Recognized schemes/www/email or fixed English preserve raw letters and use temporary ASCII passthrough until a boundary. --punctuation-test uses bundled real engine without a personal store; --preview-punctuation checks shared rule rendering, not IMK keyboard delivery.
 
 Typing mode is process-local, default Chinese. Standalone Shift uses flagsChanged on press/release with a 0.7s tap limit; any intervening key, other modifier, mouse/focus boundary or two Shift keys cancels the gesture. Include mouse-down in recognizedEvents and explicitly raw-commit/pass it because the SDK default mouse handling applies only to the keyDown-only mask. English keyDown returns false before engine/punctuation/shortcut processing. Switching preserves raw Pinyin, cancels translation/learning and resets gesture state. --typing-test uses synthetic metadata and isolated engine; --preview-typing uses local native events and a standard editable field, not IMK acceptance. Never synthesize system keys outside CUA.
+
+AppearanceSettings stores only the authorized app-owned appearanceChoice (light/dark/system), defaults to white, and broadcasts only that setting to its helper. Previews use memory-only settings; appearance tests use a temporary preferences suite and subprocess readback, never real preferences or vocabulary. Dynamic AppKit colors and layer viewDidChangeEffectiveAppearance update existing views without requerying/committing/resetting input. System mode removes the app appearance override; never change global macOS appearance for testing without user authorization.

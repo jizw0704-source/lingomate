@@ -34,6 +34,11 @@ final class ActionButton: NSButton {
     needsDisplay = true
   }
 
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    needsDisplay = true
+  }
+
   override func draw(_ dirtyRect: NSRect) {
     let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 10, yRadius: 10)
     let pressed = isEnabled && isHighlighted

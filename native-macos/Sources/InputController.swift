@@ -438,6 +438,10 @@ final class BilingualInputController: IMKInputController {
       punctuationItem.submenu = choices
       punctuationItem.isEnabled = Runtime.typingMode == .chinese
       menu.addItem(punctuationItem)
+      let appearance = NSMenuItem(title: "外观", action: nil, keyEquivalent: "")
+      appearance.submenu = AppearanceSettings.current.menu(
+        target: self, action: #selector(setAppearance(_:)))
+      menu.addItem(appearance)
       let setup = NSMenuItem(
         title: "准备本地整句翻译…", action: #selector(prepareTranslation(_:)), keyEquivalent: "")
       setup.target = self
@@ -461,6 +465,10 @@ final class BilingualInputController: IMKInputController {
       menu.addItem(NSMenuItem(title: "实验版 · 本地引擎 · 30 词用法示例", action: nil, keyEquivalent: ""))
       return menu
     }
+  }
+
+  @objc private func setAppearance(_ sender: NSMenuItem) {
+    mainSync { AppearanceSettings.current.choose(sender) }
   }
 
   @objc private func toggleMode(_ sender: Any?) {

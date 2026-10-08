@@ -9,7 +9,13 @@ enum TranslationSetup {
   static func launch() {
     let process = Process()
     process.executableURL = Bundle.main.executableURL
-    process.arguments = ["--setup-translation"]
+    var arguments = ["--setup-translation"]
+    if AppearanceSettings.current.isIsolated {
+      arguments += [
+        "--isolated-appearance", "--theme", AppearanceSettings.current.choice.rawValue,
+      ]
+    }
+    process.arguments = arguments
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
     try? process.run()
@@ -21,7 +27,7 @@ enum TranslationSetup {
       contentRect: NSRect(x: 0, y: 0, width: 560, height: 320),
       styleMask: [.titled, .closable], backing: .buffered, defer: false)
     window.title = "准备本地整句翻译"
-    window.appearance = NSAppearance(named: .aqua)
+    window.backgroundColor = NativeTheme.background
     if #available(macOS 15.0, *) {
       window.contentView = NSHostingView(rootView: TranslationSetupView())
     } else {
@@ -68,17 +74,19 @@ private struct TranslationSetupView: View {
       Text("不上传输入正文，不保存输入记录。准备完毕后重新输入句子即可。")
         .font(.system(size: 12)).foregroundStyle(
           Color(nsColor: NativeTheme.muted))
-    }.padding(24).frame(width: 512, alignment: .leading).background(Color.white)
-      .translationTask(configuration) { session in
-        do {
-          try await session.prepareTranslation()
-          message = "中英文语言已准备好。关闭此窗口，重新选择输入法，即可试用整句翻译。"
-        } catch {
-          message = "语言准备未完成。请检查网络后重试，也可以在系统设置的翻译语言中下载中文和英文。"
-        }
-        working = false
-        configuration = nil
+    }.padding(24).frame(width: 512, alignment: .leading).background(
+      Color(nsColor: NativeTheme.background)
+    )
+    .translationTask(configuration) { session in
+      do {
+        try await session.prepareTranslation()
+        message = "中英文语言已准备好。关闭此窗口，重新选择输入法，即可试用整句翻译。"
+      } catch {
+        message = "语言准备未完成。请检查网络后重试，也可以在系统设置的翻译语言中下载中文和英文。"
       }
+      working = false
+      configuration = nil
+    }
   }
 }
 
@@ -93,7 +101,7 @@ private struct SetupButtonStyle: ButtonStyle {
       .foregroundStyle(Color(nsColor: enabled ? NativeTheme.ink : NativeTheme.muted))
       .background(
         enabled && (configuration.isPressed || hovered)
-          ? Color(nsColor: NativeTheme.surface) : Color.white
+          ? Color(nsColor: NativeTheme.surface) : Color(nsColor: NativeTheme.background)
       )
       .clipShape(RoundedRectangle(cornerRadius: 12))
       .overlay(

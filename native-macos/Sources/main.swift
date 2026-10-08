@@ -27,7 +27,14 @@ if arguments.contains("--typing-test") {
   exit(0)
 }
 
+if let index = arguments.firstIndex(of: "--appearance-readback-test"), arguments.count > index + 2 {
+  AppearanceTests.readback(arguments[index + 1], expected: arguments[index + 2])
+}
 let app = NSApplication.shared
+if arguments.contains("--appearance-test") {
+  AppearanceTests.run()
+  exit(0)
+}
 if arguments.contains("--sentence-state-test") || arguments.contains("--sentence-integration-test")
 {
   app.setActivationPolicy(.prohibited)
@@ -47,16 +54,24 @@ if arguments.contains("--sentence-state-test") || arguments.contains("--sentence
   app.run()
   exit(0)
 }
-if arguments.contains("--setup-translation") {
-  TranslationSetup.start()
-  app.run()
-  exit(0)
-}
 let isPreview =
   arguments.contains("--preview") || arguments.contains("--preview-sentence")
   || arguments.contains("--preview-paging") || arguments.contains("--preview-learning")
   || arguments.contains("--preview-punctuation")
   || arguments.contains("--preview-typing")
+let previewTheme: AppearanceChoice? = {
+  guard let index = arguments.firstIndex(of: "--theme"), arguments.count > index + 1 else {
+    return nil
+  }
+  return AppearanceChoice(rawValue: arguments[index + 1])
+}()
+AppearanceSettings.configure(
+  isolated: isPreview || arguments.contains("--isolated-appearance"), initial: previewTheme)
+if arguments.contains("--setup-translation") {
+  TranslationSetup.start()
+  app.run()
+  exit(0)
+}
 do {
   guard let resources = Bundle.main.resourceURL else { throw EngineFailure.unavailable }
   let memoryURL =

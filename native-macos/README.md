@@ -1,4 +1,4 @@
-# 中英输入实验版 · macOS 0.7.0
+# 中英输入实验版 · macOS 0.8.0
 
 原生输入法使用 Swift / AppKit / InputMethodKit 和随包的青简 Rust 引擎，将选中的中文或英文提交到原应用。中文及词语释义支持 Apple Silicon Mac、macOS 13 以上；整句翻译需要 macOS 26 以上和已下载的中英文翻译语言。网页原型仍在 `../prototype/`，本次整句功能只接入原生版。
 
@@ -30,6 +30,14 @@
 每页显示5项，显示页码与总候选数；桥接层最多返回64项，数量取决于词典实际候选。翻页不提交文字，清除上一候选的展开与译文；首末页不循环。Mac没有专用翻页键时可用Fn＋↑/↓或减号/等号。
 
 一次组合输入最多 240 个拼音字符。英文按原样提交，连续英文词之间请另按空格。快捷键交还宿主前、切换应用或输入源时，会原样提交未完成拼音。安全输入开启时不处理按键。整句任务在继续输入、换候选、取消或提交时失效，不把旧句译文提交到新句。
+
+## 外观
+
+0.8提供 **白色 / 黑色 / 跟随系统**。点击候选窗右上角“外观：白色”选择，也可从系统输入源菜单 → 外观选择；英文直输和没有候选时也可使用菜单。当前选项有勾选标记，切换即时生效，拼音、候选页码、展开译法与翻译任务保持原状。
+
+首次使用沿用白色。选择会保存在本机本应用的 `appearanceChoice` 偏好中，重启服务后继续使用；跟随系统采用 macOS 当前外观。候选窗、更多译法、整句译文、英文模式提示和语言准备窗口使用同一配色；这项设置不改变系统外观。其他模式开关仍按各自的本次会话规则工作。
+
+预览可使用 `--theme light|dark|system`，包括翻译准备窗口的 `--isolated-appearance --theme dark`。所有预览只使用内存外观设置，不读写真实外观偏好；自测使用临时偏好域并在结束时清理。
 
 ## 直接打英文
 
@@ -86,6 +94,8 @@ bash tools/build.sh
 bash tools/check.sh
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --preview-narrow
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --theme dark
+build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --appearance-test
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --ui-state failed
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-paging
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-learning
@@ -100,7 +110,7 @@ build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --sentence-integr
 "$HOME/Library/Input Methods/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --register
 ```
 
-构建使用项目 Rust 运行时、既有锁文件和 Apple Command Line Tools，不需要完整 Xcode；Translation 框架弱链接，旧系统跳过整句功能，旧系统运行仍待实测。检查包括 Swift 格式、类型检查、Rust 格式与 Clippy、8 项真实引擎回归、10 项隔离词库记忆回归、Shift单按/组合保护/焦点边界及中文引擎恢复检查、标点映射/语言/边界及真实引擎组合提交检查、随包资源自测、翻译取消与过期结果检查、属性和本地签名验证。整句联调需 macOS 26 和本地语言；预览与联调不能代替真实宿主输入验收。
+构建使用项目 Rust 运行时、既有锁文件和 Apple Command Line Tools，不需要完整 Xcode；Translation 框架弱链接，旧系统跳过整句功能，旧系统运行仍待实测。检查包括隔离外观保存/子进程读回、环境继承和双主题对比度，Swift 格式、类型检查、Rust 格式与 Clippy、8 项真实引擎回归、10 项隔离词库记忆回归、Shift单按/组合保护/焦点边界及中文引擎恢复检查、标点映射/语言/边界及真实引擎组合提交检查、随包资源自测、翻译取消与过期结果检查、属性和本地签名验证。整句联调需 macOS 26 和本地语言；预览与联调不能代替真实宿主输入验收。
 
 `install.py` 只替换相同 bundle ID 的实验版，旧包保留在 `../evidence/native-backups/`，安装记录为 `../evidence/native-install.json`。安装与注册不主动切换输入源。更新已运行的服务时先切到 ABC，停止该实验版进程、安装并注册，再选择实验输入源；必要时从已安装路径启动服务。不要同时运行构建目录的普通 IMK 服务和已安装服务。
 
@@ -114,8 +124,8 @@ build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --sentence-integr
 
 ## 状态和许可
 
-0.7 已在本机完成构建、真实引擎及本机翻译检查，并检查原生预览的正常/窄面板、长内容滚动、更多译法、分页、翻译状态及英文直输布局，安装更新。预览与实际输入法的事件路径不同；没有据此宣称真实键盘、宿主焦点或跨应用验收完成。具体证据和待验证项见 [QA.md](QA.md)。
+0.8 增加三种外观与本地持久记忆，检查正常/窄候选、更多译法、整句译文、英文模式提示和准备窗口。未改变 macOS 全局外观，真实系统深浅色切换及宿主菜单/焦点仍待试用。0.7 已在本机完成构建、真实引擎及本机翻译检查，并检查原生预览的正常/窄面板、长内容滚动、更多译法、分页、翻译状态及英文直输布局，安装更新。预览与实际输入法的事件路径不同；没有据此宣称真实键盘、宿主焦点或跨应用验收完成。具体证据和待验证项见 [QA.md](QA.md)。
 
-当前候选最多64项；已支持本地选词记忆；尚无整句多译法、学习统计页面、词库管理界面、持久设置或跨平台接入。沿用 GPL-3.0-or-later。青简源码保持原样，不使用其商标、图标或外观；来源说明随包保留为 `GLOSSARY-NOTICE.md` 和 `LEXICON-NOTICE.md`。这是本地实验包，未做发行签名、公证或公开发布审核。
+当前候选最多64项；已支持本地选词记忆；尚无整句多译法、学习统计页面、词库管理界面、其他持久设置或跨平台接入。沿用 GPL-3.0-or-later。青简源码保持原样，不使用其商标、图标或外观；来源说明随包保留为 `GLOSSARY-NOTICE.md` 和 `LEXICON-NOTICE.md`。这是本地实验包，未做发行签名、公证或公开发布审核。
 
 不再试用时，先切回系统输入法，在键盘设置移除实验输入源，再把此应用移入废纸篓，保留其他输入法。

@@ -50,8 +50,7 @@ enum Preview {
       contentRect: NSRect(x: 0, y: 0, width: 660, height: 180),
       styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
     window.title = "中英输入实验版 · 候选窗预览（非系统输入测试）"
-    window.appearance = NSAppearance(named: .aqua)
-    window.backgroundColor = .white
+    window.backgroundColor = NativeTheme.background
     window.center()
     let label = NSTextField(wrappingLabelWithString: "这是原生候选窗预览。点击中英文检查按钮，真实输入请从系统输入源选择。")
     if learningDirectory != nil {
