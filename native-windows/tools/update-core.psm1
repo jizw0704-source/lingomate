@@ -13,12 +13,15 @@ function Read-LingoMateJson([string]$Path, [int]$Limit = 65536) {
 }
 function Write-LingoMateJson($Value, [string]$Path) {
     $Temporary = $Path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+    $Backup = $Temporary + '.bak'
     try {
         [IO.File]::WriteAllText($Temporary, ($Value | ConvertTo-Json -Depth 12), (New-Object Text.UTF8Encoding($false)))
         # Small local records are replaced without changing immutable version files.
-        if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($Temporary, $Path, $null) }
+        if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($Temporary, $Path, $Backup) }
         else { [IO.File]::Move($Temporary, $Path) }
-    } finally { if (Test-Path -LiteralPath $Temporary) { Remove-Item -LiteralPath $Temporary -Force } }
+    } finally {
+        foreach ($File in @($Temporary, $Backup)) { if (Test-Path -LiteralPath $File) { Remove-Item -LiteralPath $File -Force } }
+    }
 }
 function Assert-LingoMateConfig($Config) {
     if ($Config.schema -ne 1 -or $Config.arch -ne 'x64' -or $Config.channel -ne 'preview' -or $Config.repository -ne $script:Repository -or $Config.minimum_windows_build -ne 22000) { throw '此版本的更新配置不受支持。' }
