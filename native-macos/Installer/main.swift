@@ -85,7 +85,7 @@ struct Installer {
     defer { if !retainRecovery { try? files.removeItem(at: temporary) } }
     let stage = temporary.appendingPathComponent("BilingualCompanion.app")
     let previous = temporary.appendingPathComponent("previous.app")
-    _ = try run("/usr/bin/ditto", ["--noextattr", "--norsrc", "--noacl", source.path, stage.path])
+    _ = try run("/usr/bin/ditto", ["--norsrc", "--noacl", source.path, stage.path])
     try verify(stage)
     var backup: URL?
     if files.fileExists(atPath: destination.path) {

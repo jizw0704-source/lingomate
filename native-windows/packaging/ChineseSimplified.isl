@@ -1,0 +1,64 @@
+; Project-authored messages for the main installer flow.
+; Less frequent system diagnostics fall back to the compiler's English messages.
+[LangOptions]
+LanguageName=中文（简体）
+LanguageID=$0804
+LanguageCodePage=0
+DialogFontName=Microsoft YaHei
+DialogFontSize=9
+WelcomeFontName=Microsoft YaHei
+WelcomeFontSize=14
+
+[Messages]
+SetupAppTitle=安装
+SetupWindowTitle=安装 · %1
+UninstallAppTitle=卸载
+UninstallAppFullTitle=卸载 %1
+InformationTitle=说明
+ConfirmTitle=确认
+ErrorTitle=错误
+SetupLdrStartupMessage=将安装 %1，是否继续？
+SetupAlreadyRunning=安装程序已在运行。
+WindowsVersionNotSupported=当前 Windows 版本不受支持。
+OnlyOnTheseArchitectures=此程序仅支持以下 Windows 处理器架构：%n%n%1
+WinVersionTooLowError=此程序需要 %1 版本 %2 或更新版本。
+SetupFileCorrupt=安装文件已损坏，请重新获取安装包。
+ExitSetupTitle=退出安装
+ExitSetupMessage=安装尚未完成，现在退出将无法安装程序。%n%n你可以稍后重新运行安装程序。%n%n是否退出安装？
+ButtonBack=< 上一步(&B)
+ButtonNext=下一步(&N) >
+ButtonInstall=安装(&I)
+ButtonOK=确定
+ButtonCancel=取消
+ButtonYes=是(&Y)
+ButtonNo=否(&N)
+ButtonFinish=完成(&F)
+SelectLanguageTitle=选择安装语言
+SelectLanguageLabel=请选择安装过程中使用的语言。
+ClickNext=点击“下一步”继续，或点击“取消”退出。
+WelcomeLabel1=安装 [name]
+WelcomeLabel2=本向导将安装 [name/ver]。%n%n安装前请保存正在输入的内容，并切换到其他输入法。
+WizardInfoBefore=安装与试用说明
+InfoBeforeLabel=请先阅读以下说明。
+InfoBeforeClickLabel=点击“下一步”继续。
+WizardInfoAfter=开始使用
+InfoAfterLabel=请阅读安装后的操作步骤。
+InfoAfterClickLabel=点击“下一步”继续。
+WizardReady=准备安装
+ReadyLabel1=准备在当前用户目录安装 [name]。
+ReadyLabel2a=点击“安装”开始安装，或点击“上一步”检查设置。
+WizardInstalling=正在安装
+InstallingLabel=正在安装 [name]，请稍候。
+FinishedHeadingLabel=安装向导已完成
+FinishedLabelNoIcons=已在你的电脑上安装 [name]。
+FinishedLabel=已安装 [name]。
+ClickFinish=点击“完成”退出安装向导。
+StatusExtractFiles=正在解包…
+StatusCreateDirs=正在创建目录…
+StatusCreateIcons=正在创建快捷方式…
+StatusCreateIniEntries=正在写入配置…
+StatusCreateRegistryEntries=正在写入安装信息…
+StatusRegisterFiles=正在登记文件…
+StatusSavingUninstall=正在准备卸载程序…
+UninstallStatusLabel=正在卸载 %1，请稍候。
+UninstalledAll=%1 已从电脑移除。

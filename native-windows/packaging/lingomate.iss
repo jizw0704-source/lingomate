@@ -27,7 +27,6 @@ OutputDir={#OutputPath}
 OutputBaseFilename=lingomate-windows-x64-{#ProductVersion}-setup
 Compression=lzma2
 SolidCompression=yes
-LicenseFile=..\..\LICENSE
 InfoBeforeFile=安装与试用说明.txt
 InfoAfterFile=安装完成说明.txt
 UninstallDisplayName=灵果 LingoMate
@@ -37,7 +36,7 @@ AlwaysRestart=no
 SetupLogging=yes
 
 [Languages]
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+Name: "chinesesimplified"; MessagesFile: "compiler:Default.isl,ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
@@ -46,6 +45,7 @@ Source: "..\tools\install.ps1"; DestDir: "{tmp}\LingoMate-tools"; Flags: ignorev
 Source: "..\tools\update-core.psm1"; DestDir: "{tmp}\LingoMate-tools"; Flags: ignoreversion deleteafterinstall
 Source: "..\tools\uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "安装与试用说明.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Code]
 function RunOwnedScript(ScriptPath, Extra: String): Boolean;
