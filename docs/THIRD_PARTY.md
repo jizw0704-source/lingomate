@@ -4,7 +4,7 @@
 
 | 来源 | 固定版本 | 用途 | 许可说明 |
 | --- | --- | --- | --- |
-| [青简](https://github.com/qingjian-team/qingjian) | c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e | 中文候选引擎、词典与英文释义表 | 代码为 GPL-3.0-or-later；词表 README 标注 GPL-3.0-or-later，部分打包元数据标注 MIT，正式分发前需澄清 |
+| [青简](https://github.com/qingjian-team/qingjian) | c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e | 中文候选引擎、词典与英文释义表 | 代码及释义表 README 标注 GPL-3.0-or-later；中文字词库 README 明确各来源分别适用许可，不以单一许可证覆盖；部分释义打包元数据标注 MIT，正式分发前需逐项确认 |
 | [rime-translate](https://github.com/daocatt/rime-translate) | c5ffa0ed2fa2a5530a39929fc356dadd4cea161c | 前期离线对照研究，不作为原生运行依赖 | 插件为 MIT；样例数据依据各自许可说明判断 |
 | Apple Translation | 系统框架 | 本机整句中译英 | 仓库不分发框架或语言模型；语言资源由系统下载 |
 
@@ -19,3 +19,5 @@ Windows 安装 EXE 使用 [Inno Setup 6](https://jrsoftware.org/isinfo.php) 编�
 项目不使用第三方产品商标、标志或界面资产，也不分发 MiSans 字体；界面支持系统字体回退。项目编写的 30 个词语用法示例尚未经过专业审校。
 
 本项目源码采用 GPL-3.0-or-later。源码公开不代表所有数据的二进制分发许可已完成核验；完整数据分发结论仍待明确。详细来源证据见 [历史调研](../RESEARCH.md)。
+
+2026-10-09 安装包上传核对：固定快照的字词库 README 列出规范字、liuxilu 通用词表与 THUOCL 等独立来源，并明确“不以单一许可证覆盖所有来源”；不能用仓库代码的 GPL 标识替代逐项数据许可。用户请求上传的完整安装包先保存在维护者可见的 GitHub Release 草稿中，不公开发布，且不启用更新清单。该存储动作不改变数据分发确认状态。

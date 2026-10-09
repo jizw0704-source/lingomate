@@ -4,8 +4,8 @@
 
 | 平台 | 目标设备 | 构建文件 | 当前范围 |
 | --- | --- | --- | --- |
-| macOS | Apple 芯片，macOS 13+ | `lingomate-macos-arm64-0.11.8.dmg` | 本地测试镜像，内含原生安装程序 |
-| Windows | Windows 11，Intel / AMD x64 | `lingomate-windows-x64-0.1.1-setup.exe` | 已在 Windows CI 生成，验证初始安装说明窗口；未发布下载 |
+| macOS | Apple 芯片，macOS 13+ | `lingomate-macos-arm64-0.11.8.dmg` | 已上传维护者可见的 Release 草稿，内含原生安装程序 |
+| Windows | Windows 11，Intel / AMD x64 | `lingomate-windows-x64-0.1.1-setup.exe` | 已构建、检查并上传同一 Release 草稿；未开放公开下载 |
 
 ## Mac 构建与安装
 
@@ -48,6 +48,10 @@ Windows 检查会在构建机器启动初始安装说明窗口，验证中文操
 
 ## 分发状态与验收
 
-安装包仅在忽略目录或临时构建环境生成；GitHub 源码公开，未发布含完整词库的 Release 附件，Windows 更新清单继续保持 `unpublished`。正式向同事分发前，须完成 [第三方词库分发确认](THIRD_PARTY.md)、两端发行签名安排及目标设备安装验收。Mac 公证与 Windows 签名尚无凭据配置，不要求在聊天中提供密钥。
+用户于 2026-10-09 请求上传两端安装包。DMG、Windows 安装 EXE 及各自 SHA-256 文件已附在 `installer-preview-2026.10.09` 的 [GitHub Release 草稿](https://github.com/jizw0704-source/lingomate/releases)中，仅供仓库维护者查看；未公开发布，也未开放同事下载。Windows 包由 [受控构建上传](https://github.com/jizw0704-source/lingomate/actions/runs/37918649277)生成并直接附到草稿，不使用公开构建附件。上传前后校验保持一致，草稿状态已回读核对，匿名草稿页面返回 404。
+
+Windows 更新清单继续保持 `unpublished`，草稿不触发远程更新。正式向同事分发前，须完成 [第三方词库分发确认](THIRD_PARTY.md)、两端发行签名安排及目标设备安装验收。Mac 公证与 Windows 签名尚无凭据配置，不要求在聊天中提供密钥。
+
+后续上传 Windows 包可使用手动工作流：先创建预发布草稿并将 `target_commitish` 设为对应完整提交号，再执行 `gh workflow run windows-package-draft.yml --ref <同一提交的标签> -f release_id=<草稿编号>`。工作流验证目的地仍为草稿、源码版本一致，完成全部检查后才上传 EXE 与校验文件；没有发布步骤，不覆盖已有同名附件。
 
 验收时先使用空白文稿测试 `xuexi` 中文与英文候选、翻页、`API` 回车直出、Shift 英文切换，再测试微信、钉钉及办公应用。Windows 目前不包含 Mac 的个人词记忆、账号学习同步、AI 整句翻译及完整标点功能。记录应用名称、系统版本和复现步骤即可，不收集输入正文或个人词库。
