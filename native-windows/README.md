@@ -22,6 +22,8 @@ Windows 版本采用系统原生 Text Services Framework（TSF，文本服务框
 
 ## 构建与检查
 
+面向同事的安装形式为安装 EXE，使用 Inno Setup 6 构建，详见 [安装包与同事试用](../docs/PACKAGING.md#windows-构建与安装)。安装器沿用当前用户目录与文件校验流程，保留历史版本；尚未提供公开下载。引擎 EXE 与安装 EXE 是不同文件。
+
 准备 Windows 64 位 PowerShell、Git、Rustup，以及带 MSVC 与 Windows SDK 的 Visual Studio C++ 构建工具。执行：
 
 ```powershell

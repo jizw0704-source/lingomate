@@ -11,9 +11,12 @@
 ```sh
 bash tools/build.sh
 bash tools/check.sh
+bash tools/package.sh
 ```
 
 build.sh uses the parent local Rust runtime with Cargo.lock and existing Apple Command Line Tools. The result is build/BilingualCompanion.app. check.sh runs Swift formatting/lint, type checking, keyboard-state self-tests, real bridge checks and code-signing validation.
+
+package.sh creates an ignored local Apple Silicon DMG with a standalone Swift/AppKit installer. Installer/main.swift and Tests.swift are a separate executable, never linked into the IMK service. --selftest touches only temporary synthetic bundles with replaced signing/registration; --preview displays UI without installation. Preserve old verified ZIPs and reject running or unrelated destinations. Never launch the actual installation flow merely to verify packaging. No public package until data distribution and release signing/notarization are resolved.
 
 ## Preview, install and register
 

@@ -1,0 +1,24 @@
+灵果 LingoMate · Mac 内部测试包
+
+适用设备：Apple 芯片 Mac（M1 及更新），macOS 13 或更新版本。
+本地 Apple 整句翻译需要 macOS 26 或更新版本并准备语言资源。
+
+安装
+1. 打开 DMG，双击“安装灵果”。不要把输入法拖到“应用程序”。
+2. 如已安装旧版，先保存输入、切换到其他输入法，关闭灵果设置窗口，并在“活动监视器”退出 BilingualCompanion。
+3. 点击“安装灵果”。程序安装到当前用户的 ~/Library/Input Methods，旧版 ZIP 保存在 ~/Library/Application Support/BilingualCompanion/InstallBackups。
+4. 在“系统设置 → 键盘 → 文本输入 → 编辑 → ＋ → 简体中文”中添加“灵果”。如系统没有发现新输入源，保存工作后重新登录。
+5. 选择“灵果”，输入 xuexi，空格选中文；点击英文候选选英文。输入 API 后按回车应直接输出 API。单按 Shift 切换直接英文输入。
+6. 先在空白文稿试用，再检查微信、钉钉等常用软件。如应用仍连接旧版，请保存工作后完全退出并重新打开该应用。
+
+此包仅做本地安装验证，尚未使用 Developer ID 发行签名或完成公证。
+下载后的系统安全检查可能阻止运行；不要关闭 Gatekeeper 或删除隔离标记。正式同事分发前须完成签名、公证和词库分发确认。
+Mac 端尚未提供远程更新；后续安装新版使用同一安装程序。
+
+卸载与回退
+先切换其他输入法并退出灵果。在系统键盘设置中移除灵果，再移除 ~/Library/Input Methods/BilingualCompanion.app。
+个人词库和账号数据位于用户的 Application Support / Keychain，安装和卸载不自动删除它们。
+回退时在独立目录解压经过校验的旧版 ZIP；确认应用身份后恢复到同一安装目录，并重新添加输入源。不要从备份目录运行输入法。
+
+源码及 GPL-3.0-or-later 许可：https://github.com/jizw0704-source/lingomate
+完整第三方许可说明随输入法应用保留。

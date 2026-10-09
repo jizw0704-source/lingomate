@@ -12,6 +12,8 @@ Windows 原生接入使用 Microsoft 的 [`windows-rs`](https://github.com/micro
 
 ## 构建与分发范围
 
+Windows 安装 EXE 使用 [Inno Setup 6](https://jrsoftware.org/isinfo.php) 编译（仅构建工具，不作为输入服务运行依赖）。安装向导使用编译器附带的简体中文与英文消息文件，项目不复制其品牌素材或自动下载编译器。发行许可按 Inno Setup 官方许可执行；该工具许可不代替运行词库的数据分发确认。
+
 准备脚本将固定上游快照下载至被版本控制忽略的 `upstream/` 目录。原生构建将所需词典与释义表复制至本地应用，并附带 `LICENSE`、`GLOSSARY-NOTICE.md` 和 `LEXICON-NOTICE.md`。源码仓库不包含生成的应用或完整词典副本。
 
 项目不使用第三方产品商标、标志或界面资产，也不分发 MiSans 字体；界面支持系统字体回退。项目编写的 30 个词语用法示例尚未经过专业审校。

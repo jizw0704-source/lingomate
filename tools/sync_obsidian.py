@@ -10,6 +10,7 @@ PROJECT = Path(__file__).resolve().parents[1]
 MARKER = "<!-- bilingual-ime-managed-v1 -->"
 REPOSITORY = "https://github.com/jizw0704-source/lingomate"
 DOCUMENTS = {
+    "安装包与同事试用.md": "docs/PACKAGING.md",
     "Windows更新与发布.md": "native-windows/UPDATES.md",
     "Windows使用指南.md": "native-windows/README.md",
     "Windows验证记录.md": "native-windows/QA.md",
@@ -21,6 +22,7 @@ DOCUMENTS = {
     "第三方来源.md": "docs/THIRD_PARTY.md",
 }
 LINKS = {
+    "docs/PACKAGING.md": "安装包与同事试用",
     "native-windows/UPDATES.md": "Windows更新与发布",
     "native-windows/README.md": "Windows使用指南",
     "native-windows/QA.md": "Windows验证记录",

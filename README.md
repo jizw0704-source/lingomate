@@ -69,7 +69,7 @@ MiniMax 默认关闭，配置与数据范围见 [MiniMax AI 翻译](native-macos
 - 自建账号服务尚未公开部署，实际邮件送达、真实账号登录及跨设备同步待验证。
 - MiniMax 真实请求、响应速度、译文质量及钥匙串授权待配置后验证。
 - 较早 macOS 版本的实机兼容性、多语言翻译及整句多译法尚未完成。
-- 暂不提供正式安装包；完整数据分发许可、发行签名与公证尚待完成。
+- 已增加 Mac DMG 与 Windows 安装 EXE 构建流程，尚未发布正式下载；完整数据分发许可、发行签名、公证及安装验收待完成。详见 [安装包与同事试用](docs/PACKAGING.md)。
 
 验证范围及历史记录分别见 [开发进展](docs/PROGRESS.md)、[验证记录](native-macos/QA.md)和[安装登记与重载记录](native-macos/INSTALLATION.md)。
 
