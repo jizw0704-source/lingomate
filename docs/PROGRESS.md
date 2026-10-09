@@ -4,6 +4,8 @@
 
 ## Windows 并行开发
 
+Windows 0.1.1 增加远程版本更新：候选窗“更新”与 Ctrl＋Shift＋U 打开独立窗口，支持 GitHub Windows 预览版本检查、可选每日提醒、下载校验、确认安装及恢复上一版本。采用独立网络进程及不可覆盖的版本目录，不强制关闭宿主应用；安装后需重新打开应用。准备本地发布文件脚本，未发布远程更新包。更新隔离回归和窗口渲染正在 Windows 构建环境验证，真实升级仍待实机验收。参见 [Windows 更新与发布](../native-windows/UPDATES.md)。
+
 新增 Windows 0.1.0 开发客户端：原生 TSF 文本服务、非激活候选窗口、共享引擎、中英词语选择、多译法、候选分页、原样大小写提交、Shift 切换及基础标点。准备固定源码构建、校验清单、版本隔离安装、登记回退与卸载脚本，并加入 Windows 自动检查流程。
 
 Windows 目标类型检查、本机与远端的 2 项输入状态 / 7 项真实引擎检查已通过。[Windows 自动检查](https://github.com/jizw0704-source/lingomate/actions/runs/37902904909)已通过 MSVC 原生构建、PowerShell 语法、Rust 格式 / Clippy、打包数据回归及 DLL 类厂 / 文本服务对象创建释放检查。实际系统登记、应用输入、视觉、DPI、辅助功能与稳定性待 Windows 11 Intel / AMD 64 位机器验收。账号、MiniMax、完整标点、个人词库、外观及系统图标尚未移植；未改动当前 macOS 安装版。[Windows 使用说明](../native-windows/README.md) · [Windows 验证记录](../native-windows/QA.md)。

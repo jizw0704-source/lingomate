@@ -144,13 +144,13 @@ $Progress.SetBounds(24, 336, 480, 8)
 $Progress.Anchor = 'Bottom, Left, Right'
 $Progress.Visible = $false
 $Primary = New-Object Windows.Forms.Button
-$Primary.SetBounds(24, 356, 144, 44); $Primary.Anchor = 'Bottom, Left'
+$Primary.SetBounds(24, 356, 136, 44); $Primary.Anchor = 'Bottom, Left'
 $Primary.FlatStyle = 'System'; $Primary.TabIndex = 0
 $Restore = New-Object Windows.Forms.Button
-$Restore.Text = '恢复上一版本'; $Restore.SetBounds(176, 356, 160, 44); $Restore.Anchor = 'Bottom, Left'
+$Restore.Text = '恢复上一版本'; $Restore.SetBounds(168, 356, 136, 44); $Restore.Anchor = 'Bottom, Left'
 $Restore.FlatStyle = 'System'; $Restore.TabIndex = 1
 $Close = New-Object Windows.Forms.Button
-$Close.Text = '关闭'; $Close.SetBounds(344, 356, 160, 44); $Close.Anchor = 'Bottom, Right'
+$Close.Text = '关闭'; $Close.SetBounds(368, 356, 136, 44); $Close.Anchor = 'Bottom, Right'
 $Close.FlatStyle = 'System'; $Close.TabIndex = 2
 $Form.Controls.AddRange(@($Title, $Status, $Notes, $Auto, $Progress, $Primary, $Restore, $Close))
 $Form.AcceptButton = $Primary
@@ -198,6 +198,11 @@ try {
         Set-Status 'Idle' '检查灵果的新版本。' '检查更新'
         $Bitmap = New-Object Drawing.Bitmap($Form.Width, $Form.Height)
         try { $Form.DrawToBitmap($Bitmap, (New-Object Drawing.Rectangle(0, 0, $Form.Width, $Form.Height))); $Bitmap.Save($PreviewPath, [Drawing.Imaging.ImageFormat]::Png) } finally { $Bitmap.Dispose() }
+        $Form.ClientSize = New-Object Drawing.Size(480, 424)
+        [Windows.Forms.Application]::DoEvents()
+        if ($Primary.Bounds.IntersectsWith($Restore.Bounds) -or $Restore.Bounds.IntersectsWith($Close.Bounds) -or $Close.Right -gt $Form.ClientSize.Width) { throw 'Narrow update layout must not overlap.' }
+        $Bitmap = New-Object Drawing.Bitmap($Form.Width, $Form.Height)
+        try { $Form.DrawToBitmap($Bitmap, (New-Object Drawing.Rectangle(0, 0, $Form.Width, $Form.Height))); $Bitmap.Save(($PreviewPath + '.narrow.png'), [Drawing.Imaging.ImageFormat]::Png) } finally { $Bitmap.Dispose() }
         $Form.Close()
     } elseif ($Background) {
         $Settings.last_checked = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds(); Save-Settings

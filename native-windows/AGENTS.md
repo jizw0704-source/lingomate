@@ -4,6 +4,7 @@
 - Current target: Windows x64 desktop text applications. Keep standard COM object lifetimes, keyboard-disabled checks, asynchronous edit sessions, composition termination, focus changes and bounded bridge failure handling. Never replay commits or synthesize host/system keys.
 - Pheno v1.4 applies to the candidate panel: neutral surfaces, native Chinese font fallback, compact paired candidates, >=44px choices, no animation or focus stealing. Do not claim actual Windows visual, DPI or accessibility acceptance from macOS checks.
 - Installer touches only the owned CLSID and immutable LingoMate version paths. Preserve previous registration and files; never stop hosts, change other input methods, select a source, restart ctfmon or reboot automatically. Do not register TSF in CI. No generated dictionaries, packages or credentials in Git.
+- Remote updates are user-authorized: use the fixed GitHub Windows preview source and a separate desktop process. Daily checking is opt-in, installation requires the user's confirmation, no input data is uploaded. Never run a downloaded installer script; the installed trusted core validates packages and registers only the owned DLL. Keep UTF-8 BOM for Chinese PowerShell sources consumed by Windows PowerShell 5.1. Do not publish packages until data distribution and real-machine acceptance are resolved.
 
 ## Windows setup, build, checks, install
 
@@ -15,9 +16,12 @@ Run from the repository root using 64-bit PowerShell and Rust/MSVC build tools:
 ./native-windows/tools/check.ps1
 ./native-windows/tools/install.ps1
 ./native-windows/tools/uninstall.ps1
+./native-windows/tools/prepare-release.ps1
 ```
 
 Setup pins Rust 1.96.0 and the existing upstream commit. Build uses locked dependencies. Check parses all PowerShell scripts, checks Rust format/Clippy, runs real-engine tests and loads the DLL factory without registration.
+
+Check also runs `test_updates.ps1` under PowerShell 7 and Windows PowerShell 5.1, and renders `update.ps1 -SmokeTest -PreviewPath <temporary PNG>` without reading real installation or network state. `prepare-release.ps1` only creates ignored local release files; it does not publish. Actual registration, network release download and application reload require Windows 11 acceptance.
 
 ## macOS development checks
 

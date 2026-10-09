@@ -46,7 +46,7 @@ function Assert-LingoMateOwnedDll([string]$Dll, [string]$Root) {
 function Assert-LingoMateUrl([string]$Url, [switch]$Redirect) {
     $Uri = [Uri]$Url
     if (-not $Uri.IsAbsoluteUri -or $Uri.Scheme -ne 'https' -or $Uri.Port -ne 443 -or $Uri.UserInfo -or $Uri.Fragment) { throw '更新地址不受信任。' }
-    $Allowed = ($Uri.Host -ceq 'api.github.com' -and $Uri.AbsolutePath -eq "/repos/$script:Repository/releases") -or ($Uri.Host -ceq 'github.com' -and $Uri.AbsolutePath.StartsWith("/$script:Repository/releases/download/", [StringComparison]::Ordinal))
+    $Allowed = ($Uri.Host -ceq 'raw.githubusercontent.com' -and $Uri.AbsolutePath -ceq "/$script:Repository/main/updates/windows-preview.json") -or ($Uri.Host -ceq 'github.com' -and $Uri.AbsolutePath.StartsWith("/$script:Repository/releases/download/", [StringComparison]::Ordinal))
     if ($Redirect) { $Allowed = $Allowed -or ($Uri.Host -cin @('release-assets.githubusercontent.com', 'objects.githubusercontent.com')) }
     if (-not $Allowed) { throw '更新地址不属于灵果的 GitHub 发布源。' }
     return $Uri
@@ -87,42 +87,26 @@ function Receive-LingoMateFile([string]$Url, [string]$Path, [long]$Limit) {
         } finally { if ($Response) { $Response.Dispose() }; $Request.Abort() }
     }
 }
-function Select-LingoMateRelease($Releases, [string]$Current) {
+function Assert-LingoMateUpdate($Metadata, [string]$Current) {
+    if ($Metadata.schema -ne 1 -or $Metadata.platform -ne 'windows' -or $Metadata.arch -ne 'x64' -or $Metadata.channel -ne 'preview' -or $Metadata.minimum_windows_build -ne 22000) { throw '更新包与当前平台不一致。' }
     $CurrentVersion = Get-LingoMateVersion $Current
-    $Matches = @($Releases | Where-Object {
-        -not $_.draft -and $_.tag_name -cmatch '^windows-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' -and @($_.assets | Where-Object { $_.name -ceq 'lingomate-windows-update.json' }).Count -eq 1
-    } | Sort-Object { Get-LingoMateVersion $_.tag_name.Substring(9) } -Descending)
-    if ($Matches.Count -eq 0) { return $null }
-    $Release = $Matches[0]
-    $Version = $Release.tag_name.Substring(9)
-    if ((Get-LingoMateVersion $Version) -le $CurrentVersion) { return $null }
-    $Asset = @($Release.assets | Where-Object { $_.name -ceq 'lingomate-windows-update.json' })[0]
-    if ($Asset.size -le 0 -or $Asset.size -gt 65536) { throw '发布元数据大小无效。' }
-    Assert-LingoMateUrl $Asset.browser_download_url | Out-Null
-    return [pscustomobject]@{ version = $Version; release = $Release; metadata_url = $Asset.browser_download_url }
-}
-function Assert-LingoMateUpdate($Metadata, $Selected) {
-    if ($Metadata.schema -ne 1 -or $Metadata.platform -ne 'windows' -or $Metadata.arch -ne 'x64' -or $Metadata.channel -ne 'preview' -or $Metadata.minimum_windows_build -ne 22000 -or $Metadata.version -cne $Selected.version) { throw '更新包与当前平台或发布版本不一致。' }
+    if ($Metadata.status -ceq 'unpublished') { return $null }
+    if ($Metadata.status -cne 'published') { throw '更新发布状态无效。' }
     Get-LingoMateVersion $Metadata.version | Out-Null
     if ($Metadata.sha256 -cnotmatch '^[a-f0-9]{64}$' -or $Metadata.manifest_sha256 -cnotmatch '^[a-f0-9]{64}$' -or $Metadata.size -le 0 -or $Metadata.size -gt 134217728) { throw '更新校验信息无效。' }
     $Name = 'lingomate-windows-x64-' + $Metadata.version + '.zip'
     if ($Metadata.asset -cne $Name) { throw '更新包名称无效。' }
-    $Assets = @($Selected.release.assets | Where-Object { $_.name -ceq $Name })
-    if ($Assets.Count -ne 1 -or $Assets[0].size -ne $Metadata.size) { throw '更新包缺失或大小不一致。' }
-    $Url = $Assets[0].browser_download_url
+    $Url = $Metadata.download_url
     Assert-LingoMateUrl $Url | Out-Null
     $Expected = "https://github.com/$script:Repository/releases/download/windows-v$($Metadata.version)/$Name"
-    if ($Url -cne $Expected -or $Selected.metadata_url -cne "https://github.com/$script:Repository/releases/download/windows-v$($Metadata.version)/lingomate-windows-update.json") { throw '更新文件不属于当前发布版本。' }
-    return [pscustomobject]@{ metadata = $Metadata; url = $Url; notes = [string]$Selected.release.body }
+    if ($Url -cne $Expected) { throw '更新文件不属于当前发布版本。' }
+    if ((Get-LingoMateVersion $Metadata.version) -le $CurrentVersion) { return $null }
+    return [pscustomobject]@{ metadata = $Metadata; url = $Url; notes = [string]$Metadata.notes }
 }
 function Get-LingoMateUpdate([string]$Current, [string]$Work) {
-    $List = Join-Path $Work 'releases.json'
-    Receive-LingoMateFile "https://api.github.com/repos/$script:Repository/releases?per_page=30" $List 1048576
-    $Selected = Select-LingoMateRelease (Read-LingoMateJson $List 1048576) $Current
-    if (-not $Selected) { return $null }
     $Info = Join-Path $Work 'metadata.json'
-    Receive-LingoMateFile $Selected.metadata_url $Info 65536
-    return (Assert-LingoMateUpdate (Read-LingoMateJson $Info) $Selected)
+    Receive-LingoMateFile "https://raw.githubusercontent.com/$script:Repository/main/updates/windows-preview.json" $Info 65536
+    return (Assert-LingoMateUpdate (Read-LingoMateJson $Info) $Current)
 }
 function Test-LingoMatePackage([string]$Package, [switch]$Legacy) {
     $Manifest = Read-LingoMateJson (Join-Path $Package 'manifest.json')
@@ -141,6 +125,7 @@ function Test-LingoMatePackage([string]$Package, [switch]$Legacy) {
 function Expand-LingoMateUpdate([string]$Archive, [string]$Destination, $Metadata) {
     if ((Get-FileHash -Algorithm SHA256 -LiteralPath $Archive).Hash -ine $Metadata.sha256 -or (Get-Item -LiteralPath $Archive).Length -ne $Metadata.size) { throw '下载校验失败，旧版本未修改。' }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
+    Add-Type -AssemblyName System.IO.Compression
     $Zip = [IO.Compression.ZipFile]::OpenRead($Archive)
     try {
         $Allowed = @($script:PackageFiles) + 'manifest.json'

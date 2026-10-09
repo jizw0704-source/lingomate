@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "platform": "windows",
+  "arch": "x64",
+  "channel": "preview",
+  "minimum_windows_build": 22000,
+  "status": "unpublished"
+}

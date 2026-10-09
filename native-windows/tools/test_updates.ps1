@@ -2,6 +2,7 @@
 Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'update-core.psm1') -Force
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+Add-Type -AssemblyName System.IO.Compression
 $Temporary = Join-Path ([IO.Path]::GetTempPath()) ('lingomate-update-test-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $Temporary | Out-Null
 $script:Passed = 0
@@ -28,15 +29,16 @@ function Fixture([string]$Directory, [string]$Version, [switch]$Legacy) {
 }
 function Zip([string]$Path, [string]$Directory, [string]$Extra = '') {
     $Stream = [IO.File]::Open($Path, [IO.FileMode]::CreateNew)
-    $Archive = New-Object IO.Compression.ZipArchive($Stream, [IO.Compression.ZipArchiveMode]::Create)
+    $Archive = $null
     try {
+        $Archive = New-Object IO.Compression.ZipArchive($Stream, [IO.Compression.ZipArchiveMode]::Create)
         foreach ($File in Get-ChildItem -LiteralPath $Directory -File) { [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($Archive, $File.FullName, $File.Name) | Out-Null }
         if ($Extra) {
             $Entry = $Archive.CreateEntry($Extra)
             $Writer = New-Object IO.StreamWriter($Entry.Open())
             $Writer.Write('synthetic'); $Writer.Dispose()
         }
-    } finally { $Archive.Dispose(); $Stream.Dispose() }
+    } finally { if ($Archive) { $Archive.Dispose() }; $Stream.Dispose() }
 }
 try {
     Check ((Get-LingoMateVersion '0.10.0') -gt (Get-LingoMateVersion '0.9.9')) 'numeric version ordering'
@@ -44,35 +46,24 @@ try {
     foreach ($Bad in @('http://github.com/jizw0704-source/lingomate/releases/download/x/a.zip', 'https://evil.example/a', 'https://github.com/other/repo/releases/download/x/a.zip', 'https://github.com.evil.example/a', 'https://github.com:444/jizw0704-source/lingomate/releases/download/x/a.zip')) { Reject { Assert-LingoMateUrl $Bad } 'untrusted URL rejected' }
     Reject { Assert-LingoMateUrl 'https://evil.example/a' -Redirect } 'untrusted redirect rejected'
     Check ((Assert-LingoMateUrl 'https://release-assets.githubusercontent.com/test' -Redirect).Scheme -eq 'https') 'approved CDN redirect'
-    $Release = [pscustomobject]@{
-        tag_name = 'windows-v0.2.0'; draft = $false; prerelease = $true; body = 'Synthetic release notes'
-        assets = @([pscustomobject]@{ name = 'lingomate-windows-update.json'; size = 400; browser_download_url = 'https://github.com/jizw0704-source/lingomate/releases/download/windows-v0.2.0/lingomate-windows-update.json' })
-    }
-    $Selected = Select-LingoMateRelease @($Release) '0.1.1'
-    Check ($Selected.version -eq '0.2.0') 'preview channel selects Windows release'
-    Check ($null -eq (Select-LingoMateRelease @($Release) '0.2.0')) 'equal version does not update'
-    Check ($null -eq (Select-LingoMateRelease @($Release) '0.3.0')) 'no automatic downgrade'
-    $Release.draft = $true
-    Check ($null -eq (Select-LingoMateRelease @($Release) '0.1.1')) 'draft is not distributed'
-    $Release.draft = $false
-    $Release.tag_name = 'macos-v99.0.0'
-    Check ($null -eq (Select-LingoMateRelease @($Release) '0.1.1')) 'macOS release ignored'
-    $Release.tag_name = 'windows-v0.2.0'
-
+    $Empty = [pscustomobject]@{schema=1; platform="windows"; arch="x64"; channel="preview"; minimum_windows_build=22000; status="unpublished"}
+    Check ($null -eq (Assert-LingoMateUpdate $Empty "0.1.1")) "unpublished feed is an empty state"
     $Package = Join-Path $Temporary 'package'
     Fixture $Package '0.2.0'
     Check ((Test-LingoMatePackage $Package).PSObject.Properties.Name.Count -eq 12) 'complete package validation'
     $Archive = Join-Path $Temporary 'valid.zip'
     Zip $Archive $Package
     $Metadata = [pscustomobject]@{
-        schema = 1; platform = 'windows'; arch = 'x64'; channel = 'preview'; version = '0.2.0'; minimum_windows_build = 22000
+        status = 'published'; notes = 'Synthetic notes'; download_url = 'https://github.com/jizw0704-source/lingomate/releases/download/windows-v0.2.0/lingomate-windows-x64-0.2.0.zip'; schema = 1; platform = 'windows'; arch = 'x64'; channel = 'preview'; version = '0.2.0'; minimum_windows_build = 22000
         asset = 'lingomate-windows-x64-0.2.0.zip'; size = (Get-Item $Archive).Length
         sha256 = (Get-FileHash $Archive -Algorithm SHA256).Hash.ToLowerInvariant()
         manifest_sha256 = (Get-FileHash (Join-Path $Package 'manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
     }
-    $Release.assets += [pscustomobject]@{ name = $Metadata.asset; size = $Metadata.size; browser_download_url = 'https://github.com/jizw0704-source/lingomate/releases/download/windows-v0.2.0/lingomate-windows-x64-0.2.0.zip' }
-    Check ((Assert-LingoMateUpdate $Metadata $Selected).metadata.version -eq '0.2.0') 'matching release and metadata'
-    $Metadata.arch = 'arm64'; Reject { Assert-LingoMateUpdate $Metadata $Selected } 'wrong architecture rejected'; $Metadata.arch = 'x64'
+    Check ((Assert-LingoMateUpdate $Metadata "0.1.1").metadata.version -eq "0.2.0") "published update selected"
+    Check ($null -eq (Assert-LingoMateUpdate $Metadata "0.2.0")) "equal version does not update"
+    Check ($null -eq (Assert-LingoMateUpdate $Metadata "0.3.0")) "automatic downgrade rejected"
+    $Metadata.arch = "arm64"; Reject { Assert-LingoMateUpdate $Metadata "0.1.1" } "wrong architecture"; $Metadata.arch = "x64"
+    $Metadata.platform = "macos"; Reject { Assert-LingoMateUpdate $Metadata "0.1.1" } "wrong platform"; $Metadata.platform = "windows"
     $Extracted = Join-Path $Temporary 'extracted'
     Expand-LingoMateUpdate $Archive $Extracted $Metadata
     Check (Test-Path (Join-Path $Extracted 'version.json')) 'verified extraction'
@@ -118,4 +109,5 @@ try {
     Reject { Install-LingoMatePackage $Package $Root $OldDll $MockRegister } 'tampering cannot reach registration'
     Check ($Calls.Count -eq 0) 'no registration for invalid package'
     Write-Output "Passed $script:Passed isolated update checks; no network or system registration was used."
-} finally { Remove-Item -LiteralPath $Temporary -Recurse -Force }
+} catch { Write-Output ($_ | Out-String); throw }
+finally { Remove-Item -LiteralPath $Temporary -Recurse -Force }

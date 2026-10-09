@@ -20,7 +20,7 @@
 
 - 来源固定为 `jizw0704-source/lingomate`，不读取自定义更新地址或账号令牌。
 - 标签：`windows-v<主版本>.<次版本>.<修订号>`，例如 `windows-v0.1.1`。
-- Windows `preview` 通道接受对应预发布，忽略草稿、macOS、相同及低版本。读取最近 30 个发布，需保证 Windows 当前发布仍在该范围内。
+- 更新清单位于 `updates/windows-preview.json`，通过固定 raw.githubusercontent.com 地址读取，不使用受公共 API 配额限制的发布列表。清单为 Windows `preview` 通道，拒绝其他平台、相同及低版本。
 - 附件：`lingomate-windows-update.json` 和 `lingomate-windows-x64-<版本>.zip`。
 - 元数据含平台、架构、通道、版本、最低 Windows 构建号、包名称、大小、压缩包与文件清单 SHA-256。
 - 仅接受本仓库 HTTPS 发布链接及明确允许的 GitHub 附件 CDN 重定向；不关闭证书验证。
@@ -38,9 +38,9 @@ Windows 构建机器执行：
 ./native-windows/tools/prepare-release.ps1
 ```
 
-脚本仅生成本地 `native-windows/package/release-<版本>/`，不上传发布。调整 Cargo.toml 和 Cargo.lock 的版本后须重新构建、检查。实机安装 / 输入 / 更新 / 回退、数据分发许可和发行签名安排完成后，再将两个附件放在同一版本标签的 GitHub Release，并添加更新说明。可先建立草稿复核，客户端忽略草稿。
+脚本仅生成本地 `native-windows/package/release-<版本>/`，不上传发布。调整 Cargo.toml 和 Cargo.lock 的版本后须重新构建、检查。实机安装 / 输入 / 更新 / 回退、数据分发许可和发行签名安排完成后，再将两个附件放在同一版本标签的 GitHub Release，并添加更新说明。可先建立草稿复核。公开发布并验证附件可下载后，将生成的元数据复制至 `updates/windows-preview.json` 并提交同步；在此之前保持清单为 unpublished，避免向同事推送不可下载的草稿。
 
-**推送源码或通过构建不会触发更新，必须发布对应附件。** 当前尚未发布 Windows 更新包，客户端将显示没有更高版本可用。自动检查只保存隔离生成的更新窗口截图，不上传词库或安装包。
+**推送源码或通过构建不会触发更新，必须发布对应附件并更新清单。** 当前清单为 unpublished，尚未发布 Windows 更新包，客户端将显示没有更高版本可用。自动检查只保存隔离生成的更新窗口截图，不上传词库或安装包。
 
 ## 验证范围
 
