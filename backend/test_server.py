@@ -83,6 +83,7 @@ class AccountTests(unittest.TestCase):
                 "SELECT * FROM codes WHERE email=?", ("other@example.invalid",)
             ).fetchone()
         )
+        self.fails(429, lambda: self.store.send_code("other@example.invalid", "test"))
 
     def test_refresh_rotation_expiry_logout(self):
         tokens = self.login()
@@ -94,6 +95,41 @@ class AccountTests(unittest.TestCase):
         self.store.logout(renewed["access_token"], renewed["refresh_token"])
         self.fails(401, lambda: self.store.refresh(renewed["refresh_token"]))
         self.fails(401, lambda: self.store.words(renewed["access_token"]))
+
+    def test_slow_mail_does_not_block_sync_and_reserves_quota(self):
+        tokens = self.login()
+        sending, release = threading.Event(), threading.Event()
+        result = []
+
+        def slow_sender(email, code):
+            sending.set()
+            if not release.wait(3):
+                raise RuntimeError("test_timeout")
+            self.mail[email] = code
+
+        def send():
+            try:
+                result.append(self.store.send_code("slow@example.invalid", "slow-ip"))
+            except APIError as error:
+                result.append(error.status)
+
+        self.store.sender = slow_sender
+        thread = threading.Thread(target=send)
+        thread.start()
+        try:
+            self.assertTrue(sending.wait(1))
+            # Query while SMTP is intentionally blocked, not after releasing it.
+            self.assertEqual(self.store.words(tokens["access_token"]), [])
+            self.fails(
+                429, lambda: self.store.send_code("slow@example.invalid", "slow-ip")
+            )
+            self.fails(403, lambda: self.store.verify("slow@example.invalid", "000000"))
+        finally:
+            release.set()
+            thread.join(4)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(result, [{"sent": True}])
+        self.store.verify("slow@example.invalid", self.mail["slow@example.invalid"])
 
     def test_isolation_idempotence_and_mastery(self):
         one, two = self.login(), self.login("two@example.invalid")

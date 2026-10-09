@@ -23,6 +23,8 @@ struct EngineFrame: Codable {
   let committed: String?
   var learningToken: UInt64? = nil
   var memoryWarning: String? = nil
+  // 本机管道会话标识，不来自引擎正文；阻止重启后数值回执被重复使用。
+  var engineIdentity: UUID? = nil
 }
 
 struct EngineRequest: Encodable {
@@ -48,7 +50,7 @@ enum EngineFailure: LocalizedError {
   case message(String)
   var errorDescription: String? {
     switch self {
-    case .unavailable: return "本地引擎未启动。请切回 ABC，再重新选择中英输入实验版。"
+    case .unavailable: return "本地引擎未启动。请切回 ABC，再重新选择灵果。"
     case .timeout: return "本地引擎响应超时。未完成的拼音会原样保留。"
     case .message(let message): return message
     }

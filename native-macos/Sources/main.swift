@@ -3,6 +3,30 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if arguments.contains("--service-lock-test") {
+  ServiceLease.checks()
+  exit(0)
+}
+if let index = arguments.firstIndex(of: "--service-lock-probe"), arguments.count > index + 1 {
+  ServiceLease.probe(
+    file: URL(fileURLWithPath: arguments[index + 1]), hold: arguments.contains("--hold"))
+}
+if let index = arguments.firstIndex(of: "--input-apply") {
+  guard arguments.count == index + 3,
+    let setting = InputSetting(payload: [
+      "setting": arguments[index + 1], "value": arguments[index + 2],
+    ])
+  else {
+    fputs("输入设置参数无效。\n", stderr)
+    exit(2)
+  }
+  SettingsInputClient.applyFromCommandLine(setting)
+  exit(0)
+}
+if arguments.contains("--engine-resilience-test") {
+  EngineResilienceTests.run()
+  exit(0)
+}
 if arguments.contains("--input-status") {
   InputDiagnostics.query()
   exit(0)
@@ -88,6 +112,7 @@ let isPreview =
   || arguments.contains("--preview-punctuation")
   || arguments.contains("--preview-typing") || arguments.contains("--account-preview")
   || arguments.contains("--ai-settings-preview")
+  || arguments.contains("--settings-preview") || arguments.contains("--settings-test")
 let previewTheme: AppearanceChoice? = {
   guard let index = arguments.firstIndex(of: "--theme"), arguments.count > index + 1 else {
     return nil
@@ -125,6 +150,19 @@ let learningDirectory =
   : FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
     "Library/Application Support/BilingualCompanion/Learning")
 LearningRuntime.store = LearningStore(directory: learningDirectory)
+if arguments.contains("--settings") || arguments.contains("--settings-preview")
+  || arguments.contains("--settings-test")
+{
+  if arguments.contains("--settings-test") {
+    SettingsTests.run()
+  } else {
+    SettingsWindow.start(preview: isPreview)
+    app.run()
+  }
+  if isPreview { try? FileManager.default.removeItem(at: learningDirectory) }
+  if isPreview { try? FileManager.default.removeItem(at: aiDirectory) }
+  exit(0)
+}
 if arguments.contains("--account") || arguments.contains("--account-preview") {
   AccountWindow.start(preview: isPreview)
   app.run()
@@ -146,6 +184,7 @@ if arguments.contains("--setup-translation") {
   app.run()
   exit(0)
 }
+if !isPreview { ServiceLease.start() }
 do {
   guard let resources = Bundle.main.resourceURL else { throw EngineFailure.unavailable }
   let memoryURL =
@@ -177,7 +216,6 @@ if isPreview {
     fputs("输入控制器注册失败\n", stderr)
     exit(1)
   }
-  InputDiagnostics.start()
   let server = IMKServer(
     name: "org.local.bilingualcompanion_Connection",
     bundleIdentifier: "org.local.bilingualcompanion")
@@ -185,5 +223,7 @@ if isPreview {
     fputs("InputMethodKit 服务启动失败\n", stderr)
     exit(1)
   }
+  InputDiagnostics.start()
+  RuntimeSettings.start()
   withExtendedLifetime(server) { app.run() }
 }

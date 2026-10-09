@@ -44,6 +44,9 @@ enum AccountWindow {
 final class LearningWindowController: NSObject, NSWindowDelegate {
   let window: NSWindow
   let store: LearningStore
+  private(set) var contentView: NSScrollView!
+  var onContentChange: (() -> Void)?
+  private let embedded: Bool
   private let preview: Bool
   private var email = ""
   private var code = ""
@@ -61,8 +64,9 @@ final class LearningWindowController: NSObject, NSWindowDelegate {
   private var renderedFingerprint = ""
   private weak var sendButton: ActionButton?
 
-  init(preview: Bool) {
+  init(preview: Bool, embedded: Bool = false) {
     self.preview = preview
+    self.embedded = embedded
     store = LearningRuntime.store!
     window = NSWindow(
       contentRect: .init(
@@ -72,7 +76,7 @@ final class LearningWindowController: NSObject, NSWindowDelegate {
     )
     super.init()
     window.delegate = self
-    window.title = preview ? "学习中心 · 界面样例（未真实登录）" : "中英输入 · 学习中心"
+    window.title = preview ? "学习中心 · 界面样例（未真实登录）" : "灵果 · 学习中心"
     window.minSize = NSSize(width: 440, height: 400)
     window.backgroundColor = NativeTheme.background
     if let configuration = try? AccountWindow.configuration(store) {
@@ -162,6 +166,7 @@ final class LearningWindowController: NSObject, NSWindowDelegate {
     serviceURL =
       fields["url"]?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? serviceURL
   }
+  func prepareForNavigation() { capture() }
   private func perform(_ operation: @escaping () async throws -> Void) {
     capture()
     busy = true
@@ -195,7 +200,7 @@ final class LearningWindowController: NSObject, NSWindowDelegate {
   }
 
   func render(preserveScroll: Bool = false) {
-    let previousOffset = (window.contentView as? NSScrollView)?.contentView.bounds.origin ?? .zero
+    let previousOffset = contentView?.contentView.bounds.origin ?? .zero
     fields = [:]
     let root = CandidateDocumentView()
     root.wantsLayer = true
@@ -209,10 +214,12 @@ final class LearningWindowController: NSObject, NSWindowDelegate {
       stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16),
     ])
     add(
-      row([
-        NativeTheme.label("学习中心", size: 20, weight: .medium), NSView(),
-        AppearanceSettings.current.button(),
-      ]), to: stack)
+      row(
+        [
+          NativeTheme.label(
+            embedded ? ((try? store.snapshot().active) == nil ? "登录账号" : "我的学习") : "学习中心", size: 20,
+            weight: .medium), NSView(),
+        ] + (embedded ? [] : [AppearanceSettings.current.button()])), to: stack)
     if preview {
       add(NativeTheme.label("界面样例：使用隔离测试数据，没有真实登录或联网同步。", size: 12, secondary: true), to: stack)
     }
@@ -230,7 +237,8 @@ final class LearningWindowController: NSObject, NSWindowDelegate {
     scroll.drawsBackground = false
     scroll.hasVerticalScroller = true
     scroll.documentView = root
-    window.contentView = scroll
+    contentView = scroll
+    if !embedded { window.contentView = scroll }
     root.translatesAutoresizingMaskIntoConstraints = false
     root.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
     root.layoutSubtreeIfNeeded()
@@ -239,10 +247,11 @@ final class LearningWindowController: NSObject, NSWindowDelegate {
         width: window.contentLayoutRect.width,
         height: max(window.contentLayoutRect.height, stack.fittingSize.height + 32)))
     scroll.contentView.scroll(to: preserveScroll ? previousOffset : .zero)
+    onContentChange?()
   }
 
   private func login(to stack: NSStackView) {
-    add(NativeTheme.label("登录，留下你的学习进度", size: 16, weight: .medium), to: stack)
+    if !embedded { add(NativeTheme.label("登录，留下你的学习进度", size: 16, weight: .medium), to: stack) }
     add(NativeTheme.label("用邮箱验证码登录。选用的英文词语加入已学习，掌握情况由你确认。", size: 13, secondary: true), to: stack)
     add(field("邮箱", key: "email", value: email), to: stack)
     let send = button("发送验证码", primary: true) { [weak self] in
@@ -278,14 +287,14 @@ final class LearningWindowController: NSObject, NSWindowDelegate {
     add(
       row([
         signIn, NSView(),
-        button("服务设置") { [weak self] in
+        button("高级设置") { [weak self] in
           self?.capture()
           self?.configurationVisible.toggle()
           self?.render(preserveScroll: true)
         },
       ]), to: stack)
     if (try? AccountWindow.configuration(store)) == nil {
-      add(NativeTheme.label("账号服务尚未连接。部署自建服务后，在服务设置填入地址。", size: 12, secondary: true), to: stack)
+      add(NativeTheme.label("登录服务暂未开放，邮箱登录和云端学习记录尚不可用。", size: 12, secondary: true), to: stack)
     }
     if configurationVisible {
       add(field("账号服务 HTTPS 地址", key: "url", value: serviceURL), to: stack)

@@ -1,0 +1,28 @@
+[Unit]
+Description=Bilingual IME email login and word sync
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+DynamicUser=yes
+WorkingDirectory=/opt/bilingual-account
+StateDirectory=bilingual-account
+StateDirectoryMode=0700
+EnvironmentFile=/etc/bilingual-account/smtp.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 -u /opt/bilingual-account/server.py --state /var/lib/bilingual-account --port 9057
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

@@ -26,7 +26,7 @@ class HttpTests(unittest.TestCase):
         with urllib.request.urlopen(BASE + "/api/health", timeout=5) as response:
             self.assertTrue(json.load(response)["ready"])
         with urllib.request.urlopen(BASE, timeout=5) as response:
-            self.assertIn("中英输入实验室", response.read().decode())
+            self.assertIn("灵果", response.read().decode())
 
     def test_query_and_commit_third_translation(self):
         status, data = self.post("/api/query", {"input": "xuexi"})

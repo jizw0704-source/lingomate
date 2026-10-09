@@ -7,6 +7,8 @@ import InputMethodKit
 final class BilingualInputController: IMKInputController {
   private var state = SessionState()
   var hasComposition: Bool { !state.input.isEmpty }
+  private(set) var isSessionActive = false
+  var hasTextClient: Bool { textClient != nil }
   private var punctuation = PunctuationState()
   private var shiftTap = ShiftTap()
   private var modeNotice = UUID()
@@ -15,6 +17,10 @@ final class BilingualInputController: IMKInputController {
   private let sentenceTranslator = SentenceTranslator()
   private lazy var panel: CandidatePanel = {
     let panel = CandidatePanel()
+    panel.onSettings = { [weak self] in
+      self?.rawCommit()
+      SettingsWindow.launch()
+    }
     panel.onLearning = { [weak self] in
       self?.rawCommit()
       AccountWindow.launch()
@@ -58,6 +64,8 @@ final class BilingualInputController: IMKInputController {
   override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
     mainSync {
       InputDiagnostics.events += 1
+      if event?.type == .keyDown { InputDiagnostics.keyDowns += 1 }
+      if event?.type == .flagsChanged { InputDiagnostics.modifierEvents += 1 }
       InputDiagnostics.controller = self
       guard let event, let client = sender as? IMKTextInput else {
         InputDiagnostics.rejectedClients += 1
@@ -86,7 +94,10 @@ final class BilingualInputController: IMKInputController {
       }
       guard event.type == .keyDown else { return false }
       // Every normal key, including punctuation and shortcuts, belongs to the host in English.
-      guard Runtime.typingMode == .chinese else { return false }
+      guard Runtime.typingMode == .chinese else {
+        InputDiagnostics.englishPassThroughs += 1
+        return false
+      }
       let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
       if event.keyCode == kVK_ANSI_P, flags.contains([.control, .shift]),
         !flags.contains(.command), !flags.contains(.option)
@@ -176,7 +187,10 @@ final class BilingualInputController: IMKInputController {
         return false
       default: break
       }
-      guard let characters = event.characters, !characters.isEmpty else { return false }
+      guard let characters = event.characters, !characters.isEmpty else {
+        InputDiagnostics.emptyCharacterEvents += 1
+        return false
+      }
       if state.input.isEmpty, punctuation.isLatinLiteral,
         characters.utf8.allSatisfy({ (33...126).contains($0) })
       {
@@ -240,11 +254,15 @@ final class BilingualInputController: IMKInputController {
       guard let engine = Runtime.engine else { throw EngineFailure.unavailable }
       state.frame = try engine.request(
         EngineRequest(action: "query", input: state.input, context: learningContext))
+      Runtime.failure = nil
       Runtime.memoryWarning = state.frame?.memoryWarning
       let marked = state.frame?.marked.isEmpty == false ? state.frame!.marked : state.input
-      textClient?.setMarkedText(
-        marked, selectionRange: NSRange(location: marked.utf16.count, length: 0),
-        replacementRange: noReplacement)
+      if let textClient {
+        textClient.setMarkedText(
+          marked, selectionRange: NSRange(location: marked.utf16.count, length: 0),
+          replacementRange: noReplacement)
+        InputDiagnostics.markedUpdates += 1
+      }
       updateSentenceTranslation()
       draw()
     } catch {
@@ -293,7 +311,7 @@ final class BilingualInputController: IMKInputController {
   }
 
   @discardableResult private func submit(index: Int, sense: Int? = nil) -> Bool {
-    guard textClient != nil, !IsSecureEventInputEnabled() else {
+    guard let textClient, !IsSecureEventInputEnabled() else {
       discard()
       return false
     }
@@ -335,7 +353,8 @@ final class BilingualInputController: IMKInputController {
       // insertText replaces the marked composition in the host, never the clipboard.
       state.clear()
       sentenceTranslator.cancel()
-      textClient?.insertText(sentenceEnglish ?? committed, replacementRange: noReplacement)
+      textClient.insertText(sentenceEnglish ?? committed, replacementRange: noReplacement)
+      InputDiagnostics.insertCalls += 1
       punctuation.confirm(sense == nil ? .chinese : .english)
       if let sense, candidate.translations.indices.contains(sense), sentenceEnglish == nil {
         LearningRuntime.confirmed(
@@ -370,7 +389,10 @@ final class BilingualInputController: IMKInputController {
     case .symbol: break
     }
     guard let symbol = punctuation.render(key, mode: Runtime.punctuationMode) else { return false }
-    textClient?.insertText(symbol, replacementRange: noReplacement)
+    if let textClient {
+      textClient.insertText(symbol, replacementRange: noReplacement)
+      InputDiagnostics.insertCalls += 1
+    }
     return true
   }
 
@@ -380,8 +402,9 @@ final class BilingualInputController: IMKInputController {
     let raw = state.input
     state.clear()
     panel.orderOut(nil)
-    if !raw.isEmpty {
-      textClient?.insertText(raw, replacementRange: noReplacement)
+    if !raw.isEmpty, let textClient {
+      textClient.insertText(raw, replacementRange: noReplacement)
+      InputDiagnostics.insertCalls += 1
       punctuation.observeLiteral(raw)
     }
   }
@@ -400,13 +423,17 @@ final class BilingualInputController: IMKInputController {
       InputDiagnostics.activations += 1
       InputDiagnostics.controller = self
       shiftTap.reset()
-      textClient = sender as? IMKTextInput
+      textClient = (sender as? IMKTextInput) ?? client()
+      isSessionActive = true
+      // 每次激活明确指定会话的字母布局；不切换系统输入源或修改全局键盘设置。
+      textClient?.overrideKeyboard(withKeyboardNamed: "com.apple.keylayout.ABC")
     }
   }
 
   override func deactivateServer(_ sender: Any!) {
     mainSync {
       InputDiagnostics.deactivations += 1
+      isSessionActive = false
       rawCommit()
       shiftTap.reset()
       modeNotice = UUID()
@@ -431,7 +458,11 @@ final class BilingualInputController: IMKInputController {
 
   override func menu() -> NSMenu! {
     mainSync {
-      let menu = NSMenu(title: "中英输入实验版")
+      let menu = NSMenu(title: "灵果")
+      let settings = NSMenuItem(
+        title: "设置…", action: #selector(openSettings(_:)), keyEquivalent: "")
+      settings.target = self
+      menu.addItem(settings)
       let typing = NSMenuItem(
         title: "\(Runtime.typingMode.title) · 单按 Shift 切换",
         action: #selector(toggleTyping(_:)), keyEquivalent: "")
@@ -505,6 +536,24 @@ final class BilingualInputController: IMKInputController {
     mainSync {
       rawCommit()
       AccountWindow.launch()
+    }
+  }
+  @objc private func openSettings(_ sender: Any?) {
+    mainSync {
+      rawCommit()
+      SettingsWindow.launch()
+    }
+  }
+
+  func applySetting(_ setting: InputSetting) {
+    mainSync {
+      if IsSecureEventInputEnabled() { discard() } else { rawCommit() }
+      shiftTap.reset()
+      modeNotice = UUID()
+      setting.apply()
+      punctuation.resetContext()
+      punctuation.confirm(Runtime.typingMode == .english ? .english : .chinese)
+      panel.orderOut(nil)
     }
   }
   @objc private func openAISettings(_ sender: Any?) {

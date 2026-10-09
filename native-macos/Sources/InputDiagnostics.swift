@@ -7,25 +7,39 @@ enum InputDiagnostics {
   static var activations = 0
   static var deactivations = 0
   static var events = 0
+  static var keyDowns = 0
+  static var modifierEvents = 0
+  static var englishPassThroughs = 0
+  static var emptyCharacterEvents = 0
+  static var markedUpdates = 0
+  static var insertCalls = 0
   static var rejectedClients = 0
   static var secureRejections = 0
   static var controllerRegistered = false
   static weak var controller: BilingualInputController?
   private static var observer: NSObjectProtocol?
-  private static let request = Notification.Name("org.local.bilingualcompanion.statusRequest")
-  private static let response = Notification.Name("org.local.bilingualcompanion.statusResponse")
+  static let request = Notification.Name("org.local.bilingualcompanion.statusRequest")
+  static let response = Notification.Name("org.local.bilingualcompanion.statusResponse")
 
   static func snapshot() -> [String: Any] {
     [
       "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         ?? "unknown",
       "activations": activations, "deactivations": deactivations, "events": events,
+      "keyDowns": keyDowns, "modifierEvents": modifierEvents,
+      "englishPassThroughs": englishPassThroughs, "emptyCharacterEvents": emptyCharacterEvents,
+      "markedUpdates": markedUpdates, "insertCalls": insertCalls,
       "rejectedClients": rejectedClients, "secureRejections": secureRejections,
       "controllerRegistered": controllerRegistered,
       "controllerAlive": controller != nil,
+      "sessionActive": controller?.isSessionActive ?? false,
+      "textClientPresent": controller?.hasTextClient ?? false,
       "compositionActive": controller?.hasComposition ?? false,
       "typingMode": Runtime.typingMode == .chinese ? "chinese" : "english",
+      "remember": Runtime.remember, "punctuationMode": Runtime.punctuationMode.rawValue,
       "bilingual": Runtime.bilingual, "enginePresent": Runtime.engine != nil,
+      "engineRunning": Runtime.engine?.processIdentifier != nil,
+      "engineRestarts": Runtime.engine?.restartCount ?? 0,
       "engineFailure": Runtime.failure != nil, "secureInput": IsSecureEventInputEnabled(),
       "presentationAllowed": NSApplication.shared.activationPolicy() == .accessory,
       "candidateWindowVisible": NSApplication.shared.windows.contains {
@@ -67,6 +81,10 @@ enum InputDiagnostics {
       "controllerRegistered", "controllerAlive", "compositionActive", "typingMode", "bilingual",
       "enginePresent", "engineFailure", "secureInput",
       "presentationAllowed", "candidateWindowVisible",
+      "remember", "punctuationMode",
+      "engineRunning", "engineRestarts",
+      "keyDowns", "modifierEvents", "englishPassThroughs", "emptyCharacterEvents",
+      "markedUpdates", "insertCalls", "sessionActive", "textClientPresent",
     ]
     precondition(Set(snapshot().keys) == expected)
     controllerRegistered = NSClassFromString("BilingualInputController") != nil

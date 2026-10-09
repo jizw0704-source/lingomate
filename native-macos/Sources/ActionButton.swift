@@ -6,12 +6,13 @@ final class ActionButton: NSButton {
   var invoke: (() -> Void)?
   var style = Style.plain { didSet { needsDisplay = true } }
   var wrapsTitle = false
+  var horizontalPadding: CGFloat = 12
   private var hovered = false
   private var hoverArea: NSTrackingArea?
 
   override var intrinsicContentSize: NSSize {
     let size = super.intrinsicContentSize
-    return NSSize(width: max(44, size.width + 24), height: max(44, size.height))
+    return NSSize(width: max(44, size.width + horizontalPadding * 2), height: max(44, size.height))
   }
 
   override func updateTrackingAreas() {
@@ -68,13 +69,14 @@ final class ActionButton: NSButton {
         : NativeTheme.muted,
       .paragraphStyle: paragraph,
     ]
-    let width = max(1, bounds.width - 24)
+    let width = max(1, bounds.width - horizontalPadding * 2)
     let height = (title as NSString).boundingRect(
       with: NSSize(width: width, height: .greatestFiniteMagnitude),
       options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: attributes
     ).height
     let rect = NSRect(
-      x: 12, y: (bounds.height - ceil(height)) / 2, width: width, height: ceil(height))
+      x: horizontalPadding, y: (bounds.height - ceil(height)) / 2, width: width,
+      height: ceil(height))
     (title as NSString).draw(
       with: rect, options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: attributes)
   }

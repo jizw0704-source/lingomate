@@ -25,7 +25,7 @@ class SyncTests(unittest.TestCase):
             self.assertEqual(self.run_sync(vault).returncode, 0)
             notes = vault / "10 项目/中英输入法"
             before = {p.name: p.read_bytes() for p in notes.glob("*.md")}
-            self.assertEqual(len(before), 6)
+            self.assertEqual(len(before), 7)
             self.assertEqual(self.run_sync(vault).returncode, 0)
             self.assertEqual(
                 before, {p.name: p.read_bytes() for p in notes.glob("*.md")}

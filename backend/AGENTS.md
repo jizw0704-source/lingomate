@@ -15,3 +15,5 @@ runtime/python/bin/python backend/server.py --port 9057
 ```
 
 Run requires SMTP environment configuration; see README.md. Public deployment and real mail need separate acceptance, not a green isolated test.
+
+Linux deployment templates: deploy/bilingual-account.service and deploy/account.caddy; install/rollback steps in deploy/README.md. On the actual server verify with `systemd-analyze verify /etc/systemd/system/bilingual-account.service` and `caddy validate --config /etc/caddy/Caddyfile`; health is `curl --fail --silent --show-error https://ACCOUNT_DOMAIN/health`. Never hold the database lock while waiting for SMTP; reserve rate quota first, including failed sends, and make OTP usable only after successful delivery submission.

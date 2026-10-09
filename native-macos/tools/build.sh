@@ -20,12 +20,14 @@ cp "$RESEARCH_DIR/prototype/LICENSE" "$APP/Contents/Resources/LICENSE"
 cp "$RESEARCH_DIR/upstream/qingjian/assets/glossary/README.md" "$APP/Contents/Resources/GLOSSARY-NOTICE.md"
 cp "$RESEARCH_DIR/upstream/qingjian/assets/lexicon/README.md" "$APP/Contents/Resources/LEXICON-NOTICE.md"
 cat > "$APP/Contents/Resources/zh-Hans.lproj/InfoPlist.strings" <<'STRINGS'
-"CFBundleDisplayName" = "中英输入实验版";
-"org.local.bilingualcompanion.Hans" = "中英输入实验版";
+"CFBundleName" = "灵果";
+"CFBundleDisplayName" = "灵果";
+"org.local.bilingualcompanion.Hans" = "灵果";
 STRINGS
 cat > "$APP/Contents/Resources/en.lproj/InfoPlist.strings" <<'STRINGS'
-"CFBundleDisplayName" = "Bilingual IME Experiment";
-"org.local.bilingualcompanion.Hans" = "Bilingual IME Experiment";
+"CFBundleName" = "LingoMate";
+"CFBundleDisplayName" = "LingoMate";
+"org.local.bilingualcompanion.Hans" = "LingoMate";
 STRINGS
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 xattr -cr "$APP"

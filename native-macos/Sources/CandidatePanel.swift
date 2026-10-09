@@ -5,6 +5,7 @@ final class CandidatePanel: NSPanel {
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }
   var onLearning: (() -> Void)?
+  var onSettings: (() -> Void)?
   var onAISettings: (() -> Void)?
   var onChinese: ((Int) -> Void)?
   var onEnglish: ((Int, Int) -> Void)?
@@ -26,10 +27,10 @@ final class CandidatePanel: NSPanel {
     hasShadow = true
     hidesOnDeactivate = false
     becomesKeyOnlyIfNeeded = true
-    title = "中英输入实验版候选"
+    title = "灵果候选"
     collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     level = .popUpMenu
-    setAccessibilityLabel("中英输入实验版候选")
+    setAccessibilityLabel("灵果候选")
   }
 
   private func row(_ views: [NSView]) -> NSStackView {
@@ -96,10 +97,13 @@ final class CandidatePanel: NSPanel {
     maximumHeight: CGFloat? = nil
   ) {
     let bounds = screenBounds(anchor)
-    let width = min(maximumWidth, bounds.width - 16)
+    let inline = state.visibleIndices.allSatisfy {
+      (state.frame?.candidates[$0].text.count ?? 0) <= 8
+    }
+    let wantedWidth = inline ? inlineWidth(state, bilingual: bilingual) : maximumWidth
+    let width = min(maximumWidth, wantedWidth, bounds.width - 16)
     let bodyWidth = width - 24
     let narrow = width < 500
-    let hasCandidates = state.frame?.candidates.isEmpty == false
     let content = surface()
     let stack = column([], spacing: 4)
     stack.translatesAutoresizingMaskIntoConstraints = false
@@ -110,166 +114,245 @@ final class CandidatePanel: NSPanel {
       stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
       stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
     ])
-    let pinyin = NativeTheme.label(state.frame?.marked ?? state.input, size: 16, weight: .medium)
-    pinyin.maximumNumberOfLines = 2
+    let pinyin = NativeTheme.label(state.frame?.marked ?? state.input, size: 14, weight: .medium)
+    pinyin.maximumNumberOfLines = 1
     pinyin.lineBreakMode = .byTruncatingTail
     pinyin.toolTip = pinyin.stringValue
-    let learning = ActionButton("学习", label: "打开账号登录与学习记录") { [weak self] in
-      self?.onLearning?()
+    pinyin.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    let settings = ActionButton("⚙", label: "打开设置：登录、学习、翻译、输入与外观") { [weak self] in
+      self?.onSettings?()
     }
-    learning.font = NativeTheme.font(12)
-    learning.widthAnchor.constraint(equalToConstant: 60).isActive = true
-    add(row([pinyin, NSView(), learning, AppearanceSettings.current.button()]), to: stack)
-    let typing = ActionButton("中文 · Shift", label: "中文拼音，切换到英文直输，单按 Shift") {
-      [weak self] in self?.onTypingMode?()
-    }
-    let mode = ActionButton(bilingual ? "双语 · F6" : "仅中文 · F6", label: "切换中英候选显示，F6") {
-      [weak self] in self?.onMode?()
-    }
-    mode.toolTip = "F6 切换普通中文与中英候选；Shift 切换英文直输"
-    let shortPunctuation =
-      punctuationLabel
-      .replacingOccurrences(of: "中文", with: "中")
-      .replacingOccurrences(of: "英文", with: "英")
-    let punctuation = ActionButton(
-      shortPunctuation, label: "\(punctuationLabel)，切换标点模式，Control Shift P"
-    ) { [weak self] in self?.onPunctuation?() }
-    punctuation.toolTip = "自动 → 固定中文 → 固定英文；Control＋Shift＋P 切换"
-    for button in [typing, mode, punctuation] {
-      button.style = .subtle
-      button.font = NativeTheme.font(12)
-    }
-    add(row([typing, mode, NSView(), punctuation]), to: stack)
-    add(divider(), to: stack)
-    for index in state.visibleIndices {
-      guard let candidate = state.frame?.candidates[index] else { continue }
-      let number = NativeTheme.label(
-        "\(index == state.active ? "›" : "")\(index - state.visibleIndices.lowerBound + 1)",
-        size: 13, secondary: index != state.active, weight: .medium)
-      number.widthAnchor.constraint(equalToConstant: 24).isActive = true
-      let fullChinese = !bilingual || narrow || candidate.translations.isEmpty
-      let chineseWidth =
-        (fullChinese ? bodyWidth - 32 : 128) - (candidate.personal == true ? 32 : 0)
-      let chinese = fittedButton(
-        candidate.text, width: chineseWidth, size: 16,
-        label: "输出中文 \(candidate.text)\(candidate.personal == true ? "，个人词库" : "")"
-      ) { [weak self] in self?.onChinese?(index) }
-      chinese.font = NativeTheme.font(16, weight: .medium)
-      let chineseGroup = row([chinese])
-      if candidate.personal == true {
-        chineseGroup.addArrangedSubview(NativeTheme.label("记忆", size: 11, secondary: true))
+    settings.widthAnchor.constraint(equalToConstant: 44).isActive = true
+    settings.toolTip = "设置 · 中文/英文切换 · 双语 · 标点 · 外观 · 学习"
+    let details = ActionButton(state.expanded ? "收起" : "译法", label: "选择候选并展开其他译法，Tab") {}
+    details.widthAnchor.constraint(equalToConstant: 44).isActive = true
+    details.font = NativeTheme.font(12)
+    details.horizontalPadding = 8
+    details.isEnabled =
+      bilingual
+      && state.visibleIndices.contains {
+        state.frame?.candidates[$0].translations.isEmpty == false
       }
-      let chineseRow = row([number, chineseGroup])
-      var candidateRow: NSView
-      if bilingual && !candidate.translations.isEmpty {
-        let englishWidth = fullChinese ? bodyWidth - 32 : bodyWidth - 168
-        var englishViews: [NSView] = []
-        let senses = Array(candidate.translations.prefix(2))
-        let senseWidth =
-          (englishWidth - 52 - 8 - CGFloat(senses.count - 1) * 8) / CGFloat(senses.count)
-        for (senseIndex, sense) in senses.enumerated() {
-          let english = ActionButton(sense.word, label: "输出英文 \(sense.word)") { [weak self] in
-            self?.onEnglish?(index, senseIndex)
+    details.invoke = { [weak self, weak details] in
+      guard let self, let details else { return }
+      if state.expanded {
+        self.onCollapse?()
+        return
+      }
+      let menu = NSMenu(title: "更多译法")
+      for index in state.visibleIndices {
+        guard let candidate = state.frame?.candidates[index], !candidate.translations.isEmpty else {
+          continue
+        }
+        let item = NSMenuItem(
+          title: "\(index - state.visibleIndices.lowerBound + 1)  \(candidate.text)",
+          action: #selector(self.expandMenuItem(_:)), keyEquivalent: "")
+        item.target = self
+        item.tag = index
+        menu.addItem(item)
+      }
+      menu.popUp(positioning: nil, at: NSPoint(x: 0, y: details.bounds.minY), in: details)
+    }
+    let previous = ActionButton("‹", label: "上一页候选，PageUp 或减号") { [weak self] in
+      self?.onPage?(-1)
+    }
+    let next = ActionButton("›", label: "下一页候选，PageDown 或等号") { [weak self] in
+      self?.onPage?(1)
+    }
+    for button in [previous, next] {
+      button.widthAnchor.constraint(equalToConstant: 44).isActive = true
+      button.font = NativeTheme.font(20)
+    }
+    previous.isEnabled = state.page > 0
+    next.isEnabled = state.page + 1 < state.pageCount
+    let page = NativeTheme.label(
+      state.pageCount > 0 ? "\(state.page + 1)/\(state.pageCount)" : "0/0",
+      size: 11, secondary: true)
+    page.setContentCompressionResistancePriority(.required, for: .horizontal)
+    page.toolTip = "共 \(state.frame?.candidates.count ?? 0) 个候选 · −/= 翻页"
+    let mode = NativeTheme.label(bilingual ? "中英" : "中文", size: 11, secondary: true)
+    mode.toolTip = "Shift 英文直输 · F6 切换双语 · \(punctuationLabel)"
+    let header = row([pinyin, NSView(), mode, previous, page, next, details, settings])
+    header.spacing = 0
+    add(header, to: stack)
+    add(divider(), to: stack)
+    if inline {
+      addInlineCandidates(state, bilingual: bilingual, to: stack, width: bodyWidth)
+      if let candidate = state.candidate {
+        if state.expanded && bilingual && !candidate.translations.isEmpty {
+          addDetails(state, candidate: candidate, to: stack, width: bodyWidth)
+        }
+        if bilingual && state.sentence != .none {
+          addSentence(state, candidate: candidate, to: stack)
+        }
+      }
+    } else {
+      for index in state.visibleIndices {
+        guard let candidate = state.frame?.candidates[index] else { continue }
+        let number = NativeTheme.label(
+          "\(index == state.active ? "›" : "")\(index - state.visibleIndices.lowerBound + 1)",
+          size: 13, secondary: index != state.active, weight: .medium)
+        number.widthAnchor.constraint(equalToConstant: 24).isActive = true
+        let fullChinese = !bilingual || narrow || candidate.translations.isEmpty
+        let chineseWidth = fullChinese ? bodyWidth - 32 : 128
+        let chinese = fittedButton(
+          candidate.text, width: chineseWidth, size: 16,
+          label: "输出中文 \(candidate.text)"
+        ) { [weak self] in self?.onChinese?(index) }
+        chinese.font = NativeTheme.font(16, weight: .medium)
+        let chineseGroup = row([chinese])
+        let chineseRow = row([number, chineseGroup])
+        var candidateRow: NSView
+        if bilingual && !candidate.translations.isEmpty {
+          let englishWidth = fullChinese ? bodyWidth - 32 : bodyWidth - 168
+          var englishViews: [NSView] = []
+          let senses = Array(candidate.translations.prefix(2))
+          let senseWidth =
+            (englishWidth - 52 - 8 - CGFloat(senses.count - 1) * 8) / CGFloat(senses.count)
+          for (senseIndex, sense) in senses.enumerated() {
+            let english = ActionButton(sense.word, label: "输出英文 \(sense.word)") { [weak self] in
+              self?.onEnglish?(index, senseIndex)
+            }
+            english.style = .accent
+            english.alignment = .left
+            english.widthAnchor.constraint(equalToConstant: senseWidth).isActive = true
+            english.cell?.lineBreakMode = .byTruncatingTail
+            english.toolTip = sense.word
+            englishViews.append(english)
           }
-          english.style = .accent
-          english.alignment = .left
-          english.widthAnchor.constraint(equalToConstant: senseWidth).isActive = true
-          english.cell?.lineBreakMode = .byTruncatingTail
-          english.toolTip = sense.word
-          englishViews.append(english)
-        }
-        let more = ActionButton("更多", label: "展开 \(candidate.text) 的译法与用法") { [weak self] in
-          self?.onExpand?(index)
-        }
-        more.font = NativeTheme.font(12)
-        more.contentTintColor = NativeTheme.muted
-        more.widthAnchor.constraint(equalToConstant: 52).isActive = true
-        englishViews.append(more)
-        let englishRow = row(englishViews)
-        if narrow {
+          let more = ActionButton("更多", label: "展开 \(candidate.text) 的译法与用法") { [weak self] in
+            self?.onExpand?(index)
+          }
+          more.font = NativeTheme.font(12)
+          more.contentTintColor = NativeTheme.muted
+          more.widthAnchor.constraint(equalToConstant: 52).isActive = true
+          englishViews.append(more)
+          let englishRow = row(englishViews)
+          if narrow {
+            let indent = NSView()
+            indent.widthAnchor.constraint(equalToConstant: 24).isActive = true
+            candidateRow = column([chineseRow, row([indent, englishRow])], spacing: 0)
+          } else {
+            candidateRow = row([chineseRow, englishRow])
+          }
+        } else if bilingual && index == state.active && state.sentence == .none {
+          let status =
+            candidate.text.count >= 3 || (candidate.personal == true && candidate.text.count >= 2)
+            ? (index == state.active ? "当前候选的整句译文见下方" : "选中后可翻译整句") : "暂无英文译词"
           let indent = NSView()
           indent.widthAnchor.constraint(equalToConstant: 24).isActive = true
-          candidateRow = column([chineseRow, row([indent, englishRow])], spacing: 0)
+          candidateRow = column(
+            [
+              chineseRow, row([indent, NativeTheme.label(status, size: 12, secondary: true)]),
+            ], spacing: 0)
         } else {
-          candidateRow = row([chineseRow, englishRow])
+          candidateRow = chineseRow
         }
-      } else if bilingual && index == state.active && state.sentence == .none {
-        let status =
-          candidate.text.count >= 3 || (candidate.personal == true && candidate.text.count >= 2)
-          ? (index == state.active ? "当前候选的整句译文见下方" : "选中后可翻译整句") : "暂无英文译词"
-        let indent = NSView()
-        indent.widthAnchor.constraint(equalToConstant: 24).isActive = true
-        candidateRow = column(
-          [
-            chineseRow, row([indent, NativeTheme.label(status, size: 12, secondary: true)]),
-          ], spacing: 0)
-      } else {
-        candidateRow = chineseRow
-      }
-      candidateRow.wantsLayer = true
-      if index == state.active {
-        let highlight = CandidateDocumentView()
-        highlight.wantsLayer = true
-        highlight.fill = NativeTheme.surface
-        highlight.layer?.cornerRadius = 10
-        candidateRow.translatesAutoresizingMaskIntoConstraints = false
-        highlight.addSubview(candidateRow)
-        NSLayoutConstraint.activate([
-          candidateRow.leadingAnchor.constraint(equalTo: highlight.leadingAnchor),
-          candidateRow.trailingAnchor.constraint(equalTo: highlight.trailingAnchor),
-          candidateRow.topAnchor.constraint(equalTo: highlight.topAnchor),
-          candidateRow.bottomAnchor.constraint(equalTo: highlight.bottomAnchor),
-        ])
-        candidateRow = highlight
-      }
-      add(candidateRow, to: stack)
-      if state.expanded, bilingual, index == state.active, !candidate.translations.isEmpty {
-        addDetails(state, candidate: candidate, to: stack, width: bodyWidth)
-        add(divider(), to: stack)
-      }
-      if bilingual, index == state.active, state.sentence != .none {
-        addSentence(state, candidate: candidate, to: stack)
-        add(divider(), to: stack)
+        candidateRow.wantsLayer = true
+        if index == state.active {
+          let highlight = CandidateDocumentView()
+          highlight.wantsLayer = true
+          highlight.fill = NativeTheme.surface
+          highlight.layer?.cornerRadius = 10
+          candidateRow.translatesAutoresizingMaskIntoConstraints = false
+          highlight.addSubview(candidateRow)
+          NSLayoutConstraint.activate([
+            candidateRow.leadingAnchor.constraint(equalTo: highlight.leadingAnchor),
+            candidateRow.trailingAnchor.constraint(equalTo: highlight.trailingAnchor),
+            candidateRow.topAnchor.constraint(equalTo: highlight.topAnchor),
+            candidateRow.bottomAnchor.constraint(equalTo: highlight.bottomAnchor),
+          ])
+          candidateRow = highlight
+        }
+        add(candidateRow, to: stack)
+        if state.expanded, bilingual, index == state.active, !candidate.translations.isEmpty {
+          addDetails(state, candidate: candidate, to: stack, width: bodyWidth)
+          add(divider(), to: stack)
+        }
+        if bilingual, index == state.active, state.sentence != .none {
+          addSentence(state, candidate: candidate, to: stack)
+          add(divider(), to: stack)
+        }
       }
     }
     if state.frame?.candidates.isEmpty != false {
       add(NativeTheme.label("暂未找到候选\n继续输入，或按 Enter 保留原样拼音。", secondary: true), to: stack)
     }
-    add(divider(), to: stack)
-    if state.pageCount > 0 {
-      let previous = ActionButton("上一页", label: "上一页候选，PageUp 或减号") { [weak self] in
-        self?.onPage?(-1)
-      }
-      let next = ActionButton("下一页", label: "下一页候选，PageDown 或等号") { [weak self] in self?.onPage?(1)
-      }
-      previous.isEnabled = state.page > 0
-      next.isEnabled = state.page + 1 < state.pageCount
-      previous.style = .subtle
-      next.style = .subtle
-      let count = state.frame?.candidates.count ?? 0
-      let leading = NSView()
-      let trailing = NSView()
-      let paging = row([
-        previous, leading,
-        NativeTheme.label(
-          "\(state.page + 1) / \(state.pageCount) 页 · \(count) 项", size: 12, secondary: true),
-        trailing, next,
-      ])
-      leading.widthAnchor.constraint(equalTo: trailing.widthAnchor).isActive = true
-      add(paging, to: stack)
-    }
-    if hasCandidates {
-      add(
-        NativeTheme.label(
-          bilingual
-            ? "1–5 / 空格 选中文 · Shift＋空格 英文 · Tab 译法 · − / = 翻页"
-            : "1–5 / 空格 选中文 · − / = 翻页 · F6 双语", size: 11, secondary: true), to: stack)
-    } else {
-      add(NativeTheme.label("Esc 取消 · Shift 英文直输", size: 11, secondary: true), to: stack)
-    }
+    stack.toolTip =
+      bilingual
+      ? "1–5 / 空格 选中文 · Shift＋空格 英文 · Tab 译法 · − / = 翻页"
+      : "1–5 / 空格 选中文 · − / = 翻页 · F6 双语"
     present(
       content, stack: stack, width: width, anchor: anchor, bounds: bounds,
       maximumHeight: maximumHeight)
+  }
+
+  @objc private func expandMenuItem(_ item: NSMenuItem) {
+    onExpand?(item.tag)
+  }
+
+  private func inlineWidth(_ state: SessionState, bilingual: Bool) -> CGFloat {
+    let widths = state.visibleIndices.compactMap { index -> CGFloat? in
+      guard let candidate = state.frame?.candidates[index] else { return nil }
+      let title = "\(index - state.visibleIndices.lowerBound + 1) \(candidate.text)"
+      let chinese =
+        (title as NSString).size(withAttributes: [.font: NativeTheme.font(15)]).width + 24
+      let english =
+        bilingual
+        ? ((candidate.translations.first?.word ?? "") as NSString)
+          .size(withAttributes: [.font: NativeTheme.font(13)]).width + 24 : 0
+      return min(140, max(44, chinese, english))
+    }
+    return max(400, ceil(widths.reduce(0, +)) + CGFloat(max(0, widths.count - 1)) * 4 + 24)
+  }
+
+  private func addInlineCandidates(
+    _ state: SessionState, bilingual: Bool, to stack: NSStackView, width: CGFloat
+  ) {
+    guard !state.visibleIndices.isEmpty else { return }
+    let indices = Array(state.visibleIndices)
+    let columnWidth = (width - CGFloat(indices.count - 1) * 4) / CGFloat(indices.count)
+    let hasEnglish =
+      bilingual
+      && indices.contains {
+        state.frame?.candidates[$0].translations.isEmpty == false
+      }
+    let candidates = row([])
+    candidates.spacing = 4
+    candidates.alignment = .top
+    for index in indices {
+      guard let candidate = state.frame?.candidates[index] else { continue }
+      let slot = index - state.visibleIndices.lowerBound + 1
+      let chinese = fittedButton(
+        "\(slot) \(candidate.text)",
+        width: columnWidth, size: 15,
+        label: "输出中文 \(candidate.text)"
+      ) { [weak self] in self?.onChinese?(index) }
+      chinese.toolTip = candidate.text
+      if index == state.active { chinese.style = .subtle }
+      let cell = column([chinese], spacing: 0)
+      cell.widthAnchor.constraint(equalToConstant: columnWidth).isActive = true
+      if hasEnglish {
+        if let sense = candidate.translations.first {
+          let english = ActionButton(sense.word, label: "输出英文 \(sense.word)") { [weak self] in
+            self?.onEnglish?(index, 0)
+          }
+          english.font = NativeTheme.font(13)
+          english.style = .accent
+          english.alignment = .left
+          english.widthAnchor.constraint(equalToConstant: columnWidth).isActive = true
+          english.toolTip = "\(sense.word) · 更多译法请点顶部‘译法’或按 Tab"
+          cell.addArrangedSubview(english)
+        } else {
+          let missing = NativeTheme.label("—", size: 12, secondary: true)
+          missing.heightAnchor.constraint(equalToConstant: 44).isActive = true
+          missing.toolTip = "此候选暂无词语译法；中文仍可选择"
+          cell.addArrangedSubview(missing)
+        }
+      }
+      candidates.addArrangedSubview(cell)
+    }
+    add(candidates, to: stack)
   }
 
   private func addSentence(_ state: SessionState, candidate: EngineCandidate, to stack: NSStackView)

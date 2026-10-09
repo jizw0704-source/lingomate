@@ -99,18 +99,21 @@ class Store:
                         "try_later",
                     )
             code = f"{secrets.randbelow(1000000):06d}"
-            try:
-                self.sender(email, code)
-            except (OSError, smtplib.SMTPException, RuntimeError):
-                # Do not return SMTP exceptions, addresses, credentials or the code.
-                raise APIError(503, "mail_unavailable") from None
-            self.db.execute(
-                "INSERT OR REPLACE INTO codes VALUES(?,?,?,0)",
-                (email, self.code_digest(email, code), now + 600),
-            )
+            # Reserve quota before network I/O, including failed attempts. A slow
+            # mail server must not hold the database lock for every user's sync.
             self.db.executemany(
                 "INSERT INTO rate VALUES(?,?)",
                 [("email:" + email, now), ("ip:" + ip, now)],
+            )
+        try:
+            self.sender(email, code)
+        except (OSError, smtplib.SMTPException, RuntimeError):
+            # Do not return SMTP exceptions, addresses, credentials or the code.
+            raise APIError(503, "mail_unavailable") from None
+        with self.lock, self.db:
+            self.db.execute(
+                "INSERT OR REPLACE INTO codes VALUES(?,?,?,0)",
+                (email, self.code_digest(email, code), self.clock() + 600),
             )
         return {"sent": True}
 
@@ -308,7 +311,7 @@ def smtp_sender():
         mail["From"], mail["To"], mail["Subject"] = (
             sender,
             email,
-            "中英输入 · 登录验证码",
+            "灵果 · 登录验证码",
         )
         mail.set_content(
             f"你的登录验证码是 {code}，10 分钟内有效。\n如果并非你本人操作，请忽略此邮件。"

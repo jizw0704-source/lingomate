@@ -23,6 +23,7 @@ enum AISettingsWindow {
 final class AISettingsController: NSObject, NSWindowDelegate {
   let window: NSWindow
   let store: AISettingsStore
+  private(set) var contentView: NSScrollView!
   private let preview: Bool
   private let vault: AIKeyVault
   private let endpoint = NSTextField()
@@ -30,7 +31,7 @@ final class AISettingsController: NSObject, NSWindowDelegate {
   private let secret = NSSecureTextField()
   private let status = NativeTheme.label("默认使用本机翻译，未开启在线请求。", size: 13, secondary: true)
   private let feedback = NativeTheme.label("", size: 13, secondary: true)
-  init(preview: Bool) {
+  init(preview: Bool, embedded: Bool = false) {
     self.preview = preview
     self.store = AISettings.store!
     vault = preview ? MemoryAIKeyVault() : SystemAIKeyVault()
@@ -42,7 +43,7 @@ final class AISettingsController: NSObject, NSWindowDelegate {
     )
     super.init()
     window.delegate = self
-    window.title = preview ? "AI 翻译设置 · 隔离界面样例" : "中英输入 · AI 翻译设置"
+    window.title = preview ? "AI 翻译设置 · 隔离界面样例" : "灵果 · AI 翻译设置"
     window.minSize = NSSize(width: 440, height: 440)
     window.backgroundColor = NativeTheme.background
     let root = CandidateDocumentView()
@@ -64,10 +65,10 @@ final class AISettingsController: NSObject, NSWindowDelegate {
       stack.addArrangedSubview(view)
       view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
     }
-    let heading = NSStackView(views: [
-      NativeTheme.label("AI 翻译", size: 20, weight: .medium), NSView(),
-      AppearanceSettings.current.button(),
-    ])
+    let heading = NSStackView(
+      views: [
+        NativeTheme.label(embedded ? "翻译" : "AI 翻译", size: 20, weight: .medium), NSView(),
+      ] + (embedded ? [] : [AppearanceSettings.current.button()]))
     heading.orientation = .horizontal
     heading.spacing = 8
     add(heading)
@@ -119,7 +120,8 @@ final class AISettingsController: NSObject, NSWindowDelegate {
     scroll.drawsBackground = false
     scroll.hasVerticalScroller = true
     scroll.documentView = root
-    window.contentView = scroll
+    contentView = scroll
+    if !embedded { window.contentView = scroll }
     root.translatesAutoresizingMaskIntoConstraints = false
     root.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
     root.layoutSubtreeIfNeeded()

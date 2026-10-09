@@ -49,7 +49,7 @@ enum Preview {
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 660, height: 180),
       styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-    window.title = "中英输入实验版 · 候选窗预览（非系统输入测试）"
+    window.title = "灵果 · 候选窗预览（非系统输入测试）"
     window.backgroundColor = NativeTheme.background
     window.center()
     let label = NSTextField(wrappingLabelWithString: "这是原生候选窗预览。点击中英文检查按钮，真实输入请从系统输入源选择。")
@@ -106,6 +106,11 @@ enum Preview {
       window.orderOut(nil)
       panel?.orderOut(nil)
       AccountWindow.start(preview: true)
+    }
+    panel?.onSettings = {
+      window.orderOut(nil)
+      panel?.orderOut(nil)
+      SettingsWindow.start(preview: true)
     }
     panel?.onAISettings = {
       window.orderOut(nil)

@@ -11,6 +11,7 @@ export SDKROOT="$DEVELOPER_DIR/SDKs/MacOSX.sdk"
 "$RESEARCH_DIR/runtime/python/bin/ruff" format --check "$NATIVE_DIR/tools"
 "$RESEARCH_DIR/runtime/python/bin/ruff" check "$NATIVE_DIR/tools"
 "$RESEARCH_DIR/runtime/python/bin/python" -m compileall -q "$NATIVE_DIR/tools"
+"$RESEARCH_DIR/runtime/python/bin/python" "$NATIVE_DIR/tools/test_install.py"
 bash -n "$NATIVE_DIR/tools/build.sh" "$NATIVE_DIR/tools/check.sh"
 bash "$RESEARCH_DIR/prototype/tools/cargo.sh" fmt --all -- --check
 bash "$RESEARCH_DIR/prototype/tools/cargo.sh" clippy --release --locked --all-targets -- -D warnings
@@ -21,7 +22,10 @@ bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --account-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --ai-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --input-diagnostic-test
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --service-lock-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --input-window-test
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --settings-test
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --engine-resilience-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --selftest
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --punctuation-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --typing-test
