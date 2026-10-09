@@ -14,11 +14,13 @@ public static class InstallerPreview {
     public delegate bool Callback(IntPtr h, IntPtr p);
     [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr h, Callback cb, IntPtr p);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder text, int count);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder text, int count);
     public static Rect[] NextButtons(IntPtr h) {
         var found = new List<Rect>();
         EnumChildWindows(h, (child, state) => {
             var text = new StringBuilder(256); GetWindowText(child, text, text.Capacity);
-            if (text.ToString().Contains("下一步")) { Rect r; if (GetWindowRect(child, out r)) found.Add(r); }
+            var kind = new StringBuilder(256); GetClassName(child, kind, kind.Capacity);
+            if (kind.ToString().IndexOf("button", StringComparison.OrdinalIgnoreCase) >= 0 && text.ToString().Contains("下一步")) { Rect r; if (GetWindowRect(child, out r)) found.Add(r); }
             return true;
         }, IntPtr.Zero);
         return found.ToArray();
