@@ -3,13 +3,19 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'native-windows/**'
+      - 'native-windows/src/**'
+      - 'native-windows/tests/**'
+      - 'native-windows/tools/**'
+      - 'native-windows/Cargo.*'
       - 'prototype/bridge/**'
       - 'updates/**'
       - '.github/workflows/windows.yml'
   pull_request:
     paths:
-      - 'native-windows/**'
+      - 'native-windows/src/**'
+      - 'native-windows/tests/**'
+      - 'native-windows/tools/**'
+      - 'native-windows/Cargo.*'
       - 'prototype/bridge/**'
       - 'updates/**'
       - '.github/workflows/windows.yml'
@@ -24,6 +30,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check updater under both PowerShell runtimes and render its window
+        shell: pwsh
+        run: ./native-windows/tools/check-updates.ps1
       - name: Prepare fixed source and toolchain
         shell: pwsh
         run: ./native-windows/tools/setup.ps1
@@ -32,8 +41,9 @@ jobs:
         run: ./native-windows/tools/build.ps1
       - name: Check scripts, formatting, lint, real engine and DLL lifetime
         shell: pwsh
-        run: ./native-windows/tools/check.ps1
+        run: ./native-windows/tools/check.ps1 -SkipUpdates
       - name: Save isolated update window preview
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-update-ui

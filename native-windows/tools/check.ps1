@@ -1,3 +1,4 @@
+param([switch]$SkipUpdates)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $Root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
@@ -17,11 +18,4 @@ $env:LINGOMATE_TEST_BRIDGE = Join-Path $env:LINGOMATE_TEST_RESOURCES 'bilingual-
 if ($LASTEXITCODE -ne 0) { throw 'Real-engine integration tests failed.' }
 & python (Join-Path $PSScriptRoot 'test_dll.py') (Join-Path $Root 'native-windows/package/windows-x64/lingomate_tsf.dll')
 if ($LASTEXITCODE -ne 0) { throw 'Native DLL factory test failed.' }
-& (Join-Path $PSScriptRoot 'test_updates.ps1')
-if (-not $?) { throw 'Update isolation checks failed.' }
-$LegacyShell = Join-Path $env:WINDIR 'System32/WindowsPowerShell/v1.0/powershell.exe'
-& $LegacyShell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'test_updates.ps1')
-if ($LASTEXITCODE -ne 0) { throw 'Windows PowerShell 5.1 update checks failed.' }
-$Preview = Join-Path $Root 'native-windows/package/update-preview.png'
-& $LegacyShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'update.ps1') -SmokeTest -PreviewPath $Preview
-if ($LASTEXITCODE -ne 0) { throw 'Windows update UI smoke check failed.' }
+if (-not $SkipUpdates) { & (Join-Path $PSScriptRoot 'check-updates.ps1') }
