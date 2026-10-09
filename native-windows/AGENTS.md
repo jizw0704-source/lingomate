@@ -26,6 +26,8 @@ Check also runs `test_updates.ps1` under PowerShell 7 and Windows PowerShell 5.1
 
 build-installer.ps1 requires separately installed Inno Setup 6; it validates the package and compiles packaging/lingomate.iss to an ignored local Setup EXE. No new runtime dependency. The CI initial-window check must never confirm installation or register TSF. Only generated screenshots may be uploaded; do not upload full installer/data artifacts until distribution review and real-machine acceptance are resolved.
 
+The user requested GitHub installer uploads. The manual windows-package-draft.yml workflow may upload the verified EXE and checksum directly to an existing maintainer-only prerelease draft tied to the same source commit; never use public binary artifacts, publish the draft or change the update feed in that workflow. Public distribution and real-machine acceptance remain separate.
+
 ## macOS development checks
 
 With the existing local Rust runtime and resources:

@@ -1,0 +1,62 @@
+name: Windows installer draft upload
+run-name: Windows installer draft upload ${{ inputs.release_id }}
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Existing draft Release ID in this repository
+        required: true
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: windows-draft-${{ inputs.release_id }}
+  cancel-in-progress: false
+jobs:
+  upload-draft:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_ID: ${{ inputs.release_id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Verify the destination is an existing private draft
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_ID -notmatch '^[1-9][0-9]*$') { throw 'A numeric draft Release ID is required.' }
+          $Release = (& gh api "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or -not $Release.draft -or -not $Release.prerelease) { throw 'Only an existing prerelease draft is allowed.' }
+          if ($Release.tag_name -notmatch '^installer-preview-[0-9]{4}\.[0-9]{2}\.[0-9]{2}(-[0-9]+)?$') { throw 'Unexpected installer draft tag.' }
+          if ($Release.target_commitish -ne $env:GITHUB_SHA) { throw 'Draft and build source must use the same commit.' }
+      - name: Check isolated updater behavior
+        shell: pwsh
+        run: ./native-windows/tools/check-updates.ps1
+      - name: Prepare fixed source and toolchain
+        shell: pwsh
+        run: ./native-windows/tools/setup.ps1
+      - name: Build native DLL and shared engine
+        shell: pwsh
+        run: ./native-windows/tools/build.ps1
+      - name: Check native package
+        shell: pwsh
+        run: ./native-windows/tools/check.ps1 -SkipUpdates
+      - name: Compile and verify installer without installing
+        shell: pwsh
+        run: |
+          ./native-windows/tools/build-installer.ps1
+          $Installer = Get-ChildItem native-windows/package/installer-*/*-setup.exe | Select-Object -First 1
+          ./native-windows/tools/test-installer-window.ps1 -Installer $Installer.FullName -Output "$PWD/native-windows/package/installer-preview.png"
+      - name: Upload EXE and checksum only to the private draft
+        shell: pwsh
+        run: |
+          $Release = (& gh api "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or -not $Release.draft -or -not $Release.prerelease -or $Release.target_commitish -ne $env:GITHUB_SHA) { throw 'Draft state changed; upload refused.' }
+          $Installer = @(Get-ChildItem native-windows/package/installer-*/*-setup.exe)
+          if ($Installer.Count -ne 1) { throw 'Expected exactly one verified installer.' }
+          $Checksum = $Installer[0].FullName + '.sha256'
+          if (-not (Test-Path -LiteralPath $Checksum)) { throw 'Installer checksum missing.' }
+          & gh release upload $Release.tag_name $Installer[0].FullName $Checksum --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw 'Draft upload failed; existing files were not overwritten.' }
+          Write-Output 'Installer and SHA-256 uploaded to the draft. Nothing was publicly released or installed.'
+      # No installer artifacts, publication step or update feed changes.
