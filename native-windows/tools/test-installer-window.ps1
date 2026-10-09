@@ -17,7 +17,7 @@ try {
     $Deadline = [DateTime]::UtcNow.AddSeconds(20)
     do {
         $Children = @(Get-CimInstance Win32_Process -Filter ('ParentProcessId = ' + $Loader.Id))
-        foreach ($Id in @($Loader.Id) + @($Children.ProcessId)) {
+        foreach ($Id in @($Loader.Id) + @($Children | ForEach-Object { $_.ProcessId })) {
             $Candidate = Get-Process -Id $Id -ErrorAction SilentlyContinue
             if ($Candidate -and $Candidate.MainWindowHandle -ne [IntPtr]::Zero) { $WindowProcess = $Candidate; break }
         }
