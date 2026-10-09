@@ -49,8 +49,30 @@ class DllTests(unittest.TestCase):
         self.assertTrue(pointer.value)
         self.assertEqual(self.dll.DllCanUnloadNow(), 1)
         table = ctypes.cast(pointer, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p)))[0]
+        create = ctypes.WINFUNCTYPE(
+            ctypes.c_int32,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.POINTER(Guid),
+            ctypes.POINTER(ctypes.c_void_p),
+        )(table[3])
+        processor_iid = Guid.from_text("aa80e7f7-2021-11d2-93e0-0060b067b86e")
+        processor = ctypes.c_void_p()
+        self.assertEqual(
+            create(pointer, None, ctypes.byref(processor_iid), ctypes.byref(processor)),
+            0,
+        )
+        self.assertTrue(processor.value)
         release = ctypes.WINFUNCTYPE(ctypes.c_uint32, ctypes.c_void_p)(table[2])
         self.assertEqual(release(pointer), 0)
+        self.assertEqual(self.dll.DllCanUnloadNow(), 1)
+        processor_table = ctypes.cast(
+            processor, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))
+        )[0]
+        release_processor = ctypes.WINFUNCTYPE(ctypes.c_uint32, ctypes.c_void_p)(
+            processor_table[2]
+        )
+        self.assertEqual(release_processor(processor), 0)
         self.assertEqual(self.dll.DllCanUnloadNow(), 0)
 
 

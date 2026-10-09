@@ -282,7 +282,9 @@ impl ITfKeyEventSink_Impl for Service_Impl {
     fn OnTestKeyDown(&self, context: Ref<ITfContext>, key: WPARAM, _flags: LPARAM) -> Result<BOOL> {
         guarded(|| {
             if key.0 == 0x10 && !command_modifier() && down(0xA0) != down(0xA1) {
-                self.shift.set(Some(Instant::now()));
+                if self.shift.get().is_none() {
+                    self.shift.set(Some(Instant::now()));
+                }
             } else {
                 self.shift.set(None);
             }

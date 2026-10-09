@@ -11,8 +11,8 @@ foreach ($Script in Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1') {
 if ($LASTEXITCODE -ne 0) { throw 'Rust format check failed.' }
 & cargo +1.96.0 clippy --manifest-path $Manifest --locked --all-targets -- -D warnings
 if ($LASTEXITCODE -ne 0) { throw 'Rust lint failed.' }
-$env:LINGOMATE_TEST_BRIDGE = Join-Path $Root 'upstream/qingjian/target/x86_64-pc-windows-msvc/release/bilingual-ime-bridge.exe'
-$env:LINGOMATE_TEST_RESOURCES = $Root
+$env:LINGOMATE_TEST_RESOURCES = Join-Path $Root 'native-windows/package/windows-x64'
+$env:LINGOMATE_TEST_BRIDGE = Join-Path $env:LINGOMATE_TEST_RESOURCES 'bilingual-ime-bridge.exe'
 & cargo +1.96.0 test --manifest-path $Manifest --locked
 if ($LASTEXITCODE -ne 0) { throw 'Real-engine integration tests failed.' }
 & python (Join-Path $PSScriptRoot 'test_dll.py') (Join-Path $Root 'native-windows/package/windows-x64/lingomate_tsf.dll')
