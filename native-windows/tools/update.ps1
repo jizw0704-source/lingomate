@@ -138,6 +138,7 @@ $Status.SetBounds(24, 72, 480, 56)
 $Status.Anchor = 'Top, Left, Right'
 $Notes = New-Object Windows.Forms.TextBox
 $Notes.Multiline = $true; $Notes.ReadOnly = $true; $Notes.ScrollBars = 'Vertical'
+$Notes.TabIndex = 4
 $Notes.BackColor = [Drawing.SystemColors]::Window
 $Notes.ForeColor = [Drawing.SystemColors]::WindowText
 $Notes.SetBounds(24, 136, 480, 144)
@@ -145,6 +146,7 @@ $Notes.Anchor = 'Top, Bottom, Left, Right'
 $Notes.Text = '更新来源：灵果 GitHub Releases。下载完成并通过校验后，由你确认安装。'
 $Auto = New-Object Windows.Forms.CheckBox
 $Auto.Text = '每天自动检查更新（只提醒，不自动安装）'
+$Auto.TabIndex = 1
 $Auto.Checked = [bool]$Settings.auto_check
 $Auto.SetBounds(24, 288, 480, 44)
 $Auto.Anchor = 'Bottom, Left, Right'
@@ -160,10 +162,10 @@ $Primary.SetBounds(24, 356, 136, 44); $Primary.Anchor = 'Bottom, Left'
 $Primary.FlatStyle = 'System'; $Primary.TabIndex = 0
 $Restore = New-Object Windows.Forms.Button
 $Restore.Text = '恢复上一版本'; $Restore.SetBounds(168, 356, 136, 44); $Restore.Anchor = 'Bottom, Left'
-$Restore.FlatStyle = 'System'; $Restore.TabIndex = 1
+$Restore.FlatStyle = 'System'; $Restore.TabIndex = 2
 $Close = New-Object Windows.Forms.Button
 $Close.Text = '关闭'; $Close.SetBounds(368, 356, 136, 44); $Close.Anchor = 'Bottom, Right'
-$Close.FlatStyle = 'System'; $Close.TabIndex = 2
+$Close.FlatStyle = 'System'; $Close.TabIndex = 3
 $Form.Controls.AddRange(@($Title, $Status, $Notes, $Auto, $Progress, $Primary, $Restore, $Close))
 $Form.AcceptButton = $Primary
 $Form.CancelButton = $Close
