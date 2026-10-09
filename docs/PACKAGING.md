@@ -4,7 +4,7 @@
 
 | 平台 | 目标设备 | 构建文件 | 当前范围 |
 | --- | --- | --- | --- |
-| macOS | Apple 芯片，macOS 13+ | `lingomate-macos-arm64-0.11.8.dmg` | 已上传维护者可见的 Release 草稿，内含原生安装程序 |
+| macOS | Apple 芯片，macOS 13+ | `lingomate-macos-arm64-0.11.9.dmg` | 已上传维护者可见的 Release 草稿，内含原生安装程序 |
 | Windows | Windows 11，Intel / AMD x64 | `lingomate-windows-x64-0.1.1-setup.exe` | 已构建、检查并上传同一 Release 草稿；未开放公开下载 |
 
 ## Mac 构建与安装
@@ -49,6 +49,8 @@ Windows 检查会在构建机器启动初始安装说明窗口，验证中文操
 ## 分发状态与验收
 
 用户于 2026-10-09 请求上传两端安装包。DMG、Windows 安装 EXE 及各自 SHA-256 文件已附在 `installer-preview-2026.10.09` 的 [GitHub Release 草稿](https://github.com/jizw0704-source/lingomate/releases)中，仅供仓库维护者查看；未公开发布，也未开放同事下载。Windows 包由 [受控构建上传](https://github.com/jizw0704-source/lingomate/actions/runs/37918649277)生成并直接附到草稿，不使用公开构建附件。上传前后校验保持一致，草稿状态已回读核对，匿名草稿页面返回 404。
+
+2026-10-09，Mac 附件已替换为 0.11.9 / build 21，旧版 0.11.8 DMG 与校验附件已从草稿移除，本地旧包保留。新镜像的包内版本、主程序及三份图标资源与验证构建一致，安装器签名和七项隔离回归通过；上传后的下载文件与本地字节及 SHA-256 一致。Windows 两份附件的身份、大小与摘要保持不变。Mac 构建来自 [c8f6527](https://github.com/jizw0704-source/lingomate/commit/c8f6527871b685766a167ecda8c1eb4c32fa8c59)，Windows 附件仍来自原 [84b348a](https://github.com/jizw0704-source/lingomate/commit/84b348a5223de130ce7005004646a322f6f95130)；草稿标签保留原构建引用，Release 说明分别列出两端来源。草稿状态保持不变，真实 DMG 首次安装及下载后的系统安全检查仍待验收。
 
 Windows 更新清单继续保持 `unpublished`，草稿不触发远程更新。正式向同事分发前，须完成 [第三方词库分发确认](THIRD_PARTY.md)、两端发行签名安排及目标设备安装验收。Mac 公证与 Windows 签名尚无凭据配置，不要求在聊天中提供密钥。
 

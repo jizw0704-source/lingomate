@@ -1,6 +1,6 @@
 # 灵果 · LingoMate · macOS 使用指南
 
-当前源码版本：**0.11.9 / build 21**。原生客户端基于 Swift、AppKit 与 InputMethodKit，使用本地 Rust 引擎生成中文候选，并将选中的中文或英文提交至当前应用。现有安装包草稿仍为 0.11.8。
+当前源码版本：**0.11.9 / build 21**。原生客户端基于 Swift、AppKit 与 InputMethodKit，使用本地 Rust 引擎生成中文候选，并将选中的中文或英文提交至当前应用。Mac 安装包草稿已更新至 0.11.9，尚未公开发布。
 
 当前构建面向 Apple Silicon Mac。基础中文输入与词语释义的部署目标为 macOS 13；较早系统的实际运行兼容性尚未验证。Apple 本机整句翻译需要 macOS 26 及以上和中英文语言资源。MiniMax 在线模式需要网络及有效 API 配置。
 
