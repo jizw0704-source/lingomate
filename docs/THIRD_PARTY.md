@@ -1,13 +1,17 @@
-# 第三方代码、数据和资源
+# 第三方代码、数据与资源
+
+本文记录项目使用或研究的第三方资源、固定版本与许可信息。第三方名称仅用于来源归属，不代表产品品牌或合作关系。
 
 | 来源 | 固定版本 | 用途 | 许可说明 |
 | --- | --- | --- | --- |
-| [青简](https://github.com/qingjian-team/qingjian) | c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e | 中文候选引擎、词典和英文词表 | 代码 GPL-3.0-or-later；词表 README 标称 GPL-3.0-or-later，部分打包元数据写 MIT，发行前仍需澄清 |
-| [rime-translate](https://github.com/daocatt/rime-translate) | c5ffa0ed2fa2a5530a39929fc356dadd4cea161c | 离线对照研究，不作为原生运行依赖 | 插件 MIT；样例数据按各自说明，不据插件许可推断全部数据许可 |
-| Apple Translation | 系统框架 | 本机整句中译英 | 不在仓库内分发框架或语言模型，首次语言资源由系统下载 |
+| [青简](https://github.com/qingjian-team/qingjian) | c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e | 中文候选引擎、词典与英文释义表 | 代码为 GPL-3.0-or-later；词表 README 标注 GPL-3.0-or-later，部分打包元数据标注 MIT，正式分发前需澄清 |
+| [rime-translate](https://github.com/daocatt/rime-translate) | c5ffa0ed2fa2a5530a39929fc356dadd4cea161c | 前期离线对照研究，不作为原生运行依赖 | 插件为 MIT；样例数据依据各自许可说明判断 |
+| Apple Translation | 系统框架 | 本机整句中译英 | 仓库不分发框架或语言模型；语言资源由系统下载 |
 
-准备脚本下载固定上游到被忽略的 `upstream/`；原生构建从上游复制词典和词表至本地应用，并附带 `LICENSE`、`GLOSSARY-NOTICE.md` 和 `LEXICON-NOTICE.md`。源码仓库不包含这些生成应用或完整词典副本。
+## 构建与分发范围
 
-本项目不使用青简产品名称、logo和外观，也不分发 MiSans 字体；界面允许回退到系统字体。30个词的用法说明是实验示例，未经过专业审校。
+准备脚本将固定上游快照下载至被版本控制忽略的 `upstream/` 目录。原生构建将所需词典与释义表复制至本地应用，并附带 `LICENSE`、`GLOSSARY-NOTICE.md` 和 `LEXICON-NOTICE.md`。源码仓库不包含生成的应用或完整词典副本。
 
-更详细的来源证据保存在 [历史调研](../RESEARCH.md)。源码公开、软件许可和正式二进制分发是不同状态；尚未形成完整数据分发许可结论。
+项目不使用第三方产品商标、标志或界面资产，也不分发 MiSans 字体；界面支持系统字体回退。项目编写的 30 个词语用法示例尚未经过专业审校。
+
+本项目源码采用 GPL-3.0-or-later。源码公开不代表所有数据的二进制分发许可已完成核验；完整数据分发结论仍待明确。详细来源证据见 [历史调研](../RESEARCH.md)。
