@@ -4,6 +4,12 @@ Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'update-core.psm1') -Force
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -ReferencedAssemblies System.Windows.Forms -TypeDefinition @'
+public class LingoMateUpdateForm : System.Windows.Forms.Form {
+    public bool QuietShow;
+    protected override bool ShowWithoutActivation { get { return QuietShow; } }
+}
+'@
 [Windows.Forms.Application]::EnableVisualStyles()
 $SettingsDirectory = Join-Path $env:LOCALAPPDATA 'LingoMate'
 $SettingsPath = Join-Path $SettingsDirectory 'update-settings.json'
@@ -44,6 +50,7 @@ function Set-Status([string]$State, [string]$Text, [string]$Button) {
     $Status.Text = $Text
     $Primary.Text = $Button
     $Primary.Enabled = $State -notin @('Busy', 'Installed', 'Restored')
+    $Auto.Enabled = $State -ne 'Busy'
     $Restore.Enabled = $State -ne 'Busy' -and -not $Script:HiddenCheck
     $Close.Enabled = $Script:Operation -notin @('Install', 'Rollback') -or $State -ne 'Busy'
     $Close.Text = if ($State -eq 'Busy') { '取消' } else { '关闭' }
@@ -90,7 +97,12 @@ function Receive-Result {
     try { $Result = Read-LingoMateJson (Join-Path $Script:JobDirectory 'result.json') }
     catch { $Result = [pscustomobject]@{ status = 'Error'; message = '更新程序未完成，请检查网络或公司电脑的运行策略。' } }
     if ($Script:HiddenCheck -and $Result.status -ne 'Available') { [Windows.Forms.Application]::ExitThread(); return }
-    if ($Script:HiddenCheck) { $Script:HiddenCheck = $false; $Form.Show(); $Form.Activate() }
+    if ($Script:HiddenCheck) {
+        $Script:HiddenCheck = $false
+        $Form.QuietShow = $true
+        $Form.Show()
+        $Form.QuietShow = $false
+    }
     switch ($Result.status) {
         'Current' { Set-Status 'Current' ('已安装 ' + $Result.current + '。当前没有更高版本可用。') '重新检查'; $Notes.Text = '更新来源：灵果 GitHub Releases。未发布的版本不会显示为可下载更新。' }
         'Available' { Set-Status 'Available' ('发现新版本 ' + $Result.version + ' · 已安装 ' + $Result.current) '下载更新'; $Notes.Text = $Result.notes }
@@ -106,7 +118,7 @@ function Receive-Result {
     $Script:Operation = ''
 }
 
-$Form = New-Object Windows.Forms.Form
+$Form = New-Object LingoMateUpdateForm
 $Form.Text = '灵果 · 软件更新'
 $Form.ClientSize = New-Object Drawing.Size(528, 424)
 $Form.MinimumSize = New-Object Drawing.Size(496, 440)
