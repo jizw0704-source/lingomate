@@ -6,7 +6,7 @@
 
 新增 Windows 0.1.0 开发客户端：原生 TSF 文本服务、非激活候选窗口、共享引擎、中英词语选择、多译法、候选分页、原样大小写提交、Shift 切换及基础标点。准备固定源码构建、校验清单、版本隔离安装、登记回退与卸载脚本，并加入 Windows 自动检查流程。
 
-Windows 目标类型检查及 2 项输入状态 / 7 项真实引擎检查已通过；远端 Windows MSVC 构建及 DLL 加载结果待确认。实际系统登记、应用输入、视觉、DPI、辅助功能与稳定性待 Windows 机器验收。账号、MiniMax、完整标点、个人词库、外观及系统图标尚未移植；未改动当前 macOS 安装版。[Windows 使用说明](../native-windows/README.md) · [Windows 验证记录](../native-windows/QA.md)。
+Windows 目标类型检查、本机与远端的 2 项输入状态 / 7 项真实引擎检查已通过。[Windows 自动检查](https://github.com/jizw0704-source/lingomate/actions/runs/37902904909)已通过 MSVC 原生构建、PowerShell 语法、Rust 格式 / Clippy、打包数据回归及 DLL 类厂 / 文本服务对象创建释放检查。实际系统登记、应用输入、视觉、DPI、辅助功能与稳定性待 Windows 11 Intel / AMD 64 位机器验收。账号、MiniMax、完整标点、个人词库、外观及系统图标尚未移植；未改动当前 macOS 安装版。[Windows 使用说明](../native-windows/README.md) · [Windows 验证记录](../native-windows/QA.md)。
 
 ## 当前状态
 
