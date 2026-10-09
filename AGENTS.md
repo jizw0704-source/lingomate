@@ -1,5 +1,6 @@
 # Bilingual IME
 
+- Windows native development is user-authorized in `native-windows/`; follow its instructions, preserve macOS behavior and pinned upstream sources.
 - Native macOS implementation is user-authorized in `native-macos/`; retain the browser prototype in `prototype/`. Follow each directory's instructions.
 - Keep pinned upstream checkouts pristine. Do not commit runtime, generated evidence, applications, personal configuration, input content or credentials. Preserve Cargo.lock and pnpm-lock.yaml.
 - UI follows the installed Pheno v1.4 skill when available. Keep existing neutral native styling, system-font fallback and no typing animation; do not copy upstream branding.

@@ -1,0 +1,34 @@
+name: Windows native checks
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'native-windows/**'
+      - 'prototype/bridge/**'
+      - '.github/workflows/windows.yml'
+  pull_request:
+    paths:
+      - 'native-windows/**'
+      - 'prototype/bridge/**'
+      - '.github/workflows/windows.yml'
+permissions:
+  contents: read
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Prepare fixed source and toolchain
+        shell: pwsh
+        run: ./native-windows/tools/setup.ps1
+      - name: Build native DLL and shared engine
+        shell: pwsh
+        run: ./native-windows/tools/build.ps1
+      - name: Check scripts, formatting, lint, real engine and DLL lifetime
+        shell: pwsh
+        run: ./native-windows/tools/check.ps1
+      # Full dictionaries and local install packages are not published by this workflow.

@@ -3,6 +3,7 @@ use qingjian_core::candidate::{Candidate, CandidateKind};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, DirBuilder, OpenOptions};
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::PathBuf;
 
@@ -159,24 +160,25 @@ impl Memory {
         };
         let result = (|| -> Result<(), Box<dyn std::error::Error>> {
             let parent = path.parent().ok_or("missing parent")?;
-            DirBuilder::new()
-                .recursive(true)
-                .mode(0o700)
-                .create(parent)?;
+            let mut directory = DirBuilder::new();
+            directory.recursive(true);
+            #[cfg(unix)]
+            directory.mode(0o700);
+            directory.create(parent)?;
             let temporary = parent.join(format!(
                 ".memory-{}-{}.tmp",
                 std::process::id(),
                 self.data.sequence
             ));
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o600)
-                .open(&temporary)?;
+            let mut options = OpenOptions::new();
+            options.write(true).create_new(true);
+            #[cfg(unix)]
+            options.mode(0o600);
+            let mut file = options.open(&temporary)?;
             let write = (|| -> Result<(), Box<dyn std::error::Error>> {
                 file.write_all(&serde_json::to_vec(&self.data)?)?;
                 file.sync_all()?;
-                fs::rename(&temporary, path)?;
+                replace_file(&temporary, path)?;
                 Ok(())
             })();
             if write.is_err() {
@@ -187,5 +189,27 @@ impl Memory {
         self.warning = result
             .err()
             .map(|_| "文字已输出，选词记忆暂未保存；请检查本机存储。");
+    }
+}
+
+#[cfg(not(windows))]
+fn replace_file(source: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+    fs::rename(source, target)
+}
+
+#[cfg(windows)]
+fn replace_file(source: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn MoveFileExW(source: *const u16, target: *const u16, flags: u32) -> i32;
+    }
+    let source: Vec<_> = source.as_os_str().encode_wide().chain(Some(0)).collect();
+    let target: Vec<_> = target.as_os_str().encode_wide().chain(Some(0)).collect();
+    // Replace atomically; never delete the previous vocabulary before a successful save.
+    if unsafe { MoveFileExW(source.as_ptr(), target.as_ptr(), 0x1 | 0x8) } == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
     }
 }

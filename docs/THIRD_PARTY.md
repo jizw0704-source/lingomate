@@ -8,6 +8,8 @@
 | [rime-translate](https://github.com/daocatt/rime-translate) | c5ffa0ed2fa2a5530a39929fc356dadd4cea161c | 前期离线对照研究，不作为原生运行依赖 | 插件为 MIT；样例数据依据各自许可说明判断 |
 | Apple Translation | 系统框架 | 本机整句中译英 | 仓库不分发框架或语言模型；语言资源由系统下载 |
 
+Windows 原生接入使用 Microsoft 的 [`windows-rs`](https://github.com/microsoft/windows-rs) 平台绑定（`windows` / `windows-core` 0.62.2，MIT OR Apache-2.0），仅在 Windows 编译时启用。TSF 接口及组合输入处理参考固定上游源码与 Microsoft 系统文档，使用本项目独立标识及界面，不复用第三方图标或输入日志 / 上下文采集功能。
+
 ## 构建与分发范围
 
 准备脚本将固定上游快照下载至被版本控制忽略的 `upstream/` 目录。原生构建将所需词典与释义表复制至本地应用，并附带 `LICENSE`、`GLOSSARY-NOTICE.md` 和 `LEXICON-NOTICE.md`。源码仓库不包含生成的应用或完整词典副本。

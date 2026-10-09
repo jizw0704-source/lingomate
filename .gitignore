@@ -12,3 +12,5 @@ node_modules/
 /prototype/bridge/target/
 /native-macos/build/
 /backend/state/
+/native-windows/target/
+/native-windows/package/
