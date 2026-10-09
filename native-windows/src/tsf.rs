@@ -2,6 +2,7 @@
 mod document;
 mod panel;
 mod registration;
+mod updates;
 use crate::bridge::Bridge;
 use crate::input::{Input, Key};
 use std::cell::{Cell, RefCell};
@@ -245,6 +246,7 @@ impl ITfTextInputProcessor_Impl for Service_Impl {
             }
             *self.manager.borrow_mut() = Some(manager);
             *self.state.panel.borrow_mut() = Some(panel);
+            let _ = updates::launch(true);
             Ok(())
         })
     }
@@ -292,6 +294,9 @@ impl ITfKeyEventSink_Impl for Service_Impl {
                 return Ok(FALSE);
             };
             if blocked(context) || self.state.input.borrow().english || command_modifier() {
+                if !blocked(context) && updates::shortcut(key.0) {
+                    return Ok(TRUE);
+                }
                 return Ok(FALSE);
             }
             Ok(decode(key.0, !self.state.input.borrow().raw.is_empty())
@@ -302,6 +307,10 @@ impl ITfKeyEventSink_Impl for Service_Impl {
     fn OnKeyDown(&self, context: Ref<ITfContext>, key: WPARAM, _flags: LPARAM) -> Result<BOOL> {
         guarded(|| {
             let context = context.ok()?;
+            if !blocked(context) && updates::shortcut(key.0) {
+                let _ = updates::launch(false);
+                return Ok(TRUE);
+            }
             if blocked(context) || command_modifier() || self.state.input.borrow().english {
                 return Ok(FALSE);
             }

@@ -1,4 +1,4 @@
-use super::{Guard, Key, MODULE, State};
+use super::{Guard, Key, MODULE, State, updates};
 use std::rc::{Rc, Weak};
 use std::sync::atomic::Ordering;
 use windows::Win32::Foundation::*;
@@ -155,6 +155,9 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
                     0 => state.key(Key::Previous),
                     1 => state.key(Key::Next),
                     2 => state.key(Key::Tab(false)),
+                    3 => {
+                        let _ = updates::launch(false);
+                    }
                     _ => {}
                 }
             } else if y < 132 && x >= 0 {
@@ -229,6 +232,7 @@ fn paint(window: HWND, state: &Rc<State>) {
     text(dc, "‹", 16, 0, 28, COLORREF(0x101010));
     text(dc, "›", 60, 0, 28, COLORREF(0x101010));
     text(dc, "译法", 90, 0, 44, COLORREF(0x101010));
+    text(dc, "更新", 138, 0, 44, COLORREF(0x101010));
     let title = if input.error {
         format!("{} · 引擎未连接 · 回车提交字母", input.raw)
     } else {
@@ -239,7 +243,7 @@ fn paint(window: HWND, state: &Rc<State>) {
             input.page_count().max(1)
         )
     };
-    text(dc, &title, 140, 0, 410, COLORREF(0x4A4A4A));
+    text(dc, &title, 184, 0, 366, COLORREF(0x4A4A4A));
     for (slot, candidate) in input
         .frame
         .candidates

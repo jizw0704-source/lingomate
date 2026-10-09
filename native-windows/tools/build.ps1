@@ -24,10 +24,16 @@ $Files = @{
     'LICENSE' = (Join-Path $Root 'LICENSE')
     'GLOSSARY-NOTICE.md' = (Join-Path $Upstream 'assets/glossary/README.md')
     'LEXICON-NOTICE.md' = (Join-Path $Upstream 'assets/lexicon/README.md')
+    'update.ps1' = (Join-Path $PSScriptRoot 'update.ps1')
+    'update-worker.ps1' = (Join-Path $PSScriptRoot 'update-worker.ps1')
+    'update-core.psm1' = (Join-Path $PSScriptRoot 'update-core.psm1')
 }
 foreach ($Name in $Files.Keys) { Copy-Item -LiteralPath $Files[$Name] -Destination (Join-Path $Package $Name) }
-$Manifest = @{}
-foreach ($Name in $Files.Keys) { $Manifest[$Name] = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $Package $Name)).Hash }
+$Version = (Select-String -LiteralPath (Join-Path $Native 'Cargo.toml') -Pattern '^version = "([0-9.]+)"$').Matches[0].Groups[1].Value
+@{ schema = 1; version = $Version; arch = 'x64'; channel = 'preview'; repository = 'jizw0704-source/lingomate'; minimum_windows_build = 22000 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Package 'version.json') -Encoding UTF8
+$Files['version.json'] = Join-Path $Package 'version.json'
+$Manifest = [ordered]@{}
+foreach ($Name in ($Files.Keys | Sort-Object)) { $Manifest[$Name] = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $Package $Name)).Hash }
 $Manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Package 'manifest.json') -Encoding UTF8
 Write-Output "Built local Windows preview: $Package"
 Write-Output 'Build does not install, register or switch input methods.'

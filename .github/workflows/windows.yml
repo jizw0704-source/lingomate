@@ -31,4 +31,10 @@ jobs:
       - name: Check scripts, formatting, lint, real engine and DLL lifetime
         shell: pwsh
         run: ./native-windows/tools/check.ps1
+      - name: Save isolated update window preview
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-update-ui
+          path: native-windows/package/update-preview.png
+          retention-days: 7
       # Full dictionaries and local install packages are not published by this workflow.
