@@ -31,7 +31,7 @@ var placement = CGAffineTransform(
   y: (size.height - ink.height) / 2 - ink.minY)
 let mark = glyphPath.copy(using: &placement)!
 
-for (name, white) in [("GuoTemplate", false), ("GuoSelected", true)] {
+for (name, white) in [("GuoMenuTemplate", false), ("GuoMenuSelected", true)] {
   var representations: [NSBitmapImageRep] = []
   for scale in [1, 2] {
     let bitmap = NSBitmapImageRep(
@@ -64,4 +64,44 @@ for (name, white) in [("GuoTemplate", false), ("GuoSelected", true)] {
       to: output.appendingPathComponent("GuoPreview.png"))
   }
 }
-print("Rendered 果 input-source icons at 1× and 2×.")
+
+// The application icon is a separate fallback used by system surfaces. Render
+// every ICNS size from the glyph outline rather than enlarging the menu bitmap.
+let iconset = output.appendingPathComponent("GuoApp.iconset", isDirectory: true)
+try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
+for points in [16, 32, 128, 256, 512] {
+  for scale in [1, 2] {
+    let pixels = points * scale
+    let bitmap = NSBitmapImageRep(
+      bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: pixels,
+      bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+      colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    // Match logical and pixel sizes so CGContext coordinates remain pixels.
+    bitmap.size = NSSize(width: pixels, height: pixels)
+    let graphics = NSGraphicsContext(bitmapImageRep: bitmap)!
+    let edge = CGFloat(pixels)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = graphics
+    let context = graphics.cgContext
+    context.setFillColor(NSColor.black.cgColor)
+    context.addPath(
+      CGPath(
+        roundedRect: CGRect(
+          x: edge * 0.04, y: edge * 0.04, width: edge * 0.92, height: edge * 0.92),
+        cornerWidth: edge * 0.18, cornerHeight: edge * 0.18, transform: nil))
+    context.fillPath()
+    let factor = edge * 0.72 / max(ink.width, ink.height)
+    var transform = CGAffineTransform(
+      a: factor, b: 0, c: 0, d: factor,
+      tx: (edge - ink.width * factor) / 2 - ink.minX * factor,
+      ty: (edge - ink.height * factor) / 2 - ink.minY * factor)
+    context.setFillColor(NSColor.white.cgColor)
+    context.addPath(glyphPath.copy(using: &transform)!)
+    context.fillPath()
+    NSGraphicsContext.restoreGraphicsState()
+    let suffix = scale == 2 ? "@2x" : ""
+    try bitmap.representation(using: .png, properties: [:])!.write(
+      to: iconset.appendingPathComponent("icon_\(points)x\(points)\(suffix).png"))
+  }
+}
+print("Rendered 果 menu icons at 1× / 2× and application iconset at 16–1024 pixels.")
