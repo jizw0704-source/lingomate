@@ -114,7 +114,7 @@ final class CandidatePanel: NSPanel {
       stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
       stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
     ])
-    let pinyin = NativeTheme.label(state.frame?.marked ?? state.input, size: 14, weight: .medium)
+    let pinyin = NativeTheme.label(state.markedInput, size: 14, weight: .medium)
     pinyin.maximumNumberOfLines = 1
     pinyin.lineBreakMode = .byTruncatingTail
     pinyin.toolTip = pinyin.stringValue
@@ -171,7 +171,7 @@ final class CandidatePanel: NSPanel {
     page.setContentCompressionResistancePriority(.required, for: .horizontal)
     page.toolTip = "共 \(state.frame?.candidates.count ?? 0) 个候选 · −/= 翻页"
     let mode = NativeTheme.label(bilingual ? "中英" : "中文", size: 11, secondary: true)
-    mode.toolTip = "Shift 英文直输 · F6 切换双语 · \(punctuationLabel)"
+    mode.toolTip = "空格 中文 · 回车 原样字母 · Shift＋空格 译文 · Shift 英文直输 · \(punctuationLabel)"
     let header = row([pinyin, NSView(), mode, previous, page, next, details, settings])
     header.spacing = 0
     add(header, to: stack)
@@ -276,7 +276,7 @@ final class CandidatePanel: NSPanel {
       }
     }
     if state.frame?.candidates.isEmpty != false {
-      add(NativeTheme.label("暂未找到候选\n继续输入，或按 Enter 保留原样拼音。", secondary: true), to: stack)
+      add(NativeTheme.label("暂未找到候选\n继续输入，或按回车输出原样字母。", secondary: true), to: stack)
     }
     stack.toolTip =
       bilingual

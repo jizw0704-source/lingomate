@@ -110,6 +110,7 @@ let isPreview =
   arguments.contains("--preview") || arguments.contains("--preview-sentence")
   || arguments.contains("--preview-paging") || arguments.contains("--preview-learning")
   || arguments.contains("--preview-punctuation")
+  || arguments.contains("--preview-mixed")
   || arguments.contains("--preview-typing") || arguments.contains("--account-preview")
   || arguments.contains("--ai-settings-preview")
   || arguments.contains("--settings-preview") || arguments.contains("--settings-test")

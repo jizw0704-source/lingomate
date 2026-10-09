@@ -121,8 +121,7 @@ final class BilingualInputController: IMKInputController {
           punctuation.resetContext()
           return false
         }
-        state.input.removeLast()
-        state.resetSelection()
+        state.removeLastLetter()
         refresh()
         return true
       case 53:
@@ -174,11 +173,9 @@ final class BilingualInputController: IMKInputController {
       case 36, 76:
         punctuation.resetContext()
         guard !state.input.isEmpty else { return false }
-        if state.expanded && Runtime.bilingual {
-          submit(index: state.active, sense: state.sense)
-        } else {
-          rawCommit()
-        }
+        rawCommit()
+        // 原样单词已经结束，下一组字母重新进入中文拼音；英文标点语言保留。
+        punctuation.clearLiteral()
         return true
       case 115, 119, 123, 124:
         punctuation.resetContext()
@@ -217,12 +214,7 @@ final class BilingualInputController: IMKInputController {
       {
         return submitPunctuation(characters, action: action)
       }
-      let lower = characters.lowercased()
-      if lower.utf8.allSatisfy({ (97...122).contains($0) || $0 == 39 }),
-        state.input.count + lower.count <= 240
-      {
-        state.input += lower
-        state.resetSelection()
+      if state.appendLetters(characters) {
         refresh()
         return true
       }
@@ -256,7 +248,7 @@ final class BilingualInputController: IMKInputController {
         EngineRequest(action: "query", input: state.input, context: learningContext))
       Runtime.failure = nil
       Runtime.memoryWarning = state.frame?.memoryWarning
-      let marked = state.frame?.marked.isEmpty == false ? state.frame!.marked : state.input
+      let marked = state.markedInput
       if let textClient {
         textClient.setMarkedText(
           marked, selectionRange: NSRange(location: marked.utf16.count, length: 0),
@@ -351,6 +343,7 @@ final class BilingualInputController: IMKInputController {
         throw EngineFailure.message("中文候选已变化，请重新选择。")
       }
       // insertText replaces the marked composition in the host, never the clipboard.
+      let remaining = state.rawRemainder(for: next.input)
       state.clear()
       sentenceTranslator.cancel()
       textClient.insertText(sentenceEnglish ?? committed, replacementRange: noReplacement)
@@ -365,7 +358,7 @@ final class BilingualInputController: IMKInputController {
       } else {
         engine.cancelLearning(context: learningContext)
       }
-      state.input = next.input
+      state.replaceInput(next.input, original: remaining)
       state.frame = next
       refresh()
       return true
@@ -399,8 +392,7 @@ final class BilingualInputController: IMKInputController {
   private func rawCommit() {
     if !state.input.isEmpty { Runtime.engine?.cancelLearning(context: learningContext) }
     sentenceTranslator.cancel()
-    let raw = state.input
-    state.clear()
+    let raw = state.takeRawInput()
     panel.orderOut(nil)
     if !raw.isEmpty, let textClient {
       textClient.insertText(raw, replacementRange: noReplacement)

@@ -1,14 +1,56 @@
-// 每个应用输入会话独立保留拼音；模式切换不会提交或清空。
+// 每个应用输入会话独立保留规范拼音和原始大小写；原样提交不产生选词记录。
 import Foundation
 
 struct SessionState {
   static let pageSize = 5
   var input = ""
+  private var originalInput = ""
   var active = 0
   var expanded = false
   var sense = 0
   var frame: EngineFrame?
   var sentence: SentenceTranslation = .none
+
+  var rawInput: String { originalInput.isEmpty ? input : originalInput }
+  var markedInput: String {
+    if rawInput != input { return rawInput }
+    return frame?.marked.isEmpty == false ? frame!.marked : input
+  }
+
+  @discardableResult mutating func appendLetters(_ characters: String) -> Bool {
+    guard !characters.isEmpty,
+      characters.utf8.allSatisfy({
+        (65...90).contains($0) || (97...122).contains($0) || $0 == 39
+      }), input.count + characters.count <= 240
+    else { return false }
+    originalInput = rawInput + characters
+    input += characters.lowercased()
+    resetSelection()
+    return true
+  }
+
+  mutating func removeLastLetter() {
+    guard !input.isEmpty else { return }
+    originalInput = String(rawInput.dropLast())
+    input.removeLast()
+    resetSelection()
+  }
+
+  func rawRemainder(for remainder: String) -> String {
+    guard !remainder.isEmpty, input.hasSuffix(remainder) else { return remainder }
+    return String(rawInput.suffix(remainder.count))
+  }
+
+  mutating func replaceInput(_ normalized: String, original: String) {
+    input = normalized
+    originalInput = original.lowercased() == normalized ? original : normalized
+  }
+
+  mutating func takeRawInput() -> String {
+    let result = rawInput
+    clear()
+    return result
+  }
 
   var page: Int { active / Self.pageSize }
   var pageCount: Int { ((frame?.candidates.count ?? 0) + Self.pageSize - 1) / Self.pageSize }
@@ -44,6 +86,7 @@ struct SessionState {
 
   mutating func clear() {
     input = ""
+    originalInput = ""
     frame = nil
     resetSelection()
   }

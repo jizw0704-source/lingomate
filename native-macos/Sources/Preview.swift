@@ -15,6 +15,7 @@ enum Preview {
   static var punctuationView: NSView?
   static let punctuationPreview = CommandLine.arguments.contains("--preview-punctuation")
   static let typingPreview = CommandLine.arguments.contains("--preview-typing")
+  static let mixedPreview = CommandLine.arguments.contains("--preview-mixed")
   static var shiftTap = ShiftTap()
   static var eventMonitor: Any?
   static let narrowPreview = CommandLine.arguments.contains("--preview-narrow")
@@ -72,11 +73,19 @@ enum Preview {
         return event
       }
     }
+    if mixedPreview {
+      label.stringValue = "混输预览：输入字母，空格选中文，回车输出原样字母，Shift＋空格选译文。只使用隔离引擎。"
+      eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+        guard event.window === window else { return event }
+        return handleMixedEvent(event) ? nil : event
+      }
+    }
     if fixture != nil { label.stringValue = "界面状态样例，内容为测试数据；不代表真实翻译结果。" }
     label.font = NativeTheme.font(13)
     label.textColor = NativeTheme.muted
     label.frame = NSRect(x: 24, y: 115, width: 610, height: 40)
     let output = NSTextField(string: "尚未选择")
+    if mixedPreview { output.stringValue = "" }
     output.isEditable = false
     output.font = NativeTheme.font(16)
     output.textColor = NativeTheme.ink
@@ -94,7 +103,9 @@ enum Preview {
     explanation = label
     outputCaption = caption
     panel = CandidatePanel()
-    if CommandLine.arguments.contains("--preview-paging") || learningDirectory != nil {
+    if mixedPreview {
+      state.clear()
+    } else if CommandLine.arguments.contains("--preview-paging") || learningDirectory != nil {
       state.input = "shi"
     } else {
       state.input =
@@ -118,6 +129,10 @@ enum Preview {
       AISettingsWindow.start(preview: true)
     }
     panel?.onChinese = { index in
+      if mixedPreview {
+        commitMixed(index: index, sense: nil)
+        return
+      }
       text?.stringValue = state.frame?.candidates[index].text ?? ""
       punctuation.confirm(.chinese)
       draw()
@@ -128,6 +143,10 @@ enum Preview {
       draw()
     }
     panel?.onEnglish = { index, sense in
+      if mixedPreview {
+        commitMixed(index: index, sense: sense)
+        return
+      }
       guard let candidate = state.frame?.candidates[index] else { return }
       if candidate.translations.indices.contains(sense) {
         text?.stringValue = candidate.translations[sense].word
@@ -170,6 +189,11 @@ enum Preview {
     draw()
   }
   static func translateSentence() {
+    if mixedPreview {
+      sentenceTranslator.cancel()
+      state.sentence = .none
+      return
+    }
     if let fixture {
       sentenceTranslator.cancel()
       if !Runtime.bilingual || Runtime.typingMode == .english {
@@ -213,6 +237,63 @@ enum Preview {
       state.sentence = phase
       draw()
     }
+  }
+  static func handleMixedEvent(_ event: NSEvent) -> Bool {
+    guard Runtime.typingMode == .chinese,
+      event.modifierFlags.intersection([.command, .control, .option]).isEmpty
+    else { return false }
+    switch event.keyCode {
+    case 36, 76:
+      guard !state.input.isEmpty else { return false }
+      text?.stringValue += state.takeRawInput()
+    case 49:
+      guard !state.input.isEmpty else { return false }
+      commitMixed(
+        index: state.active, sense: event.modifierFlags.contains(.shift) ? state.sense : nil)
+      return true
+    case 51:
+      guard !state.input.isEmpty else { return false }
+      state.removeLastLetter()
+    case 48:
+      guard !state.input.isEmpty else { return false }
+      if state.expanded { state.moveSense(1) } else { state.expanded = true }
+      draw()
+      return true
+    case 53:
+      state.clear()
+    default:
+      guard let characters = event.characters, state.appendLetters(characters) else { return false }
+    }
+    refreshMixed()
+    return true
+  }
+
+  static func commitMixed(index: Int, sense: Int?) {
+    guard let frame = state.frame, frame.candidates.indices.contains(index),
+      let engine = Runtime.engine
+    else { return }
+    let candidate = frame.candidates[index]
+    if let sense, !candidate.translations.indices.contains(sense) { return }
+    do {
+      let next = try engine.request(
+        EngineRequest(
+          action: "commit", input: state.input, candidate: candidate.text,
+          syllables: candidate.syllables,
+          english: sense.map { candidate.translations[$0].word }))
+      guard let committed = next.committed else { return }
+      let remaining = state.rawRemainder(for: next.input)
+      state.clear()
+      state.replaceInput(next.input, original: remaining)
+      text?.stringValue += committed
+      refreshMixed()
+    } catch { NSSound.beep() }
+  }
+
+  static func refreshMixed() {
+    if !state.input.isEmpty {
+      state.frame = try? Runtime.engine?.request(EngineRequest(action: "query", input: state.input))
+    }
+    draw()
   }
   static func toggleTyping() {
     window?.makeFirstResponder(nil)

@@ -8,7 +8,7 @@ from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[1]
 MARKER = "<!-- bilingual-ime-managed-v1 -->"
-REPOSITORY = "https://github.com/jizw0704-source/bilingual-ime"
+REPOSITORY = "https://github.com/jizw0704-source/lingomate"
 DOCUMENTS = {
     "使用指南.md": "native-macos/README.md",
     "开发进展.md": "docs/PROGRESS.md",
@@ -68,9 +68,11 @@ def main():
 
 # 灵果 · LingoMate · 项目总览
 
-原生版本：0.11.6。更新：2026-10-09。
+原生版本：0.11.7。更新：2026-10-09。
 
 中文拼音输入时同时选择中英文，支持词语多译法展开、本机整句翻译、候选分页、本地选词记忆、中英文标点和Shift英文直输切换。
+
+0.11.7增加中文夹英文：空格选中文、回车输出原样字母并保留大小写、Shift＋空格选译文；展开译法时回车也输出原样字母，提交后继续中文拼音。无组合时回车交给宿主换行/发送。原样字母不记录为学习单词。仓库命名统一为lingomate，源码处于早期预览阶段，暂不发布正式安装包。
 
 0.11.6将中文软件显示名称统一为“灵果”，英文为“LingoMate”。原生输入源、窗口/提示、网页原型和登录邮件标题同步；内部标识与数据位置不变，不迁移或清空词库及配置。已安装本机新版，系统回读名称“灵果”，签名与构建/安装哈希通过；新版实体键盘及跨应用稳定性仍待用户试用。
 
