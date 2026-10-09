@@ -11,6 +11,19 @@
 
 ## Windows 检查流程
 
+### 0.1.1 远程更新
+
+2026-10-09，[更新版 Windows 自动检查](https://github.com/jizw0704-source/lingomate/actions/runs/37907500750)通过，源码提交 `883cb0bea5ce12e5902b824944b03f4844f3de5a`：
+
+- Windows PowerShell 5.1 与 PowerShell 7 分别通过 39 项隔离检查：版本顺序与平台、未发布状态、下载源与重定向、摘要校验、压缩包路径 / 重复名称、不可覆盖安装、同版本重试、登记失败恢复及显式回退。
+- 原生更新窗口在 Windows 环境渲染；普通及窄窗口无按钮重叠，忙碌、取消、重试及登记期间禁止取消的状态检查通过。截图仅含隔离构造的界面，不代表实际下载或系统安装已经完成。
+- MSVC DLL 与共享引擎构建、Rust 格式 / Clippy、2 项状态 / 7 项打包引擎回归及 DLL 生命周期检查通过。
+- macOS 上使用独立本地 PowerShell 运行同一 39 项回归，并实际读取公开静态更新清单，确认 unpublished 状态返回“没有更高版本”。Windows 公司网络的连接仍待验证。
+
+先前检查发现原子记录替换的 PowerShell 参数兼容问题，以及 Windows PowerShell 5.1 压缩程序集未显式加载，已修复并通过上述重新检查。自动测试模拟登记回调，不登记真实输入法；当前没有已发布的 Windows 更新包，不能据此宣称真实远程升级完成。
+
+### 0.1.0 首次接入
+
 2026-10-09，[Windows 自动检查](https://github.com/jizw0704-source/lingomate/actions/runs/37902904909)通过，验证源码提交为 `e7951449b4fed92ac0486f06d769a7b3956d502f`：
 
 - 原生 MSVC x64 构建：文本服务 DLL、共享引擎及本地安装目录打包完成。
