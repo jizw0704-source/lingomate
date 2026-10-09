@@ -44,7 +44,7 @@ jobs:
       - name: Check scripts, formatting, lint, real engine and DLL lifetime
         shell: pwsh
         run: ./native-windows/tools/check.ps1 -SkipUpdates
-      - name: Compile local installer and inspect welcome window without installing
+      - name: Compile local installer and inspect initial window without installing
         shell: pwsh
         run: |
           ./native-windows/tools/build-installer.ps1

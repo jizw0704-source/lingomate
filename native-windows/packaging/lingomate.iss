@@ -48,6 +48,21 @@ Source: "安装与试用说明.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Code]
+procedure InitializeWizard();
+var ButtonTop, ButtonWidth: Integer;
+begin
+  ButtonTop := WizardForm.ClientHeight - ScaleY(60);
+  ButtonWidth := ScaleX(132);
+  WizardForm.CancelButton.SetBounds(WizardForm.ClientWidth - ScaleX(20) - ButtonWidth,
+    ButtonTop, ButtonWidth, ScaleY(44));
+  WizardForm.NextButton.SetBounds(WizardForm.CancelButton.Left - ScaleX(16) - ButtonWidth,
+    ButtonTop, ButtonWidth, ScaleY(44));
+  WizardForm.BackButton.SetBounds(WizardForm.NextButton.Left - ScaleX(16) - ButtonWidth,
+    ButtonTop, ButtonWidth, ScaleY(44));
+  WizardForm.Bevel.Top := ButtonTop - ScaleY(12);
+  WizardForm.OuterNotebook.Height := WizardForm.Bevel.Top;
+end;
+
 function RunOwnedScript(ScriptPath, Extra: String): Boolean;
 var ExitCode: Integer;
 begin
