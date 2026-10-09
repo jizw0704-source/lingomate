@@ -24,7 +24,7 @@ Setup pins Rust 1.96.0 and the existing upstream commit. Build uses locked depen
 
 Check also runs `test_updates.ps1` under PowerShell 7 and Windows PowerShell 5.1, and renders `update.ps1 -SmokeTest -PreviewPath <temporary PNG>` without reading real installation or network state. `prepare-release.ps1` only creates ignored local release files; it does not publish. Actual registration, network release download and application reload require Windows 11 acceptance.
 
-build-installer.ps1 requires separately installed Inno Setup 6; it validates the package and compiles packaging/lingomate.iss to an ignored local Setup EXE. No new runtime dependency. The CI welcome-window check must never confirm installation or register TSF. Only generated screenshots may be uploaded; do not upload full installer/data artifacts until distribution review and real-machine acceptance are resolved.
+build-installer.ps1 requires separately installed Inno Setup 6; it validates the package and compiles packaging/lingomate.iss to an ignored local Setup EXE. No new runtime dependency. The CI initial-window check must never confirm installation or register TSF. Only generated screenshots may be uploaded; do not upload full installer/data artifacts until distribution review and real-machine acceptance are resolved.
 
 ## macOS development checks
 

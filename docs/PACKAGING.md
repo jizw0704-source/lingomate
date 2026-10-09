@@ -5,7 +5,7 @@
 | 平台 | 目标设备 | 构建文件 | 当前范围 |
 | --- | --- | --- | --- |
 | macOS | Apple 芯片，macOS 13+ | `lingomate-macos-arm64-0.11.8.dmg` | 本地测试镜像，内含原生安装程序 |
-| Windows | Windows 11，Intel / AMD x64 | `lingomate-windows-x64-0.1.1-setup.exe` | Inno Setup 构建流程；CI 仅验证构建和欢迎窗口 |
+| Windows | Windows 11，Intel / AMD x64 | `lingomate-windows-x64-0.1.1-setup.exe` | 已在 Windows CI 生成，验证初始安装说明窗口；未发布下载 |
 
 ## Mac 构建与安装
 
@@ -44,7 +44,7 @@ DMG 与 SHA-256 文件位于被 Git 忽略的 `native-macos/build/packages/`。�
 
 卸载入口位于 Windows 已安装应用列表。确认后只取消本项目输入源登记、删除安装器支持文件；运行历史版本和个人数据保留。取消登记失败时停止卸载。远程更新仍使用经校验的 ZIP，与首次安装 EXE 分开；详见 [更新与发布](../native-windows/UPDATES.md)。
 
-Windows 检查会在构建机器启动欢迎窗口、保存该窗口的截图后结束本次安装器；不会点击安装或登记 TSF。实际 Windows 11 的首次安装、系统键盘添加、应用输入、升级、回退、卸载和公司运行策略须实机验收。32 位应用与 Windows ARM 不在当前范围。
+Windows 检查会在构建机器启动初始安装说明窗口，验证中文操作按钮至少 44 像素高，保存该窗口截图后结束本次安装器；不会点击安装或登记 TSF。[最终检查](https://github.com/jizw0704-source/lingomate/actions/runs/37911749463)已通过原生构建、安装 EXE 编译、窗口渲染、更新回归、真实引擎及 DLL 检查。CI 为 Windows Server 2025 x64；实际 Windows 11 的首次安装、系统键盘添加、应用输入、升级、回退、卸载和公司运行策略须实机验收。32 位应用与 Windows ARM 不在当前范围。
 
 ## 分发状态与验收
 

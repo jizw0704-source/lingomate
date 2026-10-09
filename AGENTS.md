@@ -21,6 +21,7 @@ Supports Apple Silicon macOS, requires Command Line Tools, uv and pnpm. Pins Rus
 ```sh
 bash native-macos/tools/build.sh
 bash native-macos/tools/check.sh
+bash native-macos/tools/package.sh
 native-macos/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-paging
 runtime/python/bin/ruff format --check tools prototype/tools prototype/data prototype/tests native-macos/tools
 runtime/python/bin/ruff check tools prototype/tools prototype/data prototype/tests native-macos/tools
