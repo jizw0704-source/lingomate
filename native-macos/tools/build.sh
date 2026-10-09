@@ -12,6 +12,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/zh-Hans.lproj" "$APP/Con
   "$NATIVE_DIR"/Sources/*.swift -framework AppKit -framework InputMethodKit -framework Carbon -Xlinker -weak_framework -Xlinker Translation -framework SwiftUI \
   -o "$APP/Contents/MacOS/BilingualCompanion"
 cp "$NATIVE_DIR/resources/Info.plist" "$APP/Contents/Info.plist"
+"$DEVELOPER_DIR/usr/bin/swiftc" -swift-version 5 -warnings-as-errors -sdk "$SDKROOT" \
+  "$NATIVE_DIR/tools/make_input_icon.swift" -o "$NATIVE_DIR/build/make-input-icon"
+"$NATIVE_DIR/build/make-input-icon" "$NATIVE_DIR/build/input-icons"
+cp "$NATIVE_DIR/build/input-icons/GuoTemplate.tiff" "$NATIVE_DIR/build/input-icons/GuoSelected.tiff" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/upstream/qingjian/target/release/bilingual-ime-bridge" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/upstream/qingjian/assets/lexicon/dict.tsv" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/upstream/qingjian/assets/glossary/glossary-en.tsv" "$APP/Contents/Resources/"
