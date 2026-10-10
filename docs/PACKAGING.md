@@ -7,7 +7,7 @@
 | macOS | Apple 芯片，macOS 13+ | `lingomate-macos-arm64-0.11.9.dmg` | 已上传维护者可见的 Release 草稿，内含原生安装程序 |
 | Windows | Windows 11，Intel / AMD x64 | `lingomate-windows-x64-0.1.1-setup.exe` | 已构建、检查并上传同一 Release 草稿；未开放公开下载 |
 
-2026-10-10，Mac 0.12.0 / build 22 的新 DMG 与更新 ZIP 已在本地生成。DMG 镜像校验、只读挂载后的应用版本 / 字节 / 安装器签名，以及真实更新 ZIP 路径检查通过。文件位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.0.dmg` 和 `native-macos/build/updates/verified-2026-10-10/release-0.12.0/`。未上传替换上述维护者草稿，未安装当前服务；本地签名仍为 ad-hoc，远程清单仍未发布。Windows 当前源码为 0.1.2，维护者草稿仍为 0.1.1。
+2026-10-10，Mac 0.12.0 / build 22 的新 DMG 与更新 ZIP 已在本地生成。DMG 镜像校验、只读挂载后的应用版本 / 字节 / 安装器签名，以及真实更新 ZIP 路径检查通过。文件位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.0.dmg` 和 `native-macos/build/updates/verified-2026-10-10/release-0.12.0/`。随后已按用户授权通过 DMG 安装器更新本机，旧版备份与输入设置保留；未上传替换上述维护者草稿。本地签名仍为 ad-hoc，远程清单仍未发布。Windows 当前源码为 0.1.2，维护者草稿仍为 0.1.1。
 
 ## Mac 构建与安装
 
