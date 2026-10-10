@@ -1,5 +1,7 @@
 # Windows 验证记录
 
+2026-10-10 · 0.1.4 候选排序：[Windows 原生自动检查](https://github.com/jizw0704-source/lingomate/actions/runs/38037661244)在源码提交 `f8621a7c89ede1912083fea8bf0070c78e146213` 通过。共享桥接采用官方固定 Google Books Ngram 词频、独立日常先验及完整原样词优先规则，包内两张表和两份声明与独立重建结果一致。四项词频许可／来源／统计／先验检查、五项转换检查、九项引擎检查、四项排序检查（30 组词语和三组长句）、十三项隔离记忆检查、共享／原生 Rust 格式与 Clippy、MSVC 构建、2＋7 项原生状态／引擎回归、DLL 生命周期、两种 PowerShell 各 45 项更新检查、0.1.4 安装 EXE 编译和初始窗口检查通过。记忆检查使用临时文件，Windows 客户端仍未接入个人词库。未登记 TSF、实际安装或公开上传完整包；Windows 11 实体键盘、跨应用及真实升级／恢复待验收。两端来源说明见 [词频来源](../docs/THIRD_PARTY.md#候选排序与词频来源)。
+
 2026-10-10 · 0.1.3 新词库：[最终 Windows 原生检查](https://github.com/jizw0704-source/lingomate/actions/runs/38030807769)在 `383e70872b053e4ccf096b9986c1294c1d10685a` 通过。固定 CC-CEDICT 取代旧混合词表及旧释义，生成 121,377 条读音、107,757 个带英文释义的词面，包内表与两份声明经独立重建逐字节校验。五项来源转换检查、九项候选质量回归（含 30 个示例和八个日常整句）、两种 PowerShell 各 45 项更新回归、Rust 格式 / Clippy、MSVC 构建、2＋7 项真实输入状态／引擎回归、DLL 检查、0.1.3 安装 EXE 编译和初始窗口检查通过。首次运行暴露原有 Python 回归脚本默认 CP1252 解码问题，已显式设为 UTF-8 并加上所属进程的失败清理；最终复验全部通过。没有登记 TSF 或实际安装，没有上传完整新包；Windows 11 首次安装、输入和真实更新／恢复仍待验收。当前数据许可为 CC BY-SA 4.0，条件见 [来源说明](../docs/THIRD_PARTY.md#当前词库来源与替换结果)。
 
 2026-10-10 · 词库许可声明：两端构建在原有 `LEXICON-NOTICE.md` 后附加许可全文，不增加安装或更新文件清单条目。[Windows 原生检查](https://github.com/jizw0704-source/lingomate/actions/runs/38029179749)在 `f1bd946f23abfd9941702cb2ffe316ee213fa1fe` 通过：两种 PowerShell 更新回归、MSVC 原生构建、脚本解析、Rust 格式 / Clippy、真实引擎 / DLL、更新校验及安装 EXE 编译。没有发布完整安装包或登记输入源；中文转录授权及维基语料差异仍未解决，实际 Windows 11 输入和安装验收亦未完成。见 [分发核对](../docs/THIRD_PARTY.md)。

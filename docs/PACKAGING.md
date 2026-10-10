@@ -17,6 +17,12 @@
 
 Mac 0.12.1 的本地 DMG 位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.1.dmg`；更新 ZIP 位于 `native-macos/build/updates/license-replacement-2026-10-10/release-0.12.1/`。已验证镜像、只读挂载版本 / 数据 / 声明 / 签名以及更新 ZIP 的完整性和数据字节。随后按用户授权通过 DMG 安装器将本机更新到 0.12.1 / build 23，保留经校验的 0.12.0 ZIP 备份及个人数据，安装字节与验证构建一致；用户已确认 Codex 中英候选与混合输入。更新元数据保持未发布，维护者草稿尚未替换。Windows 0.1.3 的[原生构建与安装 EXE 检查](https://github.com/jizw0704-source/lingomate/actions/runs/38030807769)已通过，包含包内新数据及完整声明校验；未登记或执行真实安装，未导出完整新包到公开附件。
 
+## 候选排序版本
+
+Mac 0.12.2 / build 24 与 Windows 0.1.4 的源码共用许可明确的 Google Books Ngram 词频与完整词优先排序。官方许可、版本、摘要及加工说明加入已有两份 NOTICE，包内文件清单保持兼容；未导入书籍正文或新增 Google 词条。[来源与处理说明](THIRD_PARTY.md#候选排序与词频来源)提供重建方法和有限回归结果。
+
+Mac 新 DMG 位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.2.dmg`。完整构建检查、镜像和只读挂载后的版本／build、最终桥接、词库、声明及签名核对通过；本机仍安装 0.12.1。本地更新 ZIP 位于 `native-macos/build/updates/ranking-20261010/release-0.12.2/`，摘要／大小、CRC／路径及桥接／数据／声明逐字节校验通过，元数据保持未发布。Windows 0.1.4 的 [MSVC 构建、来源／候选回归和安装 EXE 编译检查](https://github.com/jizw0704-source/lingomate/actions/runs/38037661244)通过，未登记 TSF 或执行实际安装。历史本地包和维护者草稿保留，新包未上传、公开发布或启用更新源；发行签名、公证与新版实机输入仍待验证。
+
 ## Mac 构建与安装
 
 在仓库根目录执行：
