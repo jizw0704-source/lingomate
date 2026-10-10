@@ -94,8 +94,22 @@ try {
     Restore-LingoMateVersion $New $Root $MockRegister | Out-Null
     Check ($Calls[1] -eq ($OldDll + '|False')) 'explicit rollback uses checked previous package'
     $Calls.Clear()
+    $FailRestore = { param($Dll, $Remove) $Calls.Add("$Dll|$Remove"); if ($Dll -eq $OldDll) { throw 'Synthetic restore failure' } }.GetNewClosure()
+    Reject { Restore-LingoMateVersion $New $Root $FailRestore } 'rollback failure surfaced'
+    Check ($Calls.Count -eq 2 -and $Calls[1] -eq ((Join-Path $New 'lingomate_tsf.dll') + '|False')) 'rollback failure restores current registration'
+    $Calls.Clear()
+    $FailBoth = { param($Dll, $Remove) $Calls.Add("$Dll|$Remove"); throw 'Synthetic registration failure' }.GetNewClosure()
+    Reject { Restore-LingoMateVersion $New $Root $FailBoth } 'dual restore failure surfaced'
+    Check ((Test-Path $OldDll) -and (Test-Path (Join-Path $New 'lingomate_tsf.dll'))) 'dual restore failure preserves both versions'
+    $Calls.Clear()
     $Retry = Install-LingoMatePackage $Package $Root (Join-Path $New 'lingomate_tsf.dll') $MockRegister
     Check ($Retry -eq $New -and $Calls.Count -eq 0) 'same installed package is idempotent'
+    $CurrentScript = Join-Path $New 'update.ps1'
+    $SavedCurrentScript = [IO.File]::ReadAllBytes($CurrentScript)
+    [IO.File]::AppendAllText($CurrentScript, 'tampered')
+    Reject { Restore-LingoMateVersion $New $Root $MockRegister } 'tampered current package cannot reach rollback registration'
+    Check ($Calls.Count -eq 0) 'tampered current package performs no registration'
+    [IO.File]::WriteAllBytes($CurrentScript, $SavedCurrentScript)
 
     $Failing = { param($Dll, $Remove) $Calls.Add("$Dll|$Remove"); if ($Dll -ne $OldDll) { throw 'Synthetic registration failure' } }.GetNewClosure()
     Reject { Install-LingoMatePackage $Package $Root $OldDll $Failing } 'registration failure surfaced'

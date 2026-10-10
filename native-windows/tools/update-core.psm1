@@ -182,12 +182,18 @@ function Install-LingoMatePackage([string]$Package, [string]$InstallRoot, [strin
 }
 function Restore-LingoMateVersion([string]$Current, [string]$InstallRoot, [scriptblock]$Register = { param($Dll, $Remove) Invoke-LingoMateRegistration $Dll $Remove }) {
     Assert-LingoMateOwnedDll (Join-Path $Current 'lingomate_tsf.dll') $InstallRoot
+    Test-LingoMatePackage $Current | Out-Null
     $Receipt = Read-LingoMateJson (Join-Path $Current 'install-receipt.json')
     if (-not $Receipt.previous) { throw '没有可恢复的上一版本。' }
     Assert-LingoMateOwnedDll $Receipt.previous $InstallRoot
     $Previous = Split-Path $Receipt.previous -Parent
     Test-LingoMatePackage $Previous -Legacy | Out-Null
-    & $Register $Receipt.previous $false
+    try { & $Register $Receipt.previous $false }
+    catch {
+        try { & $Register (Join-Path $Current 'lingomate_tsf.dll') $false }
+        catch { throw '上一版本恢复登记失败，当前版本的登记也未恢复。两份文件均保留，请检查系统输入设置。' }
+        throw '上一版本恢复失败，已恢复当前版本登记，文件保留。'
+    }
     return $Previous
 }
 Export-ModuleMember -Function *-LingoMate*
