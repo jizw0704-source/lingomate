@@ -15,7 +15,7 @@
 
 签名、公证、对应源码交付及目标设备安装／输入验收仍与数据替换分开处理。当前不发布 Release 或启用更新源。
 
-Mac 0.12.1 的本地 DMG 位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.1.dmg`；更新 ZIP 位于 `native-macos/build/updates/license-replacement-2026-10-10/release-0.12.1/`。已验证镜像、只读挂载版本 / 数据 / 声明 / 签名以及更新 ZIP 的完整性和数据字节。更新元数据保持未发布；尚未替换维护者草稿或本机安装版本。 Windows 0.1.3 的[原生构建与安装 EXE 检查](https://github.com/jizw0704-source/lingomate/actions/runs/38030807769)已通过，包含包内新数据及完整声明校验；未登记或执行真实安装，未导出完整新包到公开附件。
+Mac 0.12.1 的本地 DMG 位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.1.dmg`；更新 ZIP 位于 `native-macos/build/updates/license-replacement-2026-10-10/release-0.12.1/`。已验证镜像、只读挂载版本 / 数据 / 声明 / 签名以及更新 ZIP 的完整性和数据字节。随后按用户授权通过 DMG 安装器将本机更新到 0.12.1 / build 23，保留经校验的 0.12.0 ZIP 备份及个人数据，安装字节与验证构建一致；用户已确认 Codex 中英候选与混合输入。更新元数据保持未发布，维护者草稿尚未替换。Windows 0.1.3 的[原生构建与安装 EXE 检查](https://github.com/jizw0704-source/lingomate/actions/runs/38030807769)已通过，包含包内新数据及完整声明校验；未登记或执行真实安装，未导出完整新包到公开附件。
 
 ## Mac 构建与安装
 
