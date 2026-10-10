@@ -455,6 +455,10 @@ final class BilingualInputController: IMKInputController {
         title: "设置…", action: #selector(openSettings(_:)), keyEquivalent: "")
       settings.target = self
       menu.addItem(settings)
+      let updates = NSMenuItem(
+        title: "检查更新…", action: #selector(openUpdates(_:)), keyEquivalent: "")
+      updates.target = self
+      menu.addItem(updates)
       let typing = NSMenuItem(
         title: "\(Runtime.typingMode.title) · 单按 Shift 切换",
         action: #selector(toggleTyping(_:)), keyEquivalent: "")
@@ -534,6 +538,12 @@ final class BilingualInputController: IMKInputController {
     mainSync {
       rawCommit()
       SettingsWindow.launch()
+    }
+  }
+  @objc private func openUpdates(_ sender: Any?) {
+    mainSync {
+      rawCommit()
+      MacUpdates.launch()
     }
   }
 

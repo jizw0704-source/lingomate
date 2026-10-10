@@ -7,6 +7,8 @@
 | macOS | Apple 芯片，macOS 13+ | `lingomate-macos-arm64-0.11.9.dmg` | 已上传维护者可见的 Release 草稿，内含原生安装程序 |
 | Windows | Windows 11，Intel / AMD x64 | `lingomate-windows-x64-0.1.1-setup.exe` | 已构建、检查并上传同一 Release 草稿；未开放公开下载 |
 
+2026-10-10，Mac 0.12.0 / build 22 的新 DMG 与更新 ZIP 已在本地生成。DMG 镜像校验、只读挂载后的应用版本 / 字节 / 安装器签名，以及真实更新 ZIP 路径检查通过。文件位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.0.dmg` 和 `native-macos/build/updates/verified-2026-10-10/release-0.12.0/`。未上传替换上述维护者草稿，未安装当前服务；本地签名仍为 ad-hoc，远程清单仍未发布。Windows 当前源码为 0.1.2，维护者草稿仍为 0.1.1。
+
 ## Mac 构建与安装
 
 在仓库根目录执行：
@@ -25,7 +27,7 @@ DMG 与 SHA-256 文件位于被 Git 忽略的 `native-macos/build/packages/`。�
 
 安装器界面预览在安装包内执行 `Contents/MacOS/LingoMateInstaller --preview`，不读取个人词库或执行安装。独立安装逻辑回归使用 `--selftest`，只操作临时模拟应用。
 
-当前签名为本地 ad-hoc 签名，未完成 Developer ID 发行签名及公证。下载后 Gatekeeper 是否允许运行尚未验证；不建议关闭安全检查。Intel Mac 不在当前构建范围。Mac 端尚未实现远程更新。
+当前签名为本地 ad-hoc 签名，未完成 Developer ID 发行签名及公证。下载后 Gatekeeper 是否允许运行尚未验证；不建议关闭安全检查。Intel Mac 不在当前构建范围。Mac 源码 0.12.0 已包含独立远程更新器，旧版需要先手动安装一次；维护者草稿仍为 0.11.9，没有更新器。远程 ZIP 与首次安装 DMG 分开，准备方法见 [Mac 软件更新](../native-macos/README.md#软件更新)。
 
 ## Windows 构建与安装
 
@@ -38,7 +40,7 @@ DMG 与 SHA-256 文件位于被 Git 忽略的 `native-macos/build/packages/`。�
 ./native-windows/tools/build-installer.ps1
 ```
 
-可通过 `-Compiler 'C:\path\ISCC.exe'` 指定编译器。脚本先验证既有运行包，生成 `native-windows/package/installer-0.1.1/` 内的安装 EXE 和 SHA-256 文件；输出目录已存在时停止，不覆盖。打包脚本不安装、不登记、不下载打包工具、不上传附件。
+可通过 `-Compiler 'C:\path\ISCC.exe'` 指定编译器。脚本先验证既有运行包，生成 `native-windows/package/installer-<版本>/` 内的安装 EXE 和 SHA-256 文件；输出目录已存在时停止，不覆盖。打包脚本不安装、不登记、不下载打包工具、不上传附件。
 
 安装 EXE 使用当前用户权限，解包至临时目录后执行随包的安装逻辑，校验文件并登记已复制的独立版本目录。安装器支持文件位于 `%LOCALAPPDATA%\LingoMate\Installer`，运行文件位于 `%LOCALAPPDATA%\LingoMate\Windows\<版本>-<摘要>`；旧版保留，供更新器回退。不会停止应用、结束 ctfmon、切换输入源或重启。执行或登记失败不显示成功完成。
 
@@ -52,7 +54,7 @@ Windows 检查会在构建机器启动初始安装说明窗口，验证中文操
 
 2026-10-09，Mac 附件已替换为 0.11.9 / build 21，旧版 0.11.8 DMG 与校验附件已从草稿移除，本地旧包保留。新镜像的包内版本、主程序及三份图标资源与验证构建一致，安装器签名和七项隔离回归通过；上传后的下载文件与本地字节及 SHA-256 一致。Windows 两份附件的身份、大小与摘要保持不变。Mac 构建来自 [c8f6527](https://github.com/jizw0704-source/lingomate/commit/c8f6527871b685766a167ecda8c1eb4c32fa8c59)，Windows 附件仍来自原 [84b348a](https://github.com/jizw0704-source/lingomate/commit/84b348a5223de130ce7005004646a322f6f95130)；草稿标签保留原构建引用，Release 说明分别列出两端来源。草稿状态保持不变，真实 DMG 首次安装及下载后的系统安全检查仍待验收。
 
-Windows 更新清单继续保持 `unpublished`，草稿不触发远程更新。正式向同事分发前，须完成 [第三方词库分发确认](THIRD_PARTY.md)、两端发行签名安排及目标设备安装验收。Mac 公证与 Windows 签名尚无凭据配置，不要求在聊天中提供密钥。
+Mac 和 Windows 更新清单均保持 `unpublished`，草稿不触发远程更新。正式向同事分发前，须完成 [第三方词库分发确认](THIRD_PARTY.md)、两端发行签名安排及目标设备安装验收。Mac 公证与 Windows 签名尚无凭据配置，不要求在聊天中提供密钥。
 
 后续上传 Windows 包可使用手动工作流：先创建预发布草稿并将 `target_commitish` 设为对应完整提交号，再执行 `gh workflow run windows-package-draft.yml --ref <同一提交的标签> -f release_id=<草稿编号>`。工作流验证目的地仍为草稿、源码版本一致，完成全部检查后才上传 EXE 与校验文件；没有发布步骤，不覆盖已有同名附件。
 

@@ -9,7 +9,7 @@ APP="$NATIVE_DIR/build/BilingualCompanion.app"
 bash "$RESEARCH_DIR/prototype/tools/cargo.sh" build --release --locked
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/zh-Hans.lproj" "$APP/Contents/Resources/en.lproj"
 "$DEVELOPER_DIR/usr/bin/swiftc" -swift-version 5 -warnings-as-errors -O -sdk "$SDKROOT" -target arm64-apple-macosx13.0 \
-  "$NATIVE_DIR"/Sources/*.swift -framework AppKit -framework InputMethodKit -framework Carbon -Xlinker -weak_framework -Xlinker Translation -framework SwiftUI \
+  "$NATIVE_DIR"/Sources/*.swift "$NATIVE_DIR/Installer/InstallCore.swift" -framework AppKit -framework InputMethodKit -framework Carbon -Xlinker -weak_framework -Xlinker Translation -framework SwiftUI \
   -o "$APP/Contents/MacOS/BilingualCompanion"
 cp "$NATIVE_DIR/resources/Info.plist" "$APP/Contents/Info.plist"
 "$DEVELOPER_DIR/usr/bin/swiftc" -swift-version 5 -warnings-as-errors -sdk "$SDKROOT" \

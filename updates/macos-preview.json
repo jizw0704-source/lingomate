@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "platform": "macos",
+  "arch": "arm64",
+  "channel": "preview",
+  "minimum_macos_major": 13,
+  "status": "unpublished"
+}

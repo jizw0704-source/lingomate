@@ -12,7 +12,7 @@ export SDKROOT="$DEVELOPER_DIR/SDKs/MacOSX.sdk"
   -o "$NATIVE_DIR/build/LingoMateInstaller"
 "$NATIVE_DIR/build/LingoMateInstaller" --selftest
 "$DEVELOPER_DIR/usr/bin/swiftc" -swift-version 5 -warnings-as-errors -typecheck -sdk "$SDKROOT" \
-  -target arm64-apple-macosx13.0 "$NATIVE_DIR"/Sources/*.swift \
+  -target arm64-apple-macosx13.0 "$NATIVE_DIR"/Sources/*.swift "$NATIVE_DIR/Installer/InstallCore.swift" \
   -framework AppKit -framework InputMethodKit -framework Carbon -framework Translation -framework SwiftUI
 "$RESEARCH_DIR/runtime/python/bin/ruff" format --check "$NATIVE_DIR/tools"
 "$RESEARCH_DIR/runtime/python/bin/ruff" check "$NATIVE_DIR/tools"
@@ -31,6 +31,8 @@ bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --service-lock-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --input-window-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --settings-test
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --update-test
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --update-window-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --engine-resilience-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --selftest
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --punctuation-test

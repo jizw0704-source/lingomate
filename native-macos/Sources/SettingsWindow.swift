@@ -229,6 +229,9 @@ final class SettingsController: NSObject, NSWindowDelegate {
         add(button, to: stack)
       }
       if preview { add(NativeTheme.label("界面样例：外观只在此预览中切换。", secondary: true), to: stack) }
+      let update = ActionButton("检查版本更新…") { MacUpdates.launch() }
+      update.isEnabled = !preview
+      add(update, to: stack)
     }
   }
   private func resizeDocument() {

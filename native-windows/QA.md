@@ -1,5 +1,7 @@
 # Windows 验证记录
 
+2026-10-10 · 0.1.2 旧版恢复保护：本机独立 PowerShell 通过 45 项隔离更新检查，新增旧版登记失败后恢复当前登记、两次登记失败保留文件，以及当前包篡改后不执行任何登记。Rust 格式、Windows GNU 目标 Clippy、2 项输入状态 / 7 项真实引擎回归通过。[Windows 原生复验](https://github.com/jizw0704-source/lingomate/actions/runs/38022512847)已通过，源码为 `cf674ad71918ce7fed465742c21e68c062977fe8`：MSVC 构建、Windows PowerShell 5.1 / 7 更新回归、更新窗口状态与渲染、Rust 格式 / Clippy、真实引擎 / DLL 检查，以及 0.1.2 安装 EXE 编译和初始说明窗口检查成功。没有登记 TSF 或执行真实安装，真实 Windows 11 更新与回退仍未验收，清单保持未发布状态。
+
 2026-10-09 · 安装 EXE 打包：[最终 Windows 检查](https://github.com/jizw0704-source/lingomate/actions/runs/37911749463)已通过（代码 `fcd0a713fe9e3d17a78fb6a7ac7433dd5984f1b2`）。Inno Setup 6.7.1 成功生成安装 EXE，初始中文安装说明窗口已渲染并查看，主要操作按钮至少 44 像素高，文本滚动与底部按钮未发生重叠。两种 PowerShell 的更新回归、原生构建、格式 / Clippy、真实引擎及 DLL 检查通过。采用当前用户权限与既有安装 / 更新核心；不会在 CI 执行安装、取消登记或修改运行清单。CI 为 Windows Server 2025 x64，实际首次安装、升级、回退、卸载、Windows 11、公司策略、DPI 和辅助功能仍待验证；只上传生成的窗口截图，不上传完整安装包。
 
 2026-10-09 · 首版 0.1.0 开发接入。

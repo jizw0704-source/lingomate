@@ -1,6 +1,6 @@
 # 灵果 · LingoMate · macOS 使用指南
 
-当前源码版本：**0.11.9 / build 21**。原生客户端基于 Swift、AppKit 与 InputMethodKit，使用本地 Rust 引擎生成中文候选，并将选中的中文或英文提交至当前应用。Mac 安装包草稿已更新至 0.11.9，尚未公开发布。
+当前源码版本：**0.12.0 / build 22**。原生客户端基于 Swift、AppKit 与 InputMethodKit，使用本地 Rust 引擎生成中文候选，并将选中的中文或英文提交至当前应用。新增独立软件更新器；本机安装与维护者安装包草稿仍为 0.11.9，尚未公开发布。
 
 当前构建面向 Apple Silicon Mac。基础中文输入与词语释义的部署目标为 macOS 13；较早系统的实际运行兼容性尚未验证。Apple 本机整句翻译需要 macOS 26 及以上和中英文语言资源。MiniMax 在线模式需要网络及有效 API 配置。
 
@@ -168,6 +168,29 @@ build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview-mixed
 构建使用项目 Rust 运行时、现有锁文件与 Apple Command Line Tools。Translation 框架弱链接，较早系统跳过 Apple 整句翻译；实际兼容性待测。预览使用隔离词库及内存外观状态，不读取个人配置或真实密钥。
 
 检查涵盖 Swift 格式与类型、Rust 格式与 Clippy、真实引擎与选词记忆回归、输入状态、标点、翻译取消、资源及本地签名。整句联调需要 macOS 26 与已下载语言。预览和自动检查的通过范围与系统输入实际验收分别记录在 [QA](QA.md)中。
+
+## 软件更新
+
+0.12.0 起，输入源菜单的“检查更新…”及设置 → 外观 → “检查版本更新…”打开独立更新窗口。0.11.9 及更早版本没有更新器，需要先手动安装 0.12.0 或后续版本一次。
+
+更新依次检查固定 GitHub 清单、展示版本说明、下载、验证大小与 SHA-256、检查 ZIP 路径和应用身份 / 版本 / 芯片、验证代码签名与系统安全评估，再等待确认安装。下载可取消，安装或恢复开始后禁止中断。校验或系统评估失败时，保留已安装版本并报告错误；不移除下载来源标记或关闭安全检查。
+
+“每天自动检查更新”默认关闭。启用后至多每 24 小时自动检查一次，仅有新版本时提醒；不自动下载或安装。更新器不读取输入、个人词库、学习记录、账号或翻译密钥，不关闭宿主、不自动注销或重启。安装前须切换其他输入法、退出灵果设置与输入服务；更新器自身不作为运行中输入服务阻止安装。完成后重新打开使用灵果的应用。
+
+更新沿用当前用户的安装路径，并保存校验过的 ZIP 备份、原版本与来源标记。登记失败尝试恢复旧应用与登记；恢复也失败时保留恢复目录并明确提示。“恢复上一版本”核对当前版本、备份摘要、应用身份与签名后执行，旧备份保留。更新设置与恢复记录位于 `~/Library/Application Support/BilingualCompanion/Updates/`。
+
+发布源固定为本仓库的 `updates/macos-preview.json`，标签为 `macos-v<版本>`，附件为 `lingomate-macos-arm64-<版本>.zip`。信任边界为本项目 GitHub 发布账号及系统安全评估，未增加独立更新签名密钥。当前清单为 `unpublished`，不提供可下载更新；推送源码或上传安装包草稿不会触发更新。
+
+在仓库根目录准备本地更新文件：
+
+```sh
+runtime/python/bin/python native-macos/tools/prepare_release.py
+native-macos/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --update-test
+native-macos/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --update-window-test
+native-macos/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --update-preview
+```
+
+准备脚本只创建被忽略的 `native-macos/build/updates/release-<版本>/`，包含 ZIP、摘要与清单，不上传、不安装、不发布，也不覆盖既有输出。当前本地 ad-hoc 应用无法通过远程更新的系统评估，因此模板保持 `unpublished`。发行签名、公证、数据分发许可及实机更新 / 恢复验收完成后，先公开同版本附件并确认可下载，再将对应清单同步到固定发布源。
 
 ## 安装与更新
 

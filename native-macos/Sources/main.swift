@@ -3,6 +3,46 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if let index = arguments.firstIndex(of: "--update-archive-check"), arguments.count == index + 2 {
+  do {
+    try UpdateArchive.inspect(
+      Data(contentsOf: URL(fileURLWithPath: arguments[index + 1]), options: .mappedIfSafe))
+    print("Mac update ZIP: archive structure and paths verified.")
+    exit(0)
+  } catch {
+    fputs("更新包检查失败：\(error.localizedDescription)\n", stderr)
+    exit(1)
+  }
+}
+if arguments.contains("--update-source-test") {
+  let file = FileManager.default.temporaryDirectory.appendingPathComponent(
+    UUID().uuidString + ".json")
+  defer { try? FileManager.default.removeItem(at: file) }
+  do {
+    try UpdateDownload().fetch(UpdateDownload.feed, to: file, limit: 65_536)
+    let release = try JSONDecoder().decode(MacRelease.self, from: Data(contentsOf: file))
+    let available = try release.available(
+      after: "0.12.0", osMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion)
+    print(
+      "Mac update source verified; higher release available: \(available). No package downloaded or installed."
+    )
+    try? FileManager.default.removeItem(at: file)
+    exit(0)
+  } catch {
+    try? FileManager.default.removeItem(at: file)
+    fputs("更新源检查失败：\(error.localizedDescription)\n", stderr)
+    exit(1)
+  }
+}
+if arguments.contains("--update-test") {
+  do {
+    try MacUpdateTests.run()
+    exit(0)
+  } catch {
+    fputs("更新检查失败：\(error.localizedDescription)\n", stderr)
+    exit(1)
+  }
+}
 if arguments.contains("--service-lock-test") {
   ServiceLease.checks()
   exit(0)
@@ -114,6 +154,7 @@ let isPreview =
   || arguments.contains("--preview-typing") || arguments.contains("--account-preview")
   || arguments.contains("--ai-settings-preview")
   || arguments.contains("--settings-preview") || arguments.contains("--settings-test")
+  || arguments.contains("--update-preview") || arguments.contains("--update-window-test")
 let previewTheme: AppearanceChoice? = {
   guard let index = arguments.firstIndex(of: "--theme"), arguments.count > index + 1 else {
     return nil
@@ -122,6 +163,16 @@ let previewTheme: AppearanceChoice? = {
 }()
 AppearanceSettings.configure(
   isolated: isPreview || arguments.contains("--isolated-appearance"), initial: previewTheme)
+if arguments.contains("--updates") || arguments.contains("--update-background")
+  || arguments.contains("--update-preview") || arguments.contains("--update-window-test")
+{
+  if arguments.contains("--update-window-test") {
+    MacUpdateTests.windowChecks()
+  } else {
+    MacUpdates.start(preview: isPreview, background: arguments.contains("--update-background"))
+  }
+  exit(0)
+}
 let aiDirectory =
   isPreview
   ? FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -185,7 +236,10 @@ if arguments.contains("--setup-translation") {
   app.run()
   exit(0)
 }
-if !isPreview { ServiceLease.start() }
+if !isPreview {
+  ServiceLease.start()
+  MacUpdates.schedule()
+}
 do {
   guard let resources = Bundle.main.resourceURL else { throw EngineFailure.unavailable }
   let memoryURL =
