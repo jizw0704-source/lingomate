@@ -42,4 +42,4 @@ hdiutil create -volname "灵果 $VERSION" -srcfolder "$STAGE" -format UDZO "$DMG
 hdiutil verify "$DMG"
 shasum -a 256 "$DMG" > "$DMG.sha256"
 echo "Local test image: $DMG"
-echo 'Not uploaded. Ad-hoc signed only; Developer ID signing, notarization and data distribution review remain pending.'
+echo 'Not uploaded. Ad-hoc signed only; Developer ID signing, notarization, matching source delivery and real-device acceptance remain pending.'

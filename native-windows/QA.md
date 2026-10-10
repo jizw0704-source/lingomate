@@ -1,5 +1,7 @@
 # Windows 验证记录
 
+2026-10-10 · 0.1.3 新词库：[最终 Windows 原生检查](https://github.com/jizw0704-source/lingomate/actions/runs/38030807769)在 `383e70872b053e4ccf096b9986c1294c1d10685a` 通过。固定 CC-CEDICT 取代旧混合词表及旧释义，生成 121,377 条读音、107,757 个带英文释义的词面，包内表与两份声明经独立重建逐字节校验。五项来源转换检查、九项候选质量回归（含 30 个示例和八个日常整句）、两种 PowerShell 各 45 项更新回归、Rust 格式 / Clippy、MSVC 构建、2＋7 项真实输入状态／引擎回归、DLL 检查、0.1.3 安装 EXE 编译和初始窗口检查通过。首次运行暴露原有 Python 回归脚本默认 CP1252 解码问题，已显式设为 UTF-8 并加上所属进程的失败清理；最终复验全部通过。没有登记 TSF 或实际安装，没有上传完整新包；Windows 11 首次安装、输入和真实更新／恢复仍待验收。当前数据许可为 CC BY-SA 4.0，条件见 [来源说明](../docs/THIRD_PARTY.md#当前词库来源与替换结果)。
+
 2026-10-10 · 词库许可声明：两端构建在原有 `LEXICON-NOTICE.md` 后附加许可全文，不增加安装或更新文件清单条目。[Windows 原生检查](https://github.com/jizw0704-source/lingomate/actions/runs/38029179749)在 `f1bd946f23abfd9941702cb2ffe316ee213fa1fe` 通过：两种 PowerShell 更新回归、MSVC 原生构建、脚本解析、Rust 格式 / Clippy、真实引擎 / DLL、更新校验及安装 EXE 编译。没有发布完整安装包或登记输入源；中文转录授权及维基语料差异仍未解决，实际 Windows 11 输入和安装验收亦未完成。见 [分发核对](../docs/THIRD_PARTY.md)。
 
 2026-10-10 · 0.1.2 旧版恢复保护：本机独立 PowerShell 通过 45 项隔离更新检查，新增旧版登记失败后恢复当前登记、两次登记失败保留文件，以及当前包篡改后不执行任何登记。Rust 格式、Windows GNU 目标 Clippy、2 项输入状态 / 7 项真实引擎回归通过。[Windows 原生复验](https://github.com/jizw0704-source/lingomate/actions/runs/38022512847)已通过，源码为 `cf674ad71918ce7fed465742c21e68c062977fe8`：MSVC 构建、Windows PowerShell 5.1 / 7 各 45 项更新回归、更新窗口状态与渲染、Rust 格式 / Clippy、真实引擎 / DLL 检查，以及 0.1.2 安装 EXE 编译和初始说明窗口检查成功。已下载并查看本次普通 / 窄幅更新窗口截图，文字换行及按钮无重叠；截图不代表 Windows 11 主题或缩放验收。没有登记 TSF 或执行真实安装，真实 Windows 11 更新与回退仍未验收，清单保持未发布状态。

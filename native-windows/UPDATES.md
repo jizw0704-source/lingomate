@@ -1,6 +1,6 @@
 # Windows 更新与发布
 
-自 Windows 0.1.1 开发版提供，当前源码为 0.1.2，面向 Windows 11、Intel / AMD 64 位电脑。macOS 0.12.0 也已接入独立更新器，见 [Mac 软件更新](../native-macos/README.md#软件更新)。两端公开清单均保持未发布状态。
+自 Windows 0.1.1 开发版提供，当前源码为 0.1.3，面向 Windows 11、Intel / AMD 64 位电脑。macOS 0.12.1 也已接入独立更新器，见 [Mac 软件更新](../native-macos/README.md#软件更新)。两端公开清单均保持未发布状态。
 
 首次安装可构建独立安装 EXE，后续更新继续使用 ZIP 更新包；两者共享校验与版本目录逻辑。安装包制作见 [安装包与同事试用](../docs/PACKAGING.md)。安装 EXE 已上传维护者 Release 草稿，未公开发布；更新 ZIP 和公开更新清单仍未发布，草稿不触发更新。
 
@@ -40,7 +40,7 @@ Windows 构建机器执行：
 ./native-windows/tools/prepare-release.ps1
 ```
 
-脚本仅生成本地 `native-windows/package/release-<版本>/`，不上传发布。调整 Cargo.toml 和 Cargo.lock 的版本后须重新构建、检查。实机安装 / 输入 / 更新 / 回退、数据分发许可和发行签名安排完成后，再将两个附件放在同一版本标签的 GitHub Release，并添加更新说明。可先建立草稿复核。公开发布并验证附件可下载后，将生成的元数据复制至 `updates/windows-preview.json` 并提交同步；在此之前保持清单为 unpublished，避免向同事推送不可下载的草稿。
+脚本仅生成本地 `native-windows/package/release-<版本>/`，不上传发布。调整 Cargo.toml 和 Cargo.lock 的版本后须重新构建、检查。新词库使用 CC-CEDICT（CC BY-SA 4.0），旧混合词库不再打包。实机安装 / 输入 / 更新 / 回退、匹配版本源码交付和发行签名安排完成后，再将两个附件放在同一版本标签的 GitHub Release，并添加更新说明。可先建立草稿复核。公开发布并验证附件可下载后，将生成的元数据复制至 `updates/windows-preview.json` 并提交同步；在此之前保持清单为 unpublished，避免向同事推送不可下载的草稿。
 
 **推送源码或通过构建不会触发更新，必须发布对应附件并更新清单。** 当前清单为 unpublished，尚未发布 Windows 更新包，客户端将显示没有更高版本可用。自动检查只保存隔离生成的更新窗口截图，不上传词库或安装包。
 

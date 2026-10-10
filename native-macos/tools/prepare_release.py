@@ -106,7 +106,7 @@ def main():
     print(f"Prepared local update files: {output}")
     print("Not uploaded or published. Ad-hoc builds retain unpublished status.")
     print(
-        "Release signing, notarization, data rights and real-device acceptance remain required."
+        "Release signing, notarization, matching source delivery and real-device acceptance remain required."
     )
 
 

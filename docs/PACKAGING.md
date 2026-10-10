@@ -15,6 +15,8 @@
 
 签名、公证、对应源码交付及目标设备安装／输入验收仍与数据替换分开处理。当前不发布 Release 或启用更新源。
 
+Mac 0.12.1 的本地 DMG 位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.1.dmg`；更新 ZIP 位于 `native-macos/build/updates/license-replacement-2026-10-10/release-0.12.1/`。已验证镜像、只读挂载版本 / 数据 / 声明 / 签名以及更新 ZIP 的完整性和数据字节。更新元数据保持未发布；尚未替换维护者草稿或本机安装版本。 Windows 0.1.3 的[原生构建与安装 EXE 检查](https://github.com/jizw0704-source/lingomate/actions/runs/38030807769)已通过，包含包内新数据及完整声明校验；未登记或执行真实安装，未导出完整新包到公开附件。
+
 ## Mac 构建与安装
 
 在仓库根目录执行：
@@ -60,11 +62,11 @@ Windows 检查会在构建机器启动初始安装说明窗口，验证中文操
 
 2026-10-09，Mac 附件已替换为 0.11.9 / build 21，旧版 0.11.8 DMG 与校验附件已从草稿移除，本地旧包保留。新镜像的包内版本、主程序及三份图标资源与验证构建一致，安装器签名和七项隔离回归通过；上传后的下载文件与本地字节及 SHA-256 一致。Windows 两份附件的身份、大小与摘要保持不变。Mac 构建来自 [c8f6527](https://github.com/jizw0704-source/lingomate/commit/c8f6527871b685766a167ecda8c1eb4c32fa8c59)，Windows 附件仍来自原 [84b348a](https://github.com/jizw0704-source/lingomate/commit/84b348a5223de130ce7005004646a322f6f95130)；草稿标签保留原构建引用，Release 说明分别列出两端来源。草稿状态保持不变，真实 DMG 首次安装及下载后的系统安全检查仍待验收。
 
-Mac 和 Windows 更新清单均保持 `unpublished`，草稿不触发远程更新。正式向同事分发前，须完成 [第三方词库分发确认](THIRD_PARTY.md)、两端发行签名安排及目标设备安装验收。Mac 公证与 Windows 签名尚无凭据配置，不要求在聊天中提供密钥。
+Mac 和 Windows 更新清单均保持 `unpublished`，草稿不触发远程更新。正式向同事分发前，须核对新包确实包含 [已替换的新词库和声明](THIRD_PARTY.md#当前词库来源与替换结果)，并完成对应源码交付、两端发行签名安排及目标设备安装验收。Mac 公证与 Windows 签名尚无凭据配置，不要求在聊天中提供密钥。
 
 后续上传 Windows 包可使用手动工作流：先创建预发布草稿并将 `target_commitish` 设为对应完整提交号，再执行 `gh workflow run windows-package-draft.yml --ref <同一提交的标签> -f release_id=<草稿编号>`。工作流验证目的地仍为草稿、源码版本一致，完成全部检查后才上传 EXE 与校验文件；没有发布步骤，不覆盖已有同名附件。
 
 验收时先使用空白文稿测试 `xuexi` 中文与英文候选、翻页、`API` 回车直出、Shift 英文切换，再测试微信、钉钉及办公应用。Windows 目前不包含 Mac 的个人词记忆、账号学习同步、AI 整句翻译及完整标点功能。记录应用名称、系统版本和复现步骤即可，不收集输入正文或个人词库。
 
 
-2026-10-10 词库核对发现中文常用词及规范字转录尚缺明确授权记录，维基语料许可版本亦有差异。两端构建脚本已补充 THUOCL、LCCC、Unicode 许可全文到既有 `LEXICON-NOTICE.md`，但不因此解除分发待确认状态。历史安装包未更新。实际随包数据、摘要及处理顺序见 [词库分发核对](THIRD_PARTY.md#2026-年-10-月-10-日词库分发核对)。
+替换前的 2026-10-10 词库核对发现中文常用词及规范字转录尚缺明确授权记录，维基语料许可版本亦有差异。两端构建脚本已补充 THUOCL、LCCC、Unicode 许可全文到既有 `LEXICON-NOTICE.md`，但不因此解除分发待确认状态。历史安装包未更新。实际随包数据、摘要及处理顺序见 [词库分发核对](THIRD_PARTY.md#2026-年-10-月-10-日旧词库分发核对)。
