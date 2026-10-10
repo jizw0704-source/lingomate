@@ -26,13 +26,19 @@ class EngineTests(unittest.TestCase):
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
         )
 
     @classmethod
     def tearDownClass(cls):
         cls.process.stdin.close()
-        cls.process.wait(timeout=5)
-        cls.process.stdout.close()
+        try:
+            cls.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            cls.process.terminate()
+            cls.process.wait(timeout=5)
+        finally:
+            cls.process.stdout.close()
 
     def request(self, input_, action="query", **kwargs):
         self.process.stdin.write(
@@ -51,7 +57,9 @@ class EngineTests(unittest.TestCase):
         )
 
     def test_all_thirty_sample_words_have_candidates_and_details(self):
-        words = json.loads((RESEARCH / "prototype/data/samples.json").read_text())
+        words = json.loads(
+            (RESEARCH / "prototype/data/samples.json").read_text(encoding="utf-8")
+        )
         for word in words:
             with self.subTest(word=word["chinese"]):
                 candidate = self.candidate(word["pinyin"], word["chinese"])
