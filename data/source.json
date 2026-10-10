@@ -13,6 +13,7 @@
     "Lowercase tone-free Pinyin, u:/ü to v, r to er",
     "Deduplicate word/readings and English senses",
     "Omit English reference-only metadata",
-    "Independent LingoMate ranking weights; no imported corpus counts"
+    "Independent LingoMate ranking weights; no imported corpus counts",
+    "Everyday-reading English senses before proper-name senses"
   ]
 }

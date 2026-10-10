@@ -71,6 +71,7 @@ def convert(content, ranking):
         raise ValueError("Source must explicitly carry CC-CEDICT CC BY-SA 4.0")
     slots = {}
     senses = defaultdict(list)
+    name_senses = defaultdict(list)
     provenance = defaultdict(list)
     skipped = 0
     entries = 0
@@ -98,6 +99,12 @@ def convert(content, ranking):
         key = (word, pinyin)
         slots[key] = max(slots.get(key, 0), weight)
         provenance[key].append(number)
+        destination = name_senses if raw_pinyin[0].isupper() else senses
+        for field in fields:
+            if field not in destination[word]:
+                destination[word].append(field)
+    # Show everyday meanings before surnames without changing source meanings.
+    for word, fields in name_senses.items():
         for field in fields:
             if field not in senses[word]:
                 senses[word].append(field)
@@ -117,7 +124,7 @@ def convert(content, ranking):
     )
     glossary = notice + "# Whole English senses; reference-only metadata omitted\n"
     glossary += "".join(
-        word + "\t" + "\t".join(senses[word][:12]) + "\n"
+        word + "\t" + "\t".join(senses[word]) + "\n"
         for word in sorted(senses)
         if senses[word]
     )

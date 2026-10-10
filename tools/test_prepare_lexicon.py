@@ -34,6 +34,7 @@ class LexiconTests(unittest.TestCase):
             "银行\tbank\tfinancial institution\n", files["glossary-en.tsv"].decode()
         )
         self.assertNotIn("CL:", files["glossary-en.tsv"].decode())
+        self.assertIn("行\tto walk\tsurname Xing\n", files["glossary-en.tsv"].decode())
         self.assertNotIn("A股", files["dict.tsv"].decode())
         self.assertEqual(stats["filtered_source_entries"], 2)
         record = next(
