@@ -71,16 +71,10 @@ impl Adapter {
                 root.join(research)
             }
         };
-        let dictionary = Dictionary::from_path(data_path(
-            "dict.tsv",
-            "upstream/qingjian/assets/lexicon/dict.tsv",
-        ))?;
+        let dictionary = Dictionary::from_path(data_path("dict.tsv", "data/generated/dict.tsv"))?;
         let glossary = Glossary::from_path(
             Language::English,
-            data_path(
-                "glossary-en.tsv",
-                "upstream/qingjian/assets/glossary/glossary-en.tsv",
-            ),
+            data_path("glossary-en.tsv", "data/generated/glossary-en.tsv"),
         )?;
         Ok(Self {
             engine: Engine::new(dictionary).with_translator(Box::new(glossary)),

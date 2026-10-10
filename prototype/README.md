@@ -37,4 +37,4 @@
 
 前端使用 TypeScript 与 Vite，本机服务使用 Python 标准库，`bridge/` 提供 Rust 引擎适配器。格式检查、静态检查、类型检查、测试及构建命令见 [开发说明](AGENTS.md)，已有验证结果见 [QA](QA.md)。
 
-原型采用 GPL-3.0-or-later，见 [LICENSE](LICENSE)。代码与数据的来源、固定版本及分发许可待核对项见 [第三方来源](../docs/THIRD_PARTY.md)。源码已公开；完整词典与生成的应用未提交至仓库，暂未发布正式安装包。
+原型代码采用 GPL-3.0-or-later，见 [LICENSE](LICENSE)。当前中文词库与英文释义由固定 CC-CEDICT 快照生成，改编数据采用 CC BY-SA 4.0；桥接不再回退到旧词表。代码及数据来源、固定版本和旧版审计见 [第三方来源](../docs/THIRD_PARTY.md)。源码已公开；完整词典与生成的应用未提交至仓库，暂未发布正式安装包。

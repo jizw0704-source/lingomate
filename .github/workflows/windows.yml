@@ -11,6 +11,10 @@ on:
       - 'prototype/bridge/**'
       - 'updates/**'
       - 'docs/licenses/**'
+      - 'data/source.json'
+      - 'data/ranking.json'
+      - 'tools/prepare_lexicon.py'
+      - 'tools/test_prepare_lexicon.py'
       - '.github/workflows/windows.yml'
   pull_request:
     paths:
@@ -22,6 +26,10 @@ on:
       - 'prototype/bridge/**'
       - 'updates/**'
       - 'docs/licenses/**'
+      - 'data/source.json'
+      - 'data/ranking.json'
+      - 'tools/prepare_lexicon.py'
+      - 'tools/test_prepare_lexicon.py'
       - '.github/workflows/windows.yml'
 permissions:
   contents: read

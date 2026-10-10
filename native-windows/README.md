@@ -2,7 +2,7 @@
 
 Windows 版本采用系统原生 Text Services Framework（TSF，文本服务框架），由 Rust 文本服务 DLL 接入应用输入框，并通过独立本地进程调用现有拼音与英文释义引擎。
 
-当前源码为 **0.1.2 开发版**，首个目标是 Windows 11 的 Intel / AMD 64 位电脑与桌面文本应用。0.1.2 加强旧版恢复前的当前包校验及登记失败保护；维护者安装包草稿仍为 0.1.1，尚未公开更新包。Windows 10、ARM、32 位应用、现代应用及跨应用稳定性需要分别验证。macOS 原生版本继续维护。
+当前源码为 **0.1.3 开发版**，首个目标是 Windows 11 的 Intel / AMD 64 位电脑与桌面文本应用。0.1.3 将中文词库及英文释义改为固定 CC-CEDICT（CC BY-SA 4.0），移除旧混合词表与语料词频，并保留 0.1.2 的恢复校验；维护者安装包草稿仍为 0.1.1，尚未公开更新包。Windows 10、ARM、32 位应用、现代应用及跨应用稳定性需要分别验证。macOS 原生版本继续维护。
 
 ## 首版范围
 
@@ -24,7 +24,7 @@ Windows 版本采用系统原生 Text Services Framework（TSF，文本服务框
 
 面向同事的安装形式为安装 EXE，使用 Inno Setup 6 构建，详见 [安装包与同事试用](../docs/PACKAGING.md#windows-构建与安装)。安装器沿用当前用户目录与文件校验流程，保留历史版本；已上传维护者 Release 草稿，尚未提供公开下载。引擎 EXE 与安装 EXE 是不同文件。
 
-准备 Windows 64 位 PowerShell、Git、Rustup，以及带 MSVC 与 Windows SDK 的 Visual Studio C++ 构建工具。执行：
+准备 Windows 64 位 PowerShell、Git、Rustup、Python 3.10+，以及带 MSVC 与 Windows SDK 的 Visual Studio C++ 构建工具。执行：
 
 ```powershell
 git clone https://github.com/jizw0704-source/lingomate.git
@@ -82,12 +82,12 @@ cd lingomate
 
 更新来源固定为本项目 GitHub Releases，不需要账号或 API 密钥。检查和下载由独立桌面进程执行，不在 TSF 按键回调中进行网络请求，也不发送输入内容、学习记录或账号信息。公司网络连通性及 PowerShell 运行策略需实机验证。
 
-当前尚未公开发布 Windows 更新包；分发仍需完成实机验收和数据许可核对。更新使用 HTTPS 发布源及 SHA-256 校验，不代表已完成 Windows 发行签名。详见 [Windows 更新与发布](UPDATES.md)。
+当前尚未公开发布 Windows 更新包；新词库已改用许可明确来源，开放下载仍需完成实机验收、发行签名及对应源码交付。更新使用 HTTPS 发布源及 SHA-256 校验，不代表已完成 Windows 发行签名。详见 [Windows 更新与发布](UPDATES.md)。
 
 ## 数据、依赖与验证边界
 
 Windows 客户端不读取宿主正文、选区或剪贴板，不保存输入日志，也不调用在线翻译或账号服务。只将当前拼音及已选择候选通过本机管道交给共享引擎；文字不作为进程参数。首版不启用个人词库，避免不同应用进程并发覆盖同一文件。
 
-Windows 平台接口使用 Microsoft `windows` / `windows-core` Rust 绑定；JSON 协议复用既有 serde 与 serde_json。平台绑定只在 Windows 编译，新增依赖用于系统接口接入。代码采用 GPL-3.0-or-later，数据来源与分发待核对项见 [第三方来源](../docs/THIRD_PARTY.md)。
+Windows 平台接口使用 Microsoft `windows` / `windows-core` Rust 绑定；JSON 协议复用既有 serde 与 serde_json。平台绑定只在 Windows 编译，新增依赖用于系统接口接入。代码采用 GPL-3.0-or-later，当前词库与改编数据为 CC BY-SA 4.0，来源及旧版审计见 [第三方来源](../docs/THIRD_PARTY.md)。
 
 macOS 上的 Windows 目标类型检查与引擎回归不等同于 Windows 实机输入验收。当前尚未发布正式 Windows 安装包，系统登记、应用兼容性、候选焦点、Shift 实际事件、缩放及长期稳定性仍待验证。

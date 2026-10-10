@@ -18,6 +18,8 @@ export SDKROOT="$DEVELOPER_DIR/SDKs/MacOSX.sdk"
 "$RESEARCH_DIR/runtime/python/bin/ruff" check "$NATIVE_DIR/tools"
 "$RESEARCH_DIR/runtime/python/bin/python" -m compileall -q "$NATIVE_DIR/tools"
 "$RESEARCH_DIR/runtime/python/bin/python" "$NATIVE_DIR/tools/test_install.py"
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/test_prepare_lexicon.py"
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/prepare_lexicon.py" --check --package "$NATIVE_DIR/build/BilingualCompanion.app/Contents/Resources"
 bash -n "$NATIVE_DIR/tools/build.sh" "$NATIVE_DIR/tools/check.sh" "$NATIVE_DIR/tools/package.sh"
 bash "$RESEARCH_DIR/prototype/tools/cargo.sh" fmt --all -- --check
 bash "$RESEARCH_DIR/prototype/tools/cargo.sh" clippy --release --locked --all-targets -- -D warnings

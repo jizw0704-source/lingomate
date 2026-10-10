@@ -3,6 +3,10 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $Root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $Manifest = Join-Path $Root 'native-windows/Cargo.toml'
+& python (Join-Path $Root 'tools/test_prepare_lexicon.py')
+if ($LASTEXITCODE -ne 0) { throw 'Data provenance tests failed.' }
+& python (Join-Path $Root 'tools/prepare_lexicon.py') --check --package (Join-Path $Root 'native-windows/package/windows-x64')
+if ($LASTEXITCODE -ne 0) { throw 'Generated data differs from the pinned source.' }
 foreach ($Script in Get-ChildItem -LiteralPath $PSScriptRoot | Where-Object { $_.Extension -in @('.ps1', '.psm1') }) {
     $Tokens = $null; $ParseErrors = $null
     [System.Management.Automation.Language.Parser]::ParseFile($Script.FullName, [ref]$Tokens, [ref]$ParseErrors) | Out-Null
@@ -14,6 +18,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Rust format check failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Rust lint failed.' }
 $env:LINGOMATE_TEST_RESOURCES = Join-Path $Root 'native-windows/package/windows-x64'
 $env:LINGOMATE_TEST_BRIDGE = Join-Path $env:LINGOMATE_TEST_RESOURCES 'bilingual-ime-bridge.exe'
+& python (Join-Path $Root 'prototype/tests/engine_test.py')
+if ($LASTEXITCODE -ne 0) { throw 'Pinned data candidate quality regression failed.' }
 & cargo +1.96.0 test --manifest-path $Manifest --locked
 if ($LASTEXITCODE -ne 0) { throw 'Real-engine integration tests failed.' }
 & python (Join-Path $PSScriptRoot 'test_dll.py') (Join-Path $Root 'native-windows/package/windows-x64/lingomate_tsf.dll')

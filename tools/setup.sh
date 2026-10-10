@@ -42,5 +42,6 @@ if [[ ! -f "$PROJECT_DIR/runtime/python/pyvenv.cfg" ]]; then
   uv venv --python 3.13 "$PROJECT_DIR/runtime/python"
 fi
 uv pip install --python "$PROJECT_DIR/runtime/python/bin/python" -r "$PROJECT_DIR/requirements-dev.txt"
+"$PROJECT_DIR/runtime/python/bin/python" "$PROJECT_DIR/tools/prepare_lexicon.py"
 pnpm --dir "$PROJECT_DIR/prototype" install --frozen-lockfile
 echo 'Setup complete. Build: bash native-macos/tools/build.sh'

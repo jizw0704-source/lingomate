@@ -1,0 +1,18 @@
+{
+  "name": "CC-CEDICT",
+  "publisher": "MDBG and CC-CEDICT contributors",
+  "release": "2026-10-09T09:12:50Z",
+  "license": "CC-BY-SA-4.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "official_url": "https://www.mdbg.net/chinese/dictionary?page=cedict",
+  "mirror_commit": "8359384e656a3437b2cca08f13c092745db8d3e4",
+  "snapshot_url": "https://raw.githubusercontent.com/rhcarvalho/cedict/8359384e656a3437b2cca08f13c092745db8d3e4/cedict_1_0_ts_utf-8_mdbg.txt",
+  "source_sha256": "9836ed4ad048d3acd915c9bcb67dc6cfd173c371f78f02072b142767bba0e722",
+  "modifications": [
+    "Simplified Han-only words up to 32 characters",
+    "Lowercase tone-free Pinyin, u:/ü to v, r to er",
+    "Deduplicate word/readings and English senses",
+    "Omit English reference-only metadata",
+    "Independent LingoMate ranking weights; no imported corpus counts"
+  ]
+}

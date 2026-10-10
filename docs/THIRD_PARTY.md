@@ -1,10 +1,11 @@
 # 第三方代码、数据与资源
 
-本文记录项目使用或研究的第三方资源、固定版本与许可信息。第三方名称仅用于来源归属，不代表产品品牌或合作关系。
+本文记录当前分发来源与旧版审计证据。**macOS 0.12.1、Windows 0.1.3 起，基础词库与英文释义统一改用固定 CC-CEDICT 数据；旧混合词库、语料词频及旧释义表不再作为构建输入。** 数据改编按 CC BY-SA 4.0 提供，代码仍为 GPL-3.0-or-later。第三方名称仅用于来源归属，不代表产品品牌或合作关系。
 
 | 来源 | 固定版本 | 用途 | 许可说明 |
 | --- | --- | --- | --- |
-| [青简](https://github.com/qingjian-team/qingjian) | c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e | 中文候选引擎、词典与英文释义表 | 代码及释义表 README 标注 GPL-3.0-or-later；中文字词库 README 明确各来源分别适用许可，不以单一许可证覆盖；当前使用原始 TSV，按释义表 README 的 GPL-3.0-or-later 处理；不采用其他打包元数据中的 MIT 标记 |
+| [青简](https://github.com/qingjian-team/qingjian) | c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e | 中文候选引擎代码 | GPL-3.0-or-later；保留固定源码引用，当前不使用其中文字典、释义及语料生成数据 |
+| [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cedict) | 2026-10-09T09:12:50Z；镜像 8359384e656a3437b2cca08f13c092745db8d3e4 | 中文词面、拼音及英文释义 | 原始文件头与发布页明确 CC BY-SA 4.0；同许可提供改编数据、保留署名与修改说明 |
 | [rime-translate](https://github.com/daocatt/rime-translate) | c5ffa0ed2fa2a5530a39929fc356dadd4cea161c | 前期离线对照研究，不作为原生运行依赖 | 插件为 MIT；样例数据依据各自许可说明判断 |
 | Apple Translation | 系统框架 | 本机整句中译英 | 仓库不分发框架或语言模型；语言资源由系统下载 |
 
@@ -14,19 +15,52 @@ Windows 原生接入使用 Microsoft 的 [`windows-rs`](https://github.com/micro
 
 Windows 安装 EXE 使用 [Inno Setup 6](https://jrsoftware.org/isinfo.php) 编译（仅构建工具，不作为输入服务运行依赖）。主要流程的中文文本由本项目编写，少见系统诊断回退到编译器的英文消息；项目不复制第三方中文翻译文件或自动下载编译器。使用及发行按 Inno Setup 官方许可执行；官方请求商业用户购买许可，当前 CI 为开发检查。该工具许可不代替运行词库的数据分发确认。
 
-准备脚本将固定上游快照下载至被版本控制忽略的 `upstream/` 目录。原生构建将所需词典与释义表复制至本地应用，并附带 `LICENSE`、`GLOSSARY-NOTICE.md` 和 `LEXICON-NOTICE.md`。2026-10-10 起，新构建的 `LEXICON-NOTICE.md` 还附加 THUOCL、LCCC 和 Unicode 许可全文及待确认项；文件名保持不变，两端更新校验清单继续覆盖声明文件。源码仓库不包含生成的应用或完整词典副本。
+准备脚本将引擎固定快照下载至忽略的 `upstream/`。`tools/prepare_lexicon.py` 独立下载并验证 `data/source.json` 中的 CC-CEDICT 快照；原始数据缓存和生成表均被 Git 忽略。原生构建只复制新生成的 `dict.tsv` 与 `glossary-en.tsv`，附带 GPL `LICENSE` 及包含 CC 数据署名、完整原始文件头、输入／输出摘要、修改说明和许可全文的两份 `NOTICE`。安装、更新文件名不变，Windows 校验清单继续覆盖声明文件。
 
-项目不使用第三方产品商标、标志或界面资产，也不分发 MiSans 字体；界面支持系统字体回退。项目编写的 30 个词语用法示例尚未经过专业审校。
+项目不使用第三方商标、标志、字体或界面资产。独立的 30 项词语用法示例按 GPL-3.0-or-later 提供，未经过专业审校；它们不并入 CC-CEDICT 释义表。以下旧数据审计不适用于新生成数据，也不代表旧包可以公开分发。
 
-本项目源码采用 GPL-3.0-or-later。源码公开不代表所有数据的二进制分发许可已完成核验；中文混合词库仍有来源授权及语料许可版本待确认，完整数据分发尚未通过核验。详细来源证据见 [历史调研](../RESEARCH.md)。
+## 当前词库来源与替换结果
+
+CC-CEDICT 官方下载与固定镜像解压后逐字节一致，原始文件 SHA-256 为 `9836ed4ad048d3acd915c9bcb67dc6cfd173c371f78f02072b142767bba0e722`。镜像只用于取得相同数据，未使用其 Apache 许可的 Go 实现。发布页及文件内均为 **CC BY-SA 4.0**；旧 Wiki 首页的 3.0 描述不能代替此次文件的明确声明。公开原始输入见[固定镜像文件](https://github.com/rhcarvalho/cedict/blob/8359384e656a3437b2cca08f13c092745db8d3e4/cedict_1_0_ts_utf-8_mdbg.txt)，条件见 [CC BY-SA 4.0 正式文本](https://creativecommons.org/licenses/by-sa/4.0/legalcode.en)。
+
+| 数据 | 数量 | 许可及处理 |
+| --- | ---: | --- |
+| 原始 CC-CEDICT | 125,244 个源条目 | 保留发布者、社区作者、原始 CEDICT 版权、原文件头、固定快照和摘要 |
+| `dict.tsv` | 120,662 个中文词面，121,377 条读音 | CC BY-SA 4.0；仅用本快照简体词面与读音生成，不导入旧词库或独立规范字表 |
+| `glossary-en.tsv` | 107,757 个词面 | CC BY-SA 4.0；同一源文件的完整英文义项，去重并过滤引用型元信息，不复用旧 DeepSeek 释义 |
+| `data/ranking.json` | 项目独立编写的排序设置 | 数据贡献按 CC BY-SA 4.0；其数值为基础排序权重，不是外部语料的真实频率 |
+| `details.json` | 30 项项目独立示例 | GPL-3.0-or-later，单独提供，不改变 CC 表的许可 |
+
+允许按 CC 条件用于商业及非商业分发，要求保留署名、许可与修改说明，改编数据按相同许可提供，不额外限制接收者对数据的许可权利。代码的 GPL 条件单独适用，二进制发行仍需提供匹配版本的对应源码及构建资料。
+
+转换仅处理纯汉字简体词面，限制 32 字；拼音去声调、转小写，`u:`／`ü` 转 `v`，儿化 `r` 转 `er`；同词同读音去重；过滤非汉字词面、未知或不可解析读音，以及不适合直接提交的英文引用说明。本次过滤 820 个源条目，其余合并为上述数量。默认降低专名的排序权重，常用词优先级由项目自行设置，不根据旧词表、旧词频或原始输入日志计算。`provenance.jsonl` 为每条入选读音保留源行号，生成清单保留原始和排序设置摘要。
+
+离线英文条目从旧表的 232,213 项调整为 107,757 项；源头更明确，但覆盖及义项呈现有所变化。CC-CEDICT 是词典释义，不是上下文整句翻译。原有独立例句和个人记忆保留；缺少释义的较长候选仍可按既有条件使用 Apple 或用户主动启用的 MiniMax。基础排序需要实际试用继续调整，有限回归不等同于完整词库质量验收。
+
+### 重建与包内校验
+
+```sh
+runtime/python/bin/python tools/prepare_lexicon.py
+runtime/python/bin/python tools/prepare_lexicon.py --check
+runtime/python/bin/python tools/test_prepare_lexicon.py
+runtime/python/bin/python tools/prepare_lexicon.py --check --package native-macos/build/BilingualCompanion.app/Contents/Resources
+```
+
+Windows 构建使用已安装的 Python 3.10+ 标准库执行同一脚本。生成表无需新增产品运行依赖，接收安装包的用户不需要 Python。构建前自动准备数据；两端完整检查同时验证新表、来源、声明和包内字节。错误摘要、错误许可、缺失声明或旧包数据均会拒绝通过；共享桥接缺失新数据时不会回退到旧上游目录。
+
+词库来源缺口已通过独立替换处理，旧混合表的未确认来源不再进入新构建。此结论限于本节列出的新词库输入与生成物；旧 DMG／EXE／ZIP 和维护者草稿不会因源码更新而获得相同状态。发行签名、公证、对应源码交付及 Windows 11 实机验收仍应在开放下载前完成。
+
+## 旧安装包与混合词库审计
+
+以下为替换前的来源与审计记录，保留用于解释旧包为何没有开放下载。
 
 2026-10-09 安装包上传核对：固定快照的字词库 README 列出规范字、liuxilu 通用词表与 THUOCL 等独立来源，并明确“不以单一许可证覆盖所有来源”；不能用仓库代码的 GPL 标识替代逐项数据许可。用户请求上传的完整安装包先保存在维护者可见的 GitHub Release 草稿中，不公开发布，且不启用更新清单。该存储动作不改变数据分发确认状态。
 
-## 2026 年 10 月 10 日词库分发核对
+### 2026 年 10 月 10 日旧词库分发核对
 
-结论：**尚不能将当前完整词库标记为已获准分发。** 主要缺口为常用词与规范字转录的授权证据，以及语料统计和抽取产物的来源与许可版本。THUOCL、Unicode、LCCC 的公开许可已找到；补充其声明不替代其他来源的授权确认。
+结论：**尚不能将旧完整混合词库标记为已获准分发。** 主要缺口为常用词与规范字转录的授权证据，以及语料统计和抽取产物的来源与许可版本。THUOCL、Unicode、LCCC 的公开许可已找到；补充其声明不替代其他来源的授权确认。
 
-### 实际随包的数据
+### 旧版实际随包的数据
 
 已核对两端构建脚本、共享桥接的 `Adapter::load` 和固定上游 `Engine::new`。两端使用同一份 `dict.tsv` 和 `glossary-en.tsv`，另附本项目 30 项用法示例 `details.json`。主引擎没有加载上游独立 bigram 或神经模型，但 **dict.tsv 内已有语料生成的词频及抽取词条**，仍属于核对范围。
 
@@ -53,7 +87,7 @@ Windows 安装 EXE 使用 [Inno Setup 6](https://jrsoftware.org/isinfo.php) 编�
 
 转录仓库的核对提交是 **2026-10-10 在线证据快照**，不是已证明的原始导入版本。固定上游没有为每个合并词条记录完整来源、变换和许可；不能通过删除看似属于单一来源的词条就证明其余词库已获授权。生成说明见固定快照的 [`QINGJIAN.md`](https://github.com/qingjian-team/qingjian/blob/c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e/assets/lexicon/QINGJIAN.md) 和 [`landscape.md`](https://github.com/qingjian-team/qingjian/blob/c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e/docs/design/landscape.md)。
 
-### 分发前的处理顺序
+### 旧版审计提出的处理顺序
 
 1. 补齐中文常用词、规范字转录、Unihan 与语料输入的版本及授权链；无法补齐的来源用许可明确的数据重新构建。保留逐来源清单、摘要及生成步骤。
 2. 单独处理维基衍生部分的许可版本、归属及修改说明；同时检查英文释义表中的源词条。取得足够证据前不声明整张表为 MIT 或已完成分发许可核验。

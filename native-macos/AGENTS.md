@@ -14,6 +14,8 @@ bash tools/check.sh
 bash tools/package.sh
 ```
 
+Release dictionaries come only from the pinned CC-CEDICT converter; the Rust build wrapper prepares them, and check.sh verifies their reproduction and provenance. Never copy the legacy upstream mixed lexicon or generated glossary into a package.
+
 build.sh uses the parent local Rust runtime with Cargo.lock and existing Apple Command Line Tools. The result is build/BilingualCompanion.app. check.sh runs Swift formatting/lint, type checking, keyboard-state self-tests, real bridge checks and code-signing validation.
 
 package.sh creates an ignored local Apple Silicon DMG with a standalone Swift/AppKit installer. Installer/main.swift and Tests.swift are a separate executable, never linked into the IMK service; InstallCore.swift is shared with the updater. --selftest touches only temporary synthetic bundles with replaced signing/registration; --preview displays UI without installation. Preserve old verified ZIPs and reject running or unrelated destinations. Never launch the actual installation flow merely to verify packaging. No public package until data distribution and release signing/notarization are resolved.

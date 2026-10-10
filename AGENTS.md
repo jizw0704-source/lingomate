@@ -2,6 +2,7 @@
 
 - Windows native development is user-authorized in `native-windows/`; follow its instructions, preserve macOS behavior and pinned upstream sources.
 - Native macOS implementation is user-authorized in `native-macos/`; retain the browser prototype in `prototype/`. Follow each directory's instructions.
+- Release data is generated only by tools/prepare_lexicon.py from data/source.json (CC-CEDICT CC BY-SA 4.0). Keep source snapshots/generated tables ignored; never fall back to upstream mixed lexicon or glossary. Native builds prepare data automatically. ranking.json is independently authored CC BY-SA 4.0 data; no imported corpus frequencies.
 - Keep pinned upstream checkouts pristine. Do not commit runtime, generated evidence, applications, personal configuration, input content or credentials. Preserve Cargo.lock and pnpm-lock.yaml.
 - UI follows the installed Pheno v1.4 skill when available. Keep existing neutral native styling, system-font fallback and no typing animation; do not copy upstream branding.
 - User authorized self-hosted email OTP and sync of selected word metadata only. The user also authorized optional MiniMax sentence translation: default OFF, only the current Chinese candidate may be sent to the explicitly configured endpoint after user enablement; never upload raw Pinyin, personal vocabulary, host context or input history. Account sync never uploads sentences. No clipboard reads or context harvesting. Keep local Apple translation available and API keys in Keychain, accessed only by settings/translation helper processes. Invalidate results on input/candidate/page changes. Always validate candidates and consume remaining Pinyin through the real engine.
@@ -34,6 +35,8 @@ pnpm --dir prototype build
 pnpm --dir prototype serve
 runtime/python/bin/python prototype/tests/http_test.py
 runtime/python/bin/python tools/test_sync_obsidian.py
+runtime/python/bin/python tools/test_prepare_lexicon.py
+runtime/python/bin/python tools/prepare_lexicon.py --check
 runtime/python/bin/ruff format --check backend
 runtime/python/bin/ruff check backend
 runtime/python/bin/python -m unittest discover -s backend -v

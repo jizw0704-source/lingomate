@@ -7,7 +7,7 @@ if (-not [Environment]::Is64BitOperatingSystem -or -not [Environment]::Is64BitPr
 $Root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $Expected = 'c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e'
 $Checkout = Join-Path $Root 'upstream/qingjian'
-foreach ($Tool in @('git', 'cargo', 'rustup')) { Get-Command $Tool -ErrorAction Stop | Out-Null }
+foreach ($Tool in @('git', 'cargo', 'rustup', 'python')) { Get-Command $Tool -ErrorAction Stop | Out-Null }
 & rustup toolchain install 1.96.0 --profile minimal --component rustfmt --component clippy
 if ($LASTEXITCODE -ne 0) { throw 'Rust preparation failed.' }
 if (Test-Path $Checkout) {

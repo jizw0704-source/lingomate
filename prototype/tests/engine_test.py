@@ -1,6 +1,7 @@
 """针对真实青简适配器验证候选、释义提交、部分拼音及拒绝无效请求。"""
 
 import json
+import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -13,8 +14,14 @@ class EngineTests(unittest.TestCase):
     def setUpClass(cls):
         cls.process = subprocess.Popen(
             [
-                str(RESEARCH / "upstream/qingjian/target/release/bilingual-ime-bridge"),
-                str(RESEARCH),
+                os.environ.get(
+                    "LINGOMATE_TEST_BRIDGE",
+                    str(
+                        RESEARCH
+                        / "upstream/qingjian/target/release/bilingual-ime-bridge"
+                    ),
+                ),
+                os.environ.get("LINGOMATE_TEST_RESOURCES", str(RESEARCH)),
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -92,6 +99,22 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result["input"], pinyin)
         self.assertTrue(result["candidates"])
         self.assertGreater(len(result["candidates"][0]["text"]), 20)
+
+    def test_everyday_sentences_remain_available_with_independent_ranking(self):
+        examples = {
+            "jintianxiawukaihui": "今天下午开会",
+            "woxiangxuexiyingyu": "我想学习英语",
+            "womenkeyiyiqigongzuo": "我们可以一起工作",
+            "qingbangzhuwoyixia": "请帮助我一下",
+            "xiexienidezhichi": "谢谢你的支持",
+            "gongsidediannao": "公司的电脑",
+            "mingtianjiukeyiceshi": "明天就可以测试",
+            "woyijingzhidaole": "我已经知道了",
+        }
+        for pinyin, chinese in examples.items():
+            with self.subTest(pinyin=pinyin):
+                page = self.request(pinyin)["candidates"][:5]
+                self.assertIn(chinese, [candidate["text"] for candidate in page])
 
     def test_later_pages_preserve_candidate_and_english_validation(self):
         candidates = self.request("shi")["candidates"]

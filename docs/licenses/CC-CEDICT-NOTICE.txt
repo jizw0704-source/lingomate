@@ -1,0 +1,38 @@
+灵果中文词库与英文释义来源声明
+
+数据名称：CC-CEDICT，发布者 MDBG 与 CC-CEDICT 社区贡献者。
+原始 CEDICT：Copyright (C) 1997, 1998 Paul Andrew Denisowski。
+作者及编辑归属：https://cc-cedict.org/wiki/start#attribution
+来源：https://www.mdbg.net/chinese/dictionary?page=cedict
+固定版本：2026-10-09T09:12:50Z，125244 个原始条目。
+固定镜像：https://github.com/rhcarvalho/cedict/tree/8359384e656a3437b2cca08f13c092745db8d3e4
+源文件 SHA-256：9836ed4ad048d3acd915c9bcb67dc6cfd173c371f78f02072b142767bba0e722
+核对日期：2026-10-10，镜像与 MDBG 官方 GZip 解压文件逐字节一致。
+
+许可：Creative Commons Attribution-ShareAlike 4.0 International。
+许可网址：https://creativecommons.org/licenses/by-sa/4.0/
+原始数据及灵果对数据的改编贡献继续按 CC BY-SA 4.0 分发。
+代码与独立用法示例使用各自的 GPL-3.0-or-later，不改变本词库的数据许可。
+作者未为灵果提供背书。
+
+修改说明：仅选取纯汉字简体词面，限定长度；拼音转小写、去声调、
+u:/ü 转 v，儿化 r 转 er；合并重复词面／读音及释义；过滤英文候选中
+不适合直接提交的引用和分类说明。保留每个入选词条的源行号。
+排序权重由灵果独立设定，不是实际使用频率，不采用第三方语料统计，
+不复制旧中文混合词库、旧英文释义表、Unihan、维基或 LCCC 生成产物。
+项目自编 ranking.json 的数据贡献按 CC BY-SA 4.0 提供。
+
+重建方法及公开修改源码：
+https://github.com/jizw0704-source/lingomate/blob/main/tools/prepare_lexicon.py
+https://github.com/jizw0704-source/lingomate/blob/main/data/source.json
+https://github.com/jizw0704-source/lingomate/blob/main/data/ranking.json
+按固定镜像及摘要下载，执行 prepare_lexicon.py 可重建表和来源记录。
+仓库不提交生成的整表，不限制接收者依许可提取、复制或再分发随包数据。
+
+代码来源说明（不改变上述词库的数据许可）：
+中文候选引擎使用 Qingjian 固定代码快照，GPL-3.0-or-later。
+https://github.com/qingjian-team/qingjian/tree/c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e
+灵果桥接及原生客户端的修改源码：
+https://github.com/jizw0704-source/lingomate
+GPL 许可全文另见随包 LICENSE；发行时须提供匹配版本的对应源码及构建资料。
+

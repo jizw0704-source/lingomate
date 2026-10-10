@@ -20,6 +20,8 @@ Run from the repository root using 64-bit PowerShell and Rust/MSVC build tools:
 ./native-windows/tools/build-installer.ps1
 ```
 
+Build preparation also requires Python 3.10+ (standard library only); setup checks it. check.ps1 validates pinned CC-CEDICT conversion and reproducible data before real-engine tests. Do not load the legacy upstream word/gloss tables.
+
 Setup pins Rust 1.96.0 and the existing upstream commit. Build uses locked dependencies. Check parses all PowerShell scripts, checks Rust format/Clippy, runs real-engine tests and loads the DLL factory without registration.
 
 Check also runs `test_updates.ps1` under PowerShell 7 and Windows PowerShell 5.1, and renders `update.ps1 -SmokeTest -PreviewPath <temporary PNG>` without reading real installation or network state. `prepare-release.ps1` only creates ignored local release files; it does not publish. Actual registration, network release download and application reload require Windows 11 acceptance.

@@ -18,13 +18,12 @@ cp "$NATIVE_DIR/resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$NATIVE_DIR/build/input-icons/GuoMenuTemplate.tiff" "$NATIVE_DIR/build/input-icons/GuoMenuSelected.tiff" "$APP/Contents/Resources/"
 iconutil --convert icns "$NATIVE_DIR/build/input-icons/GuoApp.iconset" --output "$APP/Contents/Resources/GuoApp.icns"
 cp "$RESEARCH_DIR/upstream/qingjian/target/release/bilingual-ime-bridge" "$APP/Contents/Resources/"
-cp "$RESEARCH_DIR/upstream/qingjian/assets/lexicon/dict.tsv" "$APP/Contents/Resources/"
-cp "$RESEARCH_DIR/upstream/qingjian/assets/glossary/glossary-en.tsv" "$APP/Contents/Resources/"
+cp "$RESEARCH_DIR/data/generated/dict.tsv" "$APP/Contents/Resources/"
+cp "$RESEARCH_DIR/data/generated/glossary-en.tsv" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/prototype/data/details.json" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/prototype/LICENSE" "$APP/Contents/Resources/LICENSE"
-cp "$RESEARCH_DIR/upstream/qingjian/assets/glossary/README.md" "$APP/Contents/Resources/GLOSSARY-NOTICE.md"
-cat "$RESEARCH_DIR/upstream/qingjian/assets/lexicon/README.md" \
-  "$RESEARCH_DIR/docs/licenses/LEXICON-ATTRIBUTION.txt" > "$APP/Contents/Resources/LEXICON-NOTICE.md"
+cp "$RESEARCH_DIR/data/generated/GLOSSARY-NOTICE.md" "$APP/Contents/Resources/"
+cp "$RESEARCH_DIR/data/generated/LEXICON-NOTICE.md" "$APP/Contents/Resources/"
 cat > "$APP/Contents/Resources/zh-Hans.lproj/InfoPlist.strings" <<'STRINGS'
 "CFBundleName" = "灵果";
 "CFBundleDisplayName" = "灵果";
