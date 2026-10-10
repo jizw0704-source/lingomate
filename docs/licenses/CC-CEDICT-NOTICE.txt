@@ -35,4 +35,3 @@ https://github.com/qingjian-team/qingjian/tree/c08ae57cb88b6a4a46f4a5e9c1d6d11c5
 灵果桥接及原生客户端的修改源码：
 https://github.com/jizw0704-source/lingomate
 GPL 许可全文另见随包 LICENSE；发行时须提供匹配版本的对应源码及构建资料。
-
