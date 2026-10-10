@@ -28,7 +28,7 @@ class LexiconTests(unittest.TestCase):
         files, stats = builder.convert(source, {"银行": 12345})
         self.assertIn("绿\tlv\t10\n", files["dict.tsv"].decode())
         self.assertIn("花儿\thua er\t10\n", files["dict.tsv"].decode())
-        self.assertIn("银行\tyin hang\t12345\n", files["dict.tsv"].decode())
+        self.assertIn("银行\tyin hang\t12355\n", files["dict.tsv"].decode())
         self.assertIn("行\txing\t10\n", files["dict.tsv"].decode())
         self.assertIn(
             "银行\tbank\tfinancial institution\n", files["glossary-en.tsv"].decode()
@@ -87,7 +87,7 @@ class LexiconTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 builder.verify_package(package, files)
 
-    def test_deterministic_lf_outputs_and_no_external_frequency_inputs(self):
+    def test_deterministic_lf_outputs_without_optional_corpus(self):
         source = fixture("學習 学习 [xue2 xi2] /to learn; to study/")
         a, _ = builder.convert(source, {})
         b, _ = builder.convert(source.replace(b"\n", b"\r\n"), {})

@@ -1,6 +1,7 @@
 """真实桥接进程及重启测试；每项使用隔离临时词库，不读个人词库。"""
 
 import json
+import os
 import stat
 import subprocess
 import tempfile
@@ -8,7 +9,13 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BRIDGE = ROOT / "upstream/qingjian/target/release/bilingual-ime-bridge"
+BRIDGE = Path(
+    os.environ.get(
+        "LINGOMATE_TEST_BRIDGE",
+        str(ROOT / "upstream/qingjian/target/release/bilingual-ime-bridge"),
+    )
+)
+RESOURCES = os.environ.get("LINGOMATE_TEST_RESOURCES", str(ROOT))
 
 
 class MemoryTests(unittest.TestCase):
@@ -24,11 +31,12 @@ class MemoryTests(unittest.TestCase):
 
     def start(self):
         self.process = subprocess.Popen(
-            [str(BRIDGE), str(ROOT), "--memory", str(self.path)],
+            [str(BRIDGE), RESOURCES, "--memory", str(self.path)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
+            encoding="utf-8",
         )
 
     def stop(self):
@@ -68,7 +76,7 @@ class MemoryTests(unittest.TestCase):
         )
 
     def entries(self):
-        return json.loads(self.path.read_text())["entries"]
+        return json.loads(self.path.read_text(encoding="utf-8"))["entries"]
 
     def test_only_confirmed_selection_is_persisted_and_reordered_after_restart(self):
         baseline = self.request("shi")["candidates"]
@@ -81,8 +89,9 @@ class MemoryTests(unittest.TestCase):
         first = self.request("shi")["candidates"][0]
         self.assertEqual(first["text"], "市")
         self.assertTrue(first["personal"])
-        self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
-        self.assertEqual(stat.S_IMODE(self.path.parent.stat().st_mode), 0o700)
+        if os.name != "nt":
+            self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(self.path.parent.stat().st_mode), 0o700)
 
     def test_query_cancel_unconfirmed_and_invalid_commit_do_not_learn(self):
         self.request("shi")
@@ -155,7 +164,7 @@ class MemoryTests(unittest.TestCase):
         self.confirm(self.commit("shiqing"), chinese_output=False)
         self.confirm(self.commit("qing", "青"))
         self.assertFalse(any(e["text"] == "市青" for e in self.entries()))
-        self.assertNotIn("city", self.path.read_text())
+        self.assertNotIn("city", self.path.read_text(encoding="utf-8"))
 
     def test_abbreviation_and_apostrophe_share_canonical_word(self):
         self.confirm(self.commit("s"))
@@ -166,6 +175,43 @@ class MemoryTests(unittest.TestCase):
         self.restart()
         for key in ("xue'xi", "xuexi"):
             self.assertTrue(self.request(key)["candidates"][0]["personal"])
+
+    def test_stale_preference_returns_to_corpus_order_without_deleting_word(self):
+        self.confirm(self.commit())
+        self.stop()
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data["sequence"] += 256
+        self.path.write_text(json.dumps(data), encoding="utf-8")
+        self.start()
+        candidates = self.request("shi")["candidates"]
+        self.assertEqual(candidates[0]["text"], "是")
+        self.assertTrue(next(c for c in candidates if c["text"] == "市")["personal"])
+        self.assertEqual(self.entries(), data["entries"])
+
+    def test_personal_partial_word_does_not_displace_complete_word(self):
+        self.confirm(self.commit())
+        first = self.request("shiqing")["candidates"][0]
+        self.assertEqual(first["text"], "事情")
+        self.assertEqual(first["syllables"], ["shi", "qing"])
+
+    def test_count_bonus_is_capped(self):
+        self.confirm(self.commit())
+        self.stop()
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data["sequence"] = 2
+        data["entries"][0].update(count=4000000000, last=1)
+        data["entries"].append(
+            {
+                "pinyin": "shi",
+                "text": "是",
+                "syllables": ["shi"],
+                "count": 20,
+                "last": 2,
+            }
+        )
+        self.path.write_text(json.dumps(data), encoding="utf-8")
+        self.start()
+        self.assertEqual(self.request("shi")["candidates"][0]["text"], "是")
 
     def test_corrupt_or_unknown_version_store_is_preserved_and_input_works(self):
         self.stop()

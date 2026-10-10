@@ -1,6 +1,7 @@
 //! Confirmed local vocabulary only; never raw composition, host context or translations.
 use qingjian_core::candidate::{Candidate, CandidateKind};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::{self, DirBuilder, OpenOptions};
 use std::io::Write;
 #[cfg(unix)]
@@ -9,6 +10,7 @@ use std::path::PathBuf;
 
 const MAX_ENTRIES: usize = 5000;
 const MAX_BYTES: u64 = 4 * 1024 * 1024;
+pub type Preferences = HashMap<(String, Vec<String>), (u32, u64)>;
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -98,6 +100,22 @@ impl Memory {
 
     pub fn enabled(&self) -> bool {
         self.path.is_some()
+    }
+
+    /// Usage age measures subsequent confirmed choices, not wall-clock time.
+    pub fn preferences(&self, input: &str) -> Preferences {
+        let key = normalize(input);
+        self.data
+            .entries
+            .iter()
+            .filter(|e| e.pinyin == key)
+            .map(|e| {
+                (
+                    (e.text.clone(), e.syllables.clone()),
+                    (e.count, self.data.sequence.saturating_sub(e.last)),
+                )
+            })
+            .collect()
     }
 
     pub fn candidates(&self, input: &str) -> Vec<Candidate> {

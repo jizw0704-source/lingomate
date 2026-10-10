@@ -5,10 +5,11 @@ use qingjian_dictionary::Dictionary;
 use qingjian_translate::Glossary;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 mod memory;
+mod ranking;
 
 struct Pending {
     token: u64,
@@ -56,6 +57,7 @@ struct Adapter {
     engine: Engine,
     details: HashMap<String, Vec<Detail>>,
     memory: memory::Memory,
+    ranking: ranking::Ranking,
     pending: HashMap<String, Pending>,
     chains: HashMap<String, Chain>,
     token: u64,
@@ -71,7 +73,8 @@ impl Adapter {
                 root.join(research)
             }
         };
-        let dictionary = Dictionary::from_path(data_path("dict.tsv", "data/generated/dict.tsv"))?;
+        let dictionary_path = data_path("dict.tsv", "data/generated/dict.tsv");
+        let dictionary = Dictionary::from_path(&dictionary_path)?;
         let glossary = Glossary::from_path(
             Language::English,
             data_path("glossary-en.tsv", "data/generated/glossary-en.tsv"),
@@ -83,6 +86,7 @@ impl Adapter {
                 "prototype/data/details.json",
             ))?)?,
             memory: memory::Memory::open(None),
+            ranking: ranking::Ranking::load(&dictionary_path)?,
             pending: HashMap::new(),
             chains: HashMap::new(),
             token: 0,
@@ -109,17 +113,22 @@ impl Adapter {
     }
 
     fn candidates(&self) -> Vec<Candidate> {
-        let mut query = self.engine.query().ok();
-        let mut remembered = self.memory.candidates(self.engine.composition().text());
-        if let Some(query) = &mut query {
-            query.candidates.items.retain(|c| {
-                !remembered
-                    .iter()
-                    .any(|m| m.text == c.text && m.syllables == c.syllables)
-            });
-            remembered.append(&mut query.candidates.items);
+        let input = self.engine.composition().text();
+        let mut items = self
+            .engine
+            .query()
+            .map_or_else(|_| Vec::new(), |q| q.candidates.items);
+        let mut seen: HashSet<_> = items
+            .iter()
+            .map(|c| (c.text.clone(), c.syllables.clone()))
+            .collect();
+        for remembered in self.memory.candidates(input) {
+            if seen.insert((remembered.text.clone(), remembered.syllables.clone())) {
+                items.push(remembered);
+            }
         }
-        let mut list = qingjian_core::candidate::CandidateList { items: remembered };
+        self.ranking.order(input, &mut items, &self.memory);
+        let mut list = qingjian_core::candidate::CandidateList { items };
         self.engine.annotate(&mut list);
         list.items
             .into_iter()

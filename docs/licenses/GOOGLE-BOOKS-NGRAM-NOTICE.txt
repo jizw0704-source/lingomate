@@ -1,0 +1,27 @@
+灵果基础排序词频来源声明
+
+来源：Google Books Ngram Viewer，The Google Books Ngram Viewer Team。
+官方统计版本：googlebooks-chi-sim-20200217，简体中文 unigram。
+下载索引：https://storage.googleapis.com/books/ngrams/books/20200217/chi_sim/chi_sim-1-ngrams_exports.html
+源文件：https://storage.googleapis.com/books/ngrams/books/20200217/chi_sim/1-00000-of-00001.gz
+源文件 SHA-256：6ab29862a8c904c261bb9d5a02a342285c4dbabf79cee5c4f8818076fd44fb86
+源文件字节数：60833224。核对日期：2026-10-10。
+
+官方数据使用许可：https://books.google.com/ngrams/info
+在官方 licensing terms 问答中，Google 明确表示：
+“Ngram Viewer graphs and data may be freely used for any purpose”
+并希望标明 Google Books Ngram Viewer 来源及链接：https://books.google.com/ngrams
+本声明采用 LicenseRef-Google-Books-Ngram 标识该官方许可，不将其误称为 MIT、
+Apache 或 CC 原始许可。官方网页的许可段落位于页面末尾的 licensing terms 问答。
+
+加工：只统计固定 CC-CEDICT 已收录的完整、未附词性标签词面，按 1980-2019 年
+出版年份累计 match_count，再按最大值缩放为整数排序权重。未复制书籍正文，未新增
+Google 词条或拼音。专名读音降权；叠加已有 122 个独立编写的日常用词先验权重，单独记录，不称为统计词频。原始统计偏向
+出版书面语，包含分词及 OCR 误差，不代表实时聊天词频、地区或个人使用习惯。
+上述权重与 CC-CEDICT 合成的改编词典沿用 CC BY-SA 4.0，保留两类来源说明。
+Google 不为灵果背书。
+
+可重建源码与参数：
+https://github.com/jizw0704-source/lingomate/blob/main/tools/frequency.py
+https://github.com/jizw0704-source/lingomate/blob/main/data/frequency-source.json
+原始文件缓存与生成表不提交仓库；构建核对上述固定摘要，校验失败不回退到旧词频。

@@ -1,6 +1,6 @@
 # Windows 更新与发布
 
-自 Windows 0.1.1 开发版提供，当前源码为 0.1.3，面向 Windows 11、Intel / AMD 64 位电脑。macOS 0.12.1 也已接入独立更新器，见 [Mac 软件更新](../native-macos/README.md#软件更新)。两端公开清单均保持未发布状态。
+自 Windows 0.1.1 开发版提供，当前源码为 0.1.4，面向 Windows 11、Intel / AMD 64 位电脑。macOS 当前源码 0.12.2 也已接入独立更新器，见 [Mac 软件更新](../native-macos/README.md#软件更新)。两端公开清单均保持未发布状态。
 
 首次安装可构建独立安装 EXE，后续更新继续使用 ZIP 更新包；两者共享校验与版本目录逻辑。安装包制作见 [安装包与同事试用](../docs/PACKAGING.md)。安装 EXE 已上传维护者 Release 草稿，未公开发布；更新 ZIP 和公开更新清单仍未发布，草稿不触发更新。
 

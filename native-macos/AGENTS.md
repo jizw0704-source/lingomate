@@ -14,7 +14,7 @@ bash tools/check.sh
 bash tools/package.sh
 ```
 
-Release dictionaries come only from the pinned CC-CEDICT converter; the Rust build wrapper prepares them, and check.sh verifies their reproduction and provenance. Never copy the legacy upstream mixed lexicon or generated glossary into a package.
+Release word/readings come only from pinned CC-CEDICT, with checksum-pinned official Google Books Ngram counts and independent priors; the Rust build wrapper prepares them, and check.sh verifies their reproduction and provenance. Never copy the legacy upstream mixed lexicon or generated glossary into a package.
 
 build.sh uses the parent local Rust runtime with Cargo.lock and existing Apple Command Line Tools. The result is build/BilingualCompanion.app. check.sh runs Swift formatting/lint, type checking, keyboard-state self-tests, real bridge checks and code-signing validation.
 

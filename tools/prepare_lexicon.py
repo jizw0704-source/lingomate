@@ -1,4 +1,4 @@
-"""Build release data exclusively from a verified CC-CEDICT snapshot.
+"""Build CC-CEDICT release data with verified official Google Ngram weights.
 
 Uses only Python's standard library. Never reads legacy tables or personal data.
 """
@@ -12,6 +12,8 @@ import tempfile
 import urllib.request
 from collections import defaultdict
 from pathlib import Path
+
+import frequency
 
 ROOT = Path(__file__).resolve().parents[1]
 LICENSE_URL = "https://creativecommons.org/licenses/by-sa/4.0/"
@@ -65,7 +67,7 @@ def sense_fields(raw):
     return fields
 
 
-def convert(content, ranking):
+def convert(content, ranking, frequencies=None):
     text = content.decode("utf-8")
     if f"#! license={LICENSE_URL}" not in text or "# CC-CEDICT" not in text:
         raise ValueError("Source must explicitly carry CC-CEDICT CC BY-SA 4.0")
@@ -76,6 +78,8 @@ def convert(content, ranking):
     skipped = 0
     entries = 0
     header = []
+    frequencies = frequencies or {}
+    maximum = max(frequencies.values(), default=1)
     for number, line in enumerate(text.splitlines(), 1):
         if line.startswith("#"):
             header.append(line)
@@ -92,10 +96,16 @@ def convert(content, ranking):
             skipped += 1
             continue
         fields = sense_fields(raw_senses)
-        # Proper-name readings get a lower default; this is authored ranking,
-        # not an imported frequency or a claim about real-world word counts.
+        # Corpus counts provide relative weights. Existing independently authored
+        # everyday priors offset book-domain bias; they are not corpus counts.
         default = 1 if raw_pinyin[0].isupper() else 10
-        weight = ranking.get(word, default)
+        if word in frequencies:
+            weight = max(2, (frequencies[word] * 1_000_000 + maximum // 2) // maximum)
+            if raw_pinyin[0].isupper():
+                weight = max(1, weight // 4)
+        else:
+            weight = default
+        weight = min(1_000_000, weight + ranking.get(word, 0))
         key = (word, pinyin)
         slots[key] = max(slots.get(key, 0), weight)
         provenance[key].append(number)
@@ -117,7 +127,8 @@ def convert(content, ranking):
     notice = "# CC-CEDICT / MDBG and contributors; adapted by LingoMate\n"
     notice += f"# SPDX-License-Identifier: CC-BY-SA-4.0; {LICENSE_URL}\n"
     dictionary = (
-        notice + "# Simplified word, normalized Pinyin, authored ranking weight\n"
+        notice
+        + "# Simplified word, normalized Pinyin, scaled frequency plus independent prior weight\n"
     )
     dictionary += "".join(
         f"{word}\t{pinyin}\t{slots[word, pinyin]}\n" for word, pinyin in sorted(slots)
@@ -130,7 +141,14 @@ def convert(content, ranking):
     )
     records = "".join(
         json.dumps(
-            {"word": word, "pinyin": pinyin, "source_lines": provenance[word, pinyin]},
+            {
+                "word": word,
+                "pinyin": pinyin,
+                "source_lines": provenance[word, pinyin],
+                "frequency_match_count": frequencies.get(word, 0),
+                "independent_prior": ranking.get(word, 0),
+                "ranking_weight": slots[word, pinyin],
+            },
             ensure_ascii=False,
             separators=(",", ":"),
         )
@@ -191,18 +209,35 @@ def verify_package(package, files):
             )
 
 
-def prepare(source=None, check=False, package=None):
+def prepare(source=None, check=False, package=None, frequency_source=None):
     config = json.loads((ROOT / "data/source.json").read_text(encoding="utf-8"))
     ranking_bytes = (ROOT / "data/ranking.json").read_bytes()
     ranking = json.loads(ranking_bytes)
     if any(type(w) is not int or not 0 < w <= 1_000_000 for w in ranking.values()):
         raise ValueError("Invalid ranking weight")
     content = verified_source(config, source)
-    files, stats = convert(content, ranking)
+    initial, _ = convert(content, ranking)
+    words = {
+        line.split("\t", 1)[0]
+        for line in initial["dict.tsv"].decode().splitlines()
+        if not line.startswith("#")
+    }
+    frequency_config = json.loads(
+        (ROOT / "data/frequency-source.json").read_text(encoding="utf-8")
+    )
+    counts, frequency_stats = frequency.count_words(
+        frequency.verified_source(frequency_config, frequency_source),
+        words,
+        frequency_config["year_start"],
+        frequency_config["year_end"],
+    )
+    files, stats = convert(content, ranking, counts)
     summary = {
-        "schema": 1,
+        "schema": 2,
         "license": "CC-BY-SA-4.0",
         "source": config,
+        "frequency_source": frequency_config,
+        "frequency_stats": frequency_stats,
         "ranking_sha256": digest(ranking_bytes),
         **stats,
         "files": {name: digest(value) for name, value in files.items()},
@@ -212,6 +247,9 @@ def prepare(source=None, check=False, package=None):
     ).encode()
     attribution = (ROOT / "docs/licenses/CC-CEDICT-NOTICE.txt").read_bytes()
     license_text = (ROOT / "docs/licenses/CC-BY-SA-4.0.txt").read_bytes()
+    frequency_notice = (
+        ROOT / "docs/licenses/GOOGLE-BOOKS-NGRAM-NOTICE.txt"
+    ).read_bytes()
     for name in ("LEXICON-NOTICE.md", "GLOSSARY-NOTICE.md"):
         files[name] = (
             attribution
@@ -219,6 +257,8 @@ def prepare(source=None, check=False, package=None):
             + "\n".join(stats["source_header"]).encode()
             + b"\n\nBuild data manifest:\n"
             + files["data-manifest.json"]
+            + b"\n\nFrequency source permission and changes:\n"
+            + frequency_notice
             + b"\n\nFull license:\n"
             + license_text
         )
@@ -241,7 +281,7 @@ def prepare(source=None, check=False, package=None):
             for name in files:
                 os.replace(Path(staging) / name, output / name)
     print(
-        f"Verified CC-CEDICT: {stats['dictionary_readings']} readings, "
+        f"Verified CC-CEDICT + Google Ngram: {stats['dictionary_readings']} readings, "
         f"{stats['glossary_words']} translated words; CC BY-SA 4.0"
     )
     return summary
@@ -256,8 +296,18 @@ if __name__ == "__main__":
         "--check", action="store_true", help="Verify without rewriting data"
     )
     parser.add_argument("--package", type=Path, help="Verify packaged data and notices")
+    parser.add_argument(
+        "--frequency-source",
+        type=Path,
+        help="Already downloaded pinned official frequency GZip",
+    )
     arguments = parser.parse_args()
     try:
-        prepare(arguments.source, arguments.check, arguments.package)
+        prepare(
+            arguments.source,
+            arguments.check,
+            arguments.package,
+            arguments.frequency_source,
+        )
     except (ValueError, OSError) as error:
         parser.exit(1, f"Data preparation failed: {error}\n")

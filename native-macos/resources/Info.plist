@@ -8,8 +8,8 @@
 <key>CFBundleName</key><string>灵果</string>
 <key>CFBundleDisplayName</key><string>灵果</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.12.1</string>
-<key>CFBundleVersion</key><string>23</string>
+<key>CFBundleShortVersionString</key><string>0.12.2</string>
+<key>CFBundleVersion</key><string>24</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSBackgroundOnly</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>

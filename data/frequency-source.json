@@ -1,0 +1,20 @@
+{
+  "name": "Google Books Ngram Simplified Chinese unigram",
+  "publisher": "The Google Books Ngram Viewer Team",
+  "release": "20200217",
+  "license": "LicenseRef-Google-Books-Ngram",
+  "license_url": "https://books.google.com/ngrams/info",
+  "terms_url": "https://books.google.com/ngrams/info",
+  "download_index": "https://storage.googleapis.com/books/ngrams/books/20200217/chi_sim/chi_sim-1-ngrams_exports.html",
+  "snapshot_url": "https://storage.googleapis.com/books/ngrams/books/20200217/chi_sim/1-00000-of-00001.gz",
+  "source_sha256": "6ab29862a8c904c261bb9d5a02a342285c4dbabf79cee5c4f8818076fd44fb86",
+  "source_bytes": 60833224,
+  "year_start": 1980,
+  "year_end": 2019,
+  "modifications": [
+    "Keep only exact untagged word surfaces already present in the pinned CC-CEDICT dictionary",
+    "Sum match counts over publication years 1980-2019; do not copy book text",
+    "Scale counts to integer dictionary weights with the maximum observed count at 1000000",
+    "Downweight proper-name readings; add separately recorded independently authored everyday priors and retain a default for unobserved words"
+  ]
+}

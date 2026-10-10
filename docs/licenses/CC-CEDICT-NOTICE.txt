@@ -19,7 +19,9 @@
 u:/ü 转 v，儿化 r 转 er；合并重复词面／读音及释义；过滤英文候选中
 不适合直接提交的引用和分类说明。保留每个入选词条的源行号。普通读音的英文义项排列在专名义项前，
 不改变源释义含义。
-排序权重由灵果独立设定，不是实际使用频率，不采用第三方语料统计，
+排序权重采用固定版本的 Google Books Ngram 简体中文词频统计，
+仅匹配已有词面，不导入新词或书籍正文。同时叠加已有日常用词的独立先验权重，并分别记录原始统计与先验。
+词频来源、使用许可、处理过程另见随包 Google Books Ngram 声明。
 不复制旧中文混合词库、旧英文释义表、Unihan、维基或 LCCC 生成产物。
 项目自编 ranking.json 的数据贡献按 CC BY-SA 4.0 提供。
 
@@ -27,6 +29,8 @@ u:/ü 转 v，儿化 r 转 er；合并重复词面／读音及释义；过滤英
 https://github.com/jizw0704-source/lingomate/blob/main/tools/prepare_lexicon.py
 https://github.com/jizw0704-source/lingomate/blob/main/data/source.json
 https://github.com/jizw0704-source/lingomate/blob/main/data/ranking.json
+https://github.com/jizw0704-source/lingomate/blob/main/data/frequency-source.json
+https://github.com/jizw0704-source/lingomate/blob/main/tools/frequency.py
 按固定镜像及摘要下载，执行 prepare_lexicon.py 可重建表和来源记录。
 仓库不提交生成的整表，不限制接收者依许可提取、复制或再分发随包数据。
 
