@@ -23,7 +23,8 @@ cp "$RESEARCH_DIR/upstream/qingjian/assets/glossary/glossary-en.tsv" "$APP/Conte
 cp "$RESEARCH_DIR/prototype/data/details.json" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/prototype/LICENSE" "$APP/Contents/Resources/LICENSE"
 cp "$RESEARCH_DIR/upstream/qingjian/assets/glossary/README.md" "$APP/Contents/Resources/GLOSSARY-NOTICE.md"
-cp "$RESEARCH_DIR/upstream/qingjian/assets/lexicon/README.md" "$APP/Contents/Resources/LEXICON-NOTICE.md"
+cat "$RESEARCH_DIR/upstream/qingjian/assets/lexicon/README.md" \
+  "$RESEARCH_DIR/docs/licenses/LEXICON-ATTRIBUTION.txt" > "$APP/Contents/Resources/LEXICON-NOTICE.md"
 cat > "$APP/Contents/Resources/zh-Hans.lproj/InfoPlist.strings" <<'STRINGS'
 "CFBundleName" = "灵果";
 "CFBundleDisplayName" = "灵果";

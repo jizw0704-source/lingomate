@@ -29,6 +29,10 @@ $Files = @{
     'update-core.psm1' = (Join-Path $PSScriptRoot 'update-core.psm1')
 }
 foreach ($Name in $Files.Keys) { Copy-Item -LiteralPath $Files[$Name] -Destination (Join-Path $Package $Name) }
+# Keep the existing authenticated package file list; append complete data notices.
+$LexiconNotice = (Get-Content -LiteralPath $Files['LEXICON-NOTICE.md'] -Raw -Encoding UTF8) + "`n" +
+    (Get-Content -LiteralPath (Join-Path $Root 'docs/licenses/LEXICON-ATTRIBUTION.txt') -Raw -Encoding UTF8)
+Set-Content -LiteralPath (Join-Path $Package 'LEXICON-NOTICE.md') -Value $LexiconNotice -Encoding UTF8
 $Version = (Select-String -LiteralPath (Join-Path $Native 'Cargo.toml') -Pattern '^version = "([0-9.]+)"$').Matches[0].Groups[1].Value
 @{ schema = 1; version = $Version; arch = 'x64'; channel = 'preview'; repository = 'jizw0704-source/lingomate'; minimum_windows_build = 22000 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Package 'version.json') -Encoding UTF8
 $Files['version.json'] = Join-Path $Package 'version.json'
