@@ -27,7 +27,7 @@ foreach ($Kind in @('wide', 'narrow')) {
         } while ([DateTime]::UtcNow -lt $Deadline)
         if ($Process.MainWindowHandle -eq [IntPtr]::Zero) { throw 'The isolated learning window did not appear.' }
         $Window = $Process.MainWindowHandle
-        foreach ($Id in @(1,5,6,7,8)) {
+        foreach ($Id in @(1,2,5,6,7,8)) {
             $Rect = New-Object LearningPreview+Rect
             if (-not [LearningPreview]::GetWindowRect([LearningPreview]::GetDlgItem($Window, $Id), [ref]$Rect) -or ($Rect.Bottom - $Rect.Top) -lt 44) { throw 'Learning actions must provide >=44px targets.' }
         }

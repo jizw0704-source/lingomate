@@ -18,6 +18,12 @@ pub fn launch(dll: PathBuf) -> std::io::Result<()> {
         .spawn()
         .map(|_| ())
 }
+struct Font(HFONT);
+impl Drop for Font {
+    fn drop(&mut self) {
+        let _ = unsafe { DeleteObject(self.0.into()) };
+    }
+}
 struct Window {
     store: Store,
     search: HWND,
@@ -163,13 +169,16 @@ impl Window {
         let width = rect.right.max(440);
         let height = rect.bottom.max(400);
         let controls = [
-            (self.search, 16, 66, width - 168, 44),
-            (self.filter, width - 144, 66, 128, 160),
-            (self.list, 16, 118, width - 32, height - 250),
+            (self.search, 16, 92, width - 168, 44),
+            (self.filter, width - 144, 92, 128, 220),
+            (self.list, 16, 144, width - 32, height - 276),
             (self.status, 16, height - 124, width - 32, 44),
         ];
         for (control, x, y, w, h) in controls {
             let _ = unsafe { MoveWindow(control, x, y, w, h, true) };
+        }
+        if let Ok(label) = unsafe { GetDlgItem(Some(owner), 9) } {
+            let _ = unsafe { MoveWindow(label, 16, 66, width - 32, 24, true) };
         }
         let button = (width - 44) / 4;
         for (i, control) in [self.master, self.delete, self.refresh, self.export]
@@ -192,17 +201,23 @@ impl Window {
 fn child(
     owner: HWND,
     instance: HINSTANCE,
+    font: HFONT,
     class: PCWSTR,
     text: PCWSTR,
     id: usize,
     style: WINDOW_STYLE,
 ) -> Result<HWND> {
+    let tabstop = if matches!(id, 1..=3 | 5..=8) {
+        WS_TABSTOP
+    } else {
+        WINDOW_STYLE(0)
+    };
     let control = unsafe {
         CreateWindowExW(
             WINDOW_EX_STYLE(0),
             class,
             text,
-            WS_CHILD | WS_VISIBLE | WS_TABSTOP | style,
+            WS_CHILD | WS_VISIBLE | tabstop | style,
             16,
             16,
             400,
@@ -213,7 +228,6 @@ fn child(
             None,
         )?
     };
-    let font = unsafe { GetStockObject(DEFAULT_GUI_FONT) };
     unsafe {
         SendMessageW(
             control,
@@ -270,12 +284,40 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
             None,
         )?
     };
+    let font = Font(unsafe {
+        CreateFontW(
+            -16,
+            0,
+            0,
+            0,
+            400,
+            0,
+            0,
+            0,
+            DEFAULT_CHARSET,
+            OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY,
+            DEFAULT_PITCH.0 as u32,
+            w!("Microsoft YaHei UI"),
+        )
+    });
     child(
         hwnd,
         instance,
+        font.0,
         w!("STATIC"),
         w!("仅保存在本机，不自动上传。掌握状态由你标记。"),
         10,
+        WINDOW_STYLE(0),
+    )?;
+    child(
+        hwnd,
+        instance,
+        font.0,
+        w!("STATIC"),
+        w!("搜索英文或中文"),
+        9,
         WINDOW_STYLE(0),
     )?;
     let state = Box::new(Window {
@@ -283,6 +325,7 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
         search: child(
             hwnd,
             instance,
+            font.0,
             w!("EDIT"),
             w!(""),
             1,
@@ -291,6 +334,7 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
         filter: child(
             hwnd,
             instance,
+            font.0,
             w!("COMBOBOX"),
             w!(""),
             2,
@@ -299,15 +343,25 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
         list: child(
             hwnd,
             instance,
+            font.0,
             w!("LISTBOX"),
             w!(""),
             3,
             WS_BORDER | WS_VSCROLL | WS_HSCROLL | WINDOW_STYLE(LBS_NOTIFY as u32),
         )?,
-        status: child(hwnd, instance, w!("STATIC"), w!(""), 4, WINDOW_STYLE(0))?,
+        status: child(
+            hwnd,
+            instance,
+            font.0,
+            w!("STATIC"),
+            w!(""),
+            4,
+            WINDOW_STYLE(0),
+        )?,
         master: child(
             hwnd,
             instance,
+            font.0,
             w!("BUTTON"),
             w!("标记掌握"),
             5,
@@ -316,15 +370,25 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
         delete: child(
             hwnd,
             instance,
+            font.0,
             w!("BUTTON"),
             w!("删除词条"),
             6,
             WINDOW_STYLE(0),
         )?,
-        refresh: child(hwnd, instance, w!("BUTTON"), w!("刷新"), 7, WINDOW_STYLE(0))?,
+        refresh: child(
+            hwnd,
+            instance,
+            font.0,
+            w!("BUTTON"),
+            w!("刷新"),
+            7,
+            WINDOW_STYLE(0),
+        )?,
         export: child(
             hwnd,
             instance,
+            font.0,
             w!("BUTTON"),
             w!("导出全部…"),
             8,
@@ -348,6 +412,18 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
                 Some(LPARAM(text.as_ptr() as isize)),
             );
         }
+        SendMessageW(
+            state.filter,
+            CB_SETITEMHEIGHT,
+            Some(WPARAM(usize::MAX)),
+            Some(LPARAM(40)),
+        );
+        SendMessageW(
+            state.filter,
+            CB_SETITEMHEIGHT,
+            Some(WPARAM(0)),
+            Some(LPARAM(44)),
+        );
         SendMessageW(state.filter, CB_SETCURSEL, Some(WPARAM(0)), None);
         SendMessageW(
             state.list,
@@ -503,6 +579,18 @@ fn window_checks(owner: HWND, state: &Window) {
         unsafe { GetWindowRect(control, &mut rect) }.unwrap();
         assert!(rect.bottom - rect.top >= 44);
     }
+    assert!(
+        unsafe {
+            SendMessageW(
+                state.filter,
+                CB_GETITEMHEIGHT,
+                Some(WPARAM(usize::MAX)),
+                None,
+            )
+        }
+        .0 >= 40
+    );
+    assert!(unsafe { SendMessageW(state.list, LB_GETITEMHEIGHT, Some(WPARAM(0)), None) }.0 >= 44);
     let word = state.visible.borrow()[0].clone();
     state.store.mastered(&word.id(), true).unwrap();
     state.reload();
