@@ -24,6 +24,8 @@ Remote updates: `build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion 
 
 ## Preview, install and register
 
+Interactive previews use PreviewLifecycle: close the main window or use Command-Q to hide all same-process panels and exit; default deadline 300 seconds, `--preview-duration 1..900` overrides only in preview mode. Use existing preview entrypoints for update/UI verification. Any standalone review bundle must reuse PreviewLifecycle and a bounded deadline, and the launching workflow must retain and clean up its own process on completion/failure. Never leave an unbounded review app running or kill the normal IME to remove a preview. `--preview-lifecycle-test` checks close/quit/timeout in isolated child processes and is included in check.sh.
+
 ```sh
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview
 build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --preview --preview-narrow

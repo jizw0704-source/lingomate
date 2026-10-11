@@ -3,6 +3,21 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if arguments.contains("--preview-lifecycle-test") {
+  PreviewLifecycleTests.run()
+  exit(0)
+}
+if let index = arguments.firstIndex(of: "--preview-lifecycle-probe"), arguments.count == index + 2 {
+  PreviewLifecycleTests.probe(arguments[index + 1])
+  exit(0)
+}
+let previewDuration: TimeInterval?
+do {
+  previewDuration = try PreviewLifecycle.duration(for: arguments)
+} catch {
+  fputs("\(error.localizedDescription)\n", stderr)
+  exit(2)
+}
 if let index = arguments.firstIndex(of: "--update-archive-check"), arguments.count == index + 2 {
   do {
     try UpdateArchive.inspect(
@@ -156,6 +171,7 @@ let isPreview =
   || arguments.contains("--settings-preview") || arguments.contains("--settings-test")
   || arguments.contains("--local-learning-preview") || arguments.contains("--local-learning-test")
   || arguments.contains("--update-preview") || arguments.contains("--update-window-test")
+if let previewDuration { PreviewLifecycle.start(seconds: previewDuration) }
 let previewTheme: AppearanceChoice? = {
   guard let index = arguments.firstIndex(of: "--theme"), arguments.count > index + 1 else {
     return nil
