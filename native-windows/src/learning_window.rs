@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::UI::Controls::Dialogs::*;
+use windows::Win32::UI::Controls::{DRAWITEMSTRUCT, MEASUREITEMSTRUCT, ODS_FOCUS, ODS_SELECTED};
 use windows::Win32::UI::Input::KeyboardAndMouse::{EnableWindow, SetFocus};
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{HSTRING, PCWSTR, PWSTR, Result, w};
@@ -338,7 +339,8 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
             w!("COMBOBOX"),
             w!(""),
             2,
-            WINDOW_STYLE(CBS_DROPDOWNLIST as u32) | WS_VSCROLL,
+            WINDOW_STYLE((CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS) as u32)
+                | WS_VSCROLL,
         )?,
         list: child(
             hwnd,
@@ -469,6 +471,60 @@ unsafe extern "system" fn procedure(
     lparam: LPARAM,
 ) -> LRESULT {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if message == WM_MEASUREITEM && wparam.0 == 2 {
+            let item = unsafe { &mut *(lparam.0 as *mut MEASUREITEMSTRUCT) };
+            item.itemHeight = 44;
+            return LRESULT(1);
+        }
+        if message == WM_DRAWITEM && wparam.0 == 2 {
+            let item = unsafe { &*(lparam.0 as *const DRAWITEMSTRUCT) };
+            let selected = item.itemState.0 & ODS_SELECTED.0 != 0;
+            let background = if selected {
+                COLOR_HIGHLIGHT
+            } else {
+                COLOR_WINDOW
+            };
+            let foreground = if selected {
+                COLOR_HIGHLIGHTTEXT
+            } else {
+                COLOR_WINDOWTEXT
+            };
+            let index = if item.itemID == u32::MAX {
+                unsafe { SendMessageW(item.hwndItem, CB_GETCURSEL, None, None) }
+                    .0
+                    .max(0) as usize
+            } else {
+                item.itemID as usize
+            };
+            let value = ["全部", "已学习", "已掌握"]
+                .get(index)
+                .copied()
+                .unwrap_or("");
+            let mut text: Vec<_> = value.encode_utf16().collect();
+            let mut rect = item.rcItem;
+            rect.left += 8;
+            unsafe {
+                let saved = SaveDC(item.hDC);
+                FillRect(item.hDC, &item.rcItem, GetSysColorBrush(background));
+                let font = SendMessageW(item.hwndItem, WM_GETFONT, None, None).0;
+                if font != 0 {
+                    SelectObject(item.hDC, HGDIOBJ(font as *mut _));
+                }
+                SetBkMode(item.hDC, TRANSPARENT);
+                SetTextColor(item.hDC, COLORREF(GetSysColor(foreground)));
+                DrawTextW(
+                    item.hDC,
+                    &mut text,
+                    &mut rect,
+                    DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX,
+                );
+                if item.itemState.0 & ODS_FOCUS.0 != 0 {
+                    let _ = DrawFocusRect(item.hDC, &item.rcItem);
+                }
+                let _ = RestoreDC(item.hDC, saved);
+            }
+            return LRESULT(1);
+        }
         if message == WM_DESTROY {
             unsafe {
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
