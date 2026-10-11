@@ -8,6 +8,8 @@ Windows 版本采用系统原生 Text Services Framework（TSF，文本服务框
 
 ## 本地单词学习
 
+0.1.6 的[原生构建、隔离学习窗口及安装器检查](https://github.com/jizw0704-source/lingomate/actions/runs/38151744083)已通过，Windows 11 实体键盘计数与真实安装仍待验收；维护者草稿安装包仍为 0.1.4。
+
 本地单词学习已接入 Mac 0.12.5 / build 27 与 Windows 0.1.6，无需登录。确认输出词表英文候选后，保存英文、对应中文、词性、累计选用次数及手动掌握状态；浏览、取消、中文确认、原样字母、英文直输及整句译文不计入。提供搜索、全部／已学习／已掌握筛选、掌握与重新学习、单词删除和 CSV 导出。记录与账号缓存分离，不自动上传或迁移；Mac 已登录账号的选词同步仍按原规则进行，本地页的掌握／删除不改变云端记录；“已学习”仅表示选用，不代表掌握。
 
 Mac 从输入源菜单“本地学习记录…”或“设置 → 学习”进入；Windows 从候选窗设置（或 Ctrl＋Shift＋P）选择“本地学习记录…”。窗口可单独关闭，正常候选仍不抢宿主键盘焦点。文件位置为 Mac 的 `~/Library/Application Support/BilingualCompanion/LocalWords/words.json` 和 Windows 的 `%LOCALAPPDATA%\LingoMate\LocalWords\words.json`；每份文件最多 5,000 个词条，只保存聚合元数据，不保存正文、剪贴板、原始拼音或时间顺序输入历史。
