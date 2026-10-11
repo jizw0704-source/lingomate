@@ -30,6 +30,7 @@ bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/memory_test.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/ranking_test.py"
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --appearance-test
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --local-learning-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --account-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --ai-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --input-diagnostic-test

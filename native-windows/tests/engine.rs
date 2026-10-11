@@ -156,3 +156,38 @@ fn hung_invalid_and_oversized_engine_responses_are_bounded() {
             .is_empty()
     );
 }
+
+#[test]
+fn learning_metadata_only_follows_validated_english_candidate_commit() {
+    let mut engine = engine();
+    let mut input = Input::default();
+    type_letters(&mut input, &mut engine, "xuexi");
+    assert!(input.pending_study.is_none());
+    input.handle(Key::Escape, &mut engine).unwrap();
+    assert!(input.pending_study.is_none());
+    type_letters(&mut input, &mut engine, "AI");
+    input.handle(Key::Return, &mut engine).unwrap();
+    assert!(input.pending_study.is_none());
+    type_letters(&mut input, &mut engine, "xuexi");
+    input.handle(Key::Space(false), &mut engine).unwrap();
+    assert!(input.pending_study.is_none());
+    type_letters(&mut input, &mut engine, "xuexi");
+    input.selected = input
+        .frame
+        .candidates
+        .iter()
+        .position(|c| c.text == "学习")
+        .unwrap();
+    let output = input
+        .handle(Key::Space(true), &mut engine)
+        .unwrap()
+        .unwrap();
+    let word = input.pending_study.take().unwrap();
+    assert_eq!(word.english, output);
+    assert_eq!(word.chinese, "学习");
+    assert!(!word.mastered);
+    type_letters(&mut input, &mut engine, "xuexi");
+    input.frame.candidates[input.selected].translations[0].word = "fabricated".into();
+    assert!(input.handle(Key::Space(true), &mut engine).is_err());
+    assert!(input.pending_study.is_none());
+}

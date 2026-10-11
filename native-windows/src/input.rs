@@ -27,6 +27,7 @@ pub struct Input {
     pub english: bool,
     pub error: bool,
     pub last_english: bool,
+    pub pending_study: Option<crate::learning::Word>,
 }
 impl Input {
     pub fn normalized(&self) -> String {
@@ -45,6 +46,7 @@ impl Input {
         self.sense = 0;
         self.expanded = false;
         self.error = false;
+        self.pending_study = None;
     }
     pub fn raw_commit(&mut self) -> String {
         let text = self.raw.clone();
@@ -53,6 +55,7 @@ impl Input {
         text
     }
     pub fn handle(&mut self, key: Key, engine: &mut Bridge) -> Result<Option<String>, String> {
+        self.pending_study = None;
         match key {
             Key::Letter(ch) => {
                 if self.raw.len() < 240 && (ch.is_ascii_alphabetic() || ch == '\'') {
@@ -170,7 +173,23 @@ impl Input {
             };
             request["english"] = json!(sense.word);
         }
+        let study = if english {
+            candidate.translations.get(self.sense).map(|sense| {
+                crate::learning::Word::new(
+                    sense.word.clone(),
+                    candidate.text.clone(),
+                    sense.pos.clone(),
+                )
+            })
+        } else {
+            None
+        };
         let result = engine.call(request)?;
+        if let Some(word) = &study
+            && result.committed.as_deref() != Some(word.english.as_str())
+        {
+            return Err("Invalid English commit".into());
+        }
         let consumed = self
             .raw
             .len()
@@ -179,6 +198,7 @@ impl Input {
         if self.normalized().get(consumed..) != Some(result.input.as_str()) {
             return Err("Invalid engine suffix".into());
         }
+        self.pending_study = study.filter(|w| w.valid());
         self.raw = self.raw[consumed..].to_string();
         self.frame = result.clone();
         self.selected = 0;

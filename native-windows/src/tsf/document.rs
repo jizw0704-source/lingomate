@@ -7,11 +7,13 @@ use windows::Win32::Foundation::RECT;
 use windows::Win32::UI::TextServices::*;
 use windows::core::{Interface, Ref, Result, implement};
 
+type Operation = (Option<String>, String, Option<crate::learning::Word>);
+
 pub(super) struct Document {
     pub context: ITfContext,
     client: u32,
     composition: RefCell<Option<ITfComposition>>,
-    queue: RefCell<VecDeque<(Option<String>, String)>>,
+    queue: RefCell<VecDeque<Operation>>,
     scheduled: Cell<bool>,
     ending: Cell<bool>,
     pub terminated: Cell<bool>,
@@ -30,8 +32,13 @@ impl Document {
             state,
         })
     }
-    pub fn enqueue(self: &Rc<Self>, commit: Option<String>, preedit: String) -> Result<()> {
-        self.queue.borrow_mut().push_back((commit, preedit));
+    pub fn enqueue(
+        self: &Rc<Self>,
+        commit: Option<String>,
+        preedit: String,
+        study: Option<crate::learning::Word>,
+    ) -> Result<()> {
+        self.queue.borrow_mut().push_back((commit, preedit, study));
         if self.scheduled.replace(true) {
             return Ok(());
         }
@@ -148,8 +155,13 @@ impl ITfEditSession_Impl for Edit_Impl {
         guarded(|| {
             let operations: Vec<_> = self.document.queue.borrow_mut().drain(..).collect();
             self.document.scheduled.set(false);
-            for (commit, preedit) in operations {
-                self.document.apply(cookie, commit.as_deref(), &preedit)?;
+            for (commit, preedit, study) in operations {
+                crate::learning::after_output(
+                    self.document.apply(cookie, commit.as_deref(), &preedit),
+                    commit.as_deref(),
+                    study,
+                    crate::learning::confirmed,
+                )?;
             }
             Ok(())
         })

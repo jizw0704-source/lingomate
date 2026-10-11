@@ -154,6 +154,7 @@ let isPreview =
   || arguments.contains("--preview-typing") || arguments.contains("--account-preview")
   || arguments.contains("--ai-settings-preview")
   || arguments.contains("--settings-preview") || arguments.contains("--settings-test")
+  || arguments.contains("--local-learning-preview") || arguments.contains("--local-learning-test")
   || arguments.contains("--update-preview") || arguments.contains("--update-window-test")
 let previewTheme: AppearanceChoice? = {
   guard let index = arguments.firstIndex(of: "--theme"), arguments.count > index + 1 else {
@@ -206,13 +207,35 @@ let learningDirectory =
   : FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
     "Library/Application Support/BilingualCompanion/Learning")
 LearningRuntime.store = LearningStore(directory: learningDirectory)
+LearningRuntime.localStore = LocalLearningStore(
+  directory:
+    isPreview
+    ? learningDirectory.appendingPathComponent("LocalWords")
+    : FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
+      "Library/Application Support/BilingualCompanion/LocalWords"))
+if arguments.contains("--local-learning-test") {
+  LocalLearningTests.run()
+  try? FileManager.default.removeItem(at: learningDirectory)
+  exit(0)
+}
+if arguments.contains("--local-learning-preview") {
+  try? LearningRuntime.localStore?.record(
+    .init(english: "learn", chinese: "学习", pos: "v.", uses: 1, mastered: false))
+  try? LearningRuntime.localStore?.record(
+    .init(english: "apple", chinese: "苹果", pos: "n.", uses: 1, mastered: false))
+  SettingsWindow.start(preview: true, section: .learning)
+  app.run()
+  try? FileManager.default.removeItem(at: learningDirectory)
+  exit(0)
+}
 if arguments.contains("--settings") || arguments.contains("--settings-preview")
   || arguments.contains("--settings-test")
 {
   if arguments.contains("--settings-test") {
     SettingsTests.run()
   } else {
-    SettingsWindow.start(preview: isPreview)
+    SettingsWindow.start(
+      preview: isPreview, section: arguments.contains("--local-learning") ? .learning : .account)
     app.run()
   }
   if isPreview { try? FileManager.default.removeItem(at: learningDirectory) }

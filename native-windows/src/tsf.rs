@@ -25,9 +25,9 @@ const PROFILE: GUID = GUID::from_u128(0x5c46b182_7e32_4b6e_ab5d_2ee4f17d7695);
 const CLASS_TEXT: &str = "{078A5202-3F7A-4DD5-89CC-322A9011DF81}";
 static MODULE: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 static REFERENCES: AtomicIsize = AtomicIsize::new(0);
-pub(super) struct Guard;
+pub(crate) struct Guard;
 impl Guard {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         REFERENCES.fetch_add(1, Ordering::SeqCst);
         Self
     }
@@ -169,7 +169,8 @@ impl State {
     fn update(self: &Rc<Self>, commit: Option<String>) {
         if let Some(doc) = self.document.borrow().clone() {
             let raw = self.input.borrow().raw.clone();
-            if doc.enqueue(commit, raw).is_err() {
+            let study = self.input.borrow_mut().pending_study.take();
+            if doc.enqueue(commit, raw, study).is_err() {
                 self.input.borrow_mut().reset();
             }
         }

@@ -120,18 +120,27 @@ final class LearningStore {
 
 enum LearningRuntime {
   static var store: LearningStore?
+  static var localStore: LocalLearningStore?
   static var warning: String?
   private static let queue = DispatchQueue(label: "org.local.bilingualcompanion.learning")
+  static func waitForLocalTests() { queue.sync {} }
   static func account() -> LearningAccount? { try? store?.snapshot().active }
   static func confirmed(_ detail: TranslationDetail, chinese: String, account: LearningAccount?) {
-    guard let account, let store else { return }
+    let local = localStore
+    let cloud = store
     let event = LearningEvent(
       id: UUID(), english: detail.word, chinese: chinese, pos: detail.pos, kind: "study",
       mastered: false)
     guard LearningEvent.valid(event.word) else { return }
     queue.async {
       do {
-        try store.append(event, for: account)
+        try local?.record(event.word)
+      } catch {
+        DispatchQueue.main.async { warning = "文字已输出，本地学习记录暂未保存。请在设置的学习页检查。" }
+      }
+      guard let account, let cloud else { return }
+      do {
+        try cloud.append(event, for: account)
         AccountWindow.launch(syncOnly: true)
       } catch {
         DispatchQueue.main.async { warning = "文字已输出，学习记录暂未保存。请打开学习页检查。" }

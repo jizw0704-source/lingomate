@@ -494,6 +494,10 @@ final class BilingualInputController: IMKInputController {
         title: "AI 翻译设置…", action: #selector(openAISettings(_:)), keyEquivalent: "")
       ai.target = self
       menu.addItem(ai)
+      let localLearning = NSMenuItem(
+        title: "本地学习记录…", action: #selector(openLocalLearning(_:)), keyEquivalent: "")
+      localLearning.target = self
+      menu.addItem(localLearning)
       let learning = NSMenuItem(
         title: "登录与学习记录…", action: #selector(openLearning(_:)), keyEquivalent: "")
       learning.target = self
@@ -528,6 +532,12 @@ final class BilingualInputController: IMKInputController {
     }
   }
 
+  @objc private func openLocalLearning(_ sender: Any?) {
+    mainSync {
+      rawCommit()
+      SettingsWindow.launch(section: .learning)
+    }
+  }
   @objc private func openLearning(_ sender: Any?) {
     mainSync {
       rawCommit()

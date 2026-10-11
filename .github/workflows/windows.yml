@@ -74,6 +74,9 @@ jobs:
       - name: Check scripts, formatting, lint, real engine and DLL lifetime
         shell: pwsh
         run: ./native-windows/tools/check.ps1 -SkipUpdates
+      - name: Render isolated offline learning windows
+        shell: pwsh
+        run: ./native-windows/tools/test-learning-window.ps1 -Dll "$PWD/native-windows/package/windows-x64/lingomate_tsf.dll" -OutputDirectory "$PWD/native-windows/package"
       - name: Compile local installer and inspect initial window without installing
         shell: pwsh
         run: |
@@ -88,5 +91,6 @@ jobs:
           path: |
             native-windows/package/update-preview*.png
             native-windows/package/installer-preview.png
+            native-windows/package/learning-preview-*.png
           retention-days: 7
       # Full dictionaries and local install packages are not published by this workflow.

@@ -2,35 +2,37 @@
 import AppKit
 
 enum SettingsSection: Int, CaseIterable {
-  case account, translation, input, appearance
+  case account, translation, input, appearance, learning
   var title: String {
     switch self {
-    case .account: return "账号与学习"
+    case .account: return "账号"
     case .translation: return "翻译"
     case .input: return "输入"
     case .appearance: return "外观"
+    case .learning: return "学习"
     }
   }
 }
 
 enum SettingsWindow {
   static var controller: SettingsController?
-  static func launch() {
+  static func launch(section: SettingsSection = .account) {
     guard !AppearanceSettings.current.isIsolated else { return }
     let process = Process()
     process.executableURL = Bundle.main.executableURL
-    process.arguments = ["--settings"]
+    process.arguments = section == .learning ? ["--settings", "--local-learning"] : ["--settings"]
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
     try? process.run()
   }
-  static func start(preview: Bool) {
+  static func start(preview: Bool, section: SettingsSection = .account) {
     NSApplication.shared.setActivationPolicy(.regular)
     let controller = SettingsController(preview: preview)
     self.controller = controller
+    controller.select(section)
     controller.window.makeKeyAndOrderFront(nil)
     NSApplication.shared.activate(ignoringOtherApps: true)
-    controller.account.refreshIfSignedIn()
+    if section == .account { controller.account.refreshIfSignedIn() }
   }
 }
 
@@ -39,6 +41,7 @@ final class SettingsController: NSObject, NSWindowDelegate {
   let account: LearningWindowController
   let translation: AISettingsController
   let input: SettingsInputClient
+  let localLearning: LocalLearningController
   private let body = NSView()
   private var tabs: [ActionButton] = []
   private(set) var section = SettingsSection.account
@@ -49,6 +52,7 @@ final class SettingsController: NSObject, NSWindowDelegate {
     account = LearningWindowController(preview: preview, embedded: true)
     translation = AISettingsController(preview: preview, embedded: true)
     input = SettingsInputClient(preview: preview)
+    localLearning = LocalLearningController(store: LearningRuntime.localStore!)
     window = NSWindow(
       contentRect: NSRect(
         x: 0, y: 0, width: CommandLine.arguments.contains("--preview-narrow") ? 440 : 560,
@@ -122,6 +126,7 @@ final class SettingsController: NSObject, NSWindowDelegate {
   func select(_ section: SettingsSection) {
     account.prepareForNavigation()
     self.section = section
+    window.minSize = NSSize(width: 440, height: section == .learning ? 560 : 440)
     for (index, tab) in tabs.enumerated() {
       tab.style = index == section.rawValue ? .subtle : .plain
       tab.state = index == section.rawValue ? .on : .off
@@ -131,6 +136,9 @@ final class SettingsController: NSObject, NSWindowDelegate {
     case .translation: mount(translation.contentView)
     case .input: showInput(preserveScroll: false)
     case .appearance: showAppearance()
+    case .learning:
+      localLearning.reload()
+      mount(localLearning.contentView)
     }
   }
   private func mount(_ view: NSView) {
@@ -252,6 +260,9 @@ final class SettingsController: NSObject, NSWindowDelegate {
         height: max(scroll.contentView.bounds.height, (stack?.fittingSize.height ?? 0) + 32)))
   }
   func windowDidResize(_ notification: Notification) { resizeDocument() }
-  func windowDidBecomeKey(_ notification: Notification) { if !input.waiting { input.refresh() } }
+  func windowDidBecomeKey(_ notification: Notification) {
+    if !input.waiting { input.refresh() }
+    if section == .learning { localLearning.reload() }
+  }
   func windowWillClose(_ notification: Notification) { NSApplication.shared.stop(nil) }
 }

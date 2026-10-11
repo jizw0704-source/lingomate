@@ -367,6 +367,15 @@ fn settings(window: HWND, state: &Rc<State>) {
         let _ = GetCursorPos(&mut point);
         let flags = MF_STRING | if current { MF_CHECKED } else { MF_UNCHECKED };
         let _ = AppendMenuW(menu, flags, 1, w!("显示词性（n. / v. / adj. / adv.）"));
+        let _ = AppendMenuW(menu, MF_STRING, 2, w!("本地学习记录…"));
+        if crate::learning::SAVE_WARNING.load(Ordering::Relaxed) {
+            let _ = AppendMenuW(
+                menu,
+                MF_STRING | MF_GRAYED,
+                3,
+                w!("本地记录未保存，请检查存储权限"),
+            );
+        }
         let selected = TrackPopupMenu(
             menu,
             TPM_RETURNCMD | TPM_NONOTIFY,
@@ -378,6 +387,19 @@ fn settings(window: HWND, state: &Rc<State>) {
         )
         .0;
         let _ = DestroyMenu(menu);
+        if selected == 2
+            && super::module_path()
+                .ok()
+                .and_then(|dll| crate::learning_window::launch(dll).ok())
+                .is_none()
+        {
+            let _ = MessageBoxW(
+                Some(window),
+                w!("无法打开本地学习窗口，请重试。"),
+                w!("灵果"),
+                MB_OK | MB_ICONERROR,
+            );
+        }
         if selected == 1 {
             if crate::preferences::save(!current).is_ok() {
                 state.show_pos.set(!current);
