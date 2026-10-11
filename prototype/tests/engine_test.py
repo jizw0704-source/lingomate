@@ -71,6 +71,19 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result["committed"], "学习")
         self.assertEqual(result["input"], "")
 
+    def test_pos_metadata_keeps_validated_english_output_unchanged(self):
+        sense = self.candidate("meili", "美丽")["translations"][0]
+        self.assertEqual((sense["word"], sense["pos"]), ("beautiful", "adj."))
+        self.assertIn("error", self.commit("meili", "美丽", english="beautiful adj."))
+        self.assertEqual(
+            self.commit("meili", "美丽", english="beautiful")["committed"], "beautiful"
+        )
+        study = self.candidate("xuexi", "学习")["translations"][0]
+        self.assertEqual((study["word"], study["pos"]), ("study", "v."))
+        self.assertEqual(
+            self.candidate("kuaisu", "快速")["translations"][0]["pos"], "adj."
+        )
+
     def test_second_and_third_english_commit(self):
         for word in ("learn", "learning"):
             result = self.commit("xuexi", "学习", english=word)

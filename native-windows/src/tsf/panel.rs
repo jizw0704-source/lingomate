@@ -1,4 +1,4 @@
-use super::{Guard, Key, MODULE, State, updates};
+use super::{Guard, Key, MODULE, State, down, updates};
 use std::rc::{Rc, Weak};
 use std::sync::atomic::Ordering;
 use windows::Win32::Foundation::*;
@@ -12,6 +12,11 @@ pub(super) struct Panel {
     _guard: Guard,
 }
 impl Panel {
+    pub fn settings(&self) {
+        if let Some(state) = unsafe { &*self.owner }.upgrade() {
+            settings(self.window, &state);
+        }
+    }
     pub fn new(state: Weak<State>) -> Result<Self> {
         let instance = HINSTANCE(MODULE.load(Ordering::SeqCst));
         let class = WNDCLASSW {
@@ -158,6 +163,7 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
                     3 => {
                         let _ = updates::launch(false);
                     }
+                    4 => settings(window, &state),
                     _ => {}
                 }
             } else if y < 132 && x >= 0 {
@@ -185,11 +191,14 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
     unsafe { DefWindowProcW(window, message, wparam, lparam) }
 }
 fn text(dc: HDC, content: &str, x: i32, y: i32, width: i32, color: COLORREF) {
+    text_height(dc, content, x, y, width, 40, color);
+}
+fn text_height(dc: HDC, content: &str, x: i32, y: i32, width: i32, height: i32, color: COLORREF) {
     let mut rect = RECT {
         left: x,
         top: y,
         right: x + width,
-        bottom: y + 40,
+        bottom: y + height,
     };
     let mut text: Vec<_> = content.encode_utf16().collect();
     unsafe {
@@ -233,6 +242,7 @@ fn paint(window: HWND, state: &Rc<State>) {
     text(dc, "›", 60, 0, 28, COLORREF(0x101010));
     text(dc, "译法", 90, 0, 44, COLORREF(0x101010));
     text(dc, "更新", 138, 0, 44, COLORREF(0x101010));
+    text(dc, "设置", 180, 0, 44, COLORREF(0x101010));
     let title = if input.error {
         format!("{} · 引擎未连接 · 回车提交字母", input.raw)
     } else {
@@ -243,7 +253,7 @@ fn paint(window: HWND, state: &Rc<State>) {
             input.page_count().max(1)
         )
     };
-    text(dc, &title, 184, 0, 366, COLORREF(0x4A4A4A));
+    text(dc, &title, 228, 0, 322, COLORREF(0x4A4A4A));
     for (slot, candidate) in input
         .frame
         .candidates
@@ -278,7 +288,36 @@ fn paint(window: HWND, state: &Rc<State>) {
             COLORREF(0x101010),
         );
         if let Some(translation) = candidate.translations.first() {
-            text(dc, &translation.word, x + 8, 88, 96, COLORREF(0x4A4A4A));
+            let pos = translation.visible_pos(state.show_pos.get());
+            if pos.is_empty() {
+                text(dc, &translation.word, x + 8, 88, 96, COLORREF(0x4A4A4A));
+            } else {
+                text_height(dc, &translation.word, x + 8, 88, 96, 22, COLORREF(0x101010));
+                let small = unsafe {
+                    CreateFontW(
+                        -11,
+                        0,
+                        0,
+                        0,
+                        400,
+                        0,
+                        0,
+                        0,
+                        DEFAULT_CHARSET,
+                        OUT_DEFAULT_PRECIS,
+                        CLIP_DEFAULT_PRECIS,
+                        CLEARTYPE_QUALITY,
+                        DEFAULT_PITCH.0 as u32,
+                        w!("Microsoft YaHei UI"),
+                    )
+                };
+                let old = unsafe { SelectObject(dc, small.into()) };
+                text_height(dc, pos, x + 8, 110, 96, 20, COLORREF(0x4A4A4A));
+                unsafe {
+                    SelectObject(dc, old);
+                    let _ = DeleteObject(small.into());
+                }
+            }
         }
     }
     if input.expanded
@@ -294,7 +333,11 @@ fn paint(window: HWND, state: &Rc<State>) {
             let marker = if row == input.sense { "› " } else { "  " };
             text(
                 dc,
-                &format!("{marker}{} {} · {}", sense.word, sense.pos, sense.note),
+                &format!(
+                    "{marker}{} · {}",
+                    sense.display_word(state.show_pos.get()),
+                    sense.note
+                ),
                 12,
                 132 + (row % 6) as i32 * 44,
                 530,
@@ -306,5 +349,47 @@ fn paint(window: HWND, state: &Rc<State>) {
         SelectObject(dc, original);
         let _ = DeleteObject(font.into());
         let _ = EndPaint(window, &ps);
+    }
+}
+
+pub(super) fn settings_shortcut(key: usize) -> bool {
+    key == 0x50 && down(0x11) && down(0x10) && !down(0x12) && !down(0x5B) && !down(0x5C)
+}
+fn settings(window: HWND, state: &Rc<State>) {
+    // Native checked menu; no activation or host text access. Cancel makes no change.
+    let Ok(menu) = (unsafe { CreatePopupMenu() }) else {
+        return;
+    };
+    let current = crate::preferences::load();
+    state.show_pos.set(current);
+    let mut point = POINT::default();
+    unsafe {
+        let _ = GetCursorPos(&mut point);
+        let flags = MF_STRING | if current { MF_CHECKED } else { MF_UNCHECKED };
+        let _ = AppendMenuW(menu, flags, 1, w!("显示词性（n. / v. / adj. / adv.）"));
+        let selected = TrackPopupMenu(
+            menu,
+            TPM_RETURNCMD | TPM_NONOTIFY,
+            point.x,
+            point.y,
+            None,
+            window,
+            None,
+        )
+        .0;
+        let _ = DestroyMenu(menu);
+        if selected == 1 {
+            if crate::preferences::save(!current).is_ok() {
+                state.show_pos.set(!current);
+            } else {
+                let _ = MessageBoxW(
+                    Some(window),
+                    w!("未能保存词性显示设置，请重试。"),
+                    w!("灵果"),
+                    MB_OK | MB_ICONERROR,
+                );
+            }
+        }
+        let _ = InvalidateRect(Some(window), None, false);
     }
 }

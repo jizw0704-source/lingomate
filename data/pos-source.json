@@ -1,0 +1,17 @@
+{
+  "name": "Princeton WordNet",
+  "publisher": "Princeton University",
+  "release": "3.0",
+  "license": "WordNet",
+  "license_url": "https://wordnet.princeton.edu/license-and-commercial-use",
+  "snapshot_url": "https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz",
+  "source_sha256": "640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52",
+  "source_bytes": 11537239,
+  "license_sha256": "7731175a77952e259390b496fab905e57118b8d19ad3a8383c67eee724ff443f",
+  "modifications": [
+    "Read only noun, verb, adjective and adverb lemma index files; do not distribute definitions or software",
+    "Match exact English glosses case-insensitively; convert underscore to space",
+    "Keep verified infinitives as v.; intersect categories for semicolon-separated synonyms; omit unmatched or conflicting senses",
+    "Embed display-only metadata and the full WordNet license in glossary comments; preserve output text and commit validation"
+  ]
+}

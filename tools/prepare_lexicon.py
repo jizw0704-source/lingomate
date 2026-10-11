@@ -14,6 +14,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import frequency
+import part_of_speech
 
 ROOT = Path(__file__).resolve().parents[1]
 LICENSE_URL = "https://creativecommons.org/licenses/by-sa/4.0/"
@@ -232,12 +233,24 @@ def prepare(source=None, check=False, package=None, frequency_source=None):
         frequency_config["year_end"],
     )
     files, stats = convert(content, ranking, counts)
+    pos_config = json.loads((ROOT / "data/pos-source.json").read_text())
+    pos_license = (ROOT / "docs/licenses/WORDNET-3.0.txt").read_bytes()
+    if digest(pos_license) != pos_config["license_sha256"]:
+        raise ValueError("WordNet license checksum mismatch")
+    pos_index = part_of_speech.read_index(
+        part_of_speech.verified_source(pos_config), pos_license
+    )
+    files["glossary-en.tsv"], pos_stats = part_of_speech.annotate(
+        files["glossary-en.tsv"], pos_index, pos_license
+    )
     summary = {
-        "schema": 2,
+        "schema": 3,
         "license": "CC-BY-SA-4.0",
         "source": config,
         "frequency_source": frequency_config,
         "frequency_stats": frequency_stats,
+        "pos_source": pos_config,
+        "pos_stats": pos_stats,
         "ranking_sha256": digest(ranking_bytes),
         **stats,
         "files": {name: digest(value) for name, value in files.items()},
@@ -259,6 +272,10 @@ def prepare(source=None, check=False, package=None, frequency_source=None):
             + files["data-manifest.json"]
             + b"\n\nFrequency source permission and changes:\n"
             + frequency_notice
+            + b"\n\nWordNet 3.0 display-only lexical POS metadata:\n"
+            + b"Source: https://wordnet.princeton.edu/license-and-commercial-use\n"
+            + b"Only exact lemma categories and verified infinitives; output text unchanged.\n"
+            + pos_license
             + b"\n\nFull license:\n"
             + license_text
         )
@@ -281,8 +298,9 @@ def prepare(source=None, check=False, package=None, frequency_source=None):
             for name in files:
                 os.replace(Path(staging) / name, output / name)
     print(
-        f"Verified CC-CEDICT + Google Ngram: {stats['dictionary_readings']} readings, "
-        f"{stats['glossary_words']} translated words; CC BY-SA 4.0"
+        f"Verified CC-CEDICT + Google Ngram + WordNet: {stats['dictionary_readings']} readings, "
+        f"{stats['glossary_words']} translated words; {pos_stats['tagged_senses']} POS senses; "
+        "CC BY-SA 4.0 + WordNet notice"
     )
     return summary
 

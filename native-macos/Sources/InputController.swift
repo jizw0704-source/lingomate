@@ -549,6 +549,11 @@ final class BilingualInputController: IMKInputController {
 
   func applySetting(_ setting: InputSetting) {
     mainSync {
+      if case .showPOS = setting {
+        setting.apply()
+        if !IsSecureEventInputEnabled() { draw() }
+        return
+      }
       if IsSecureEventInputEnabled() { discard() } else { rawCommit() }
       shiftTap.reset()
       modeNotice = UUID()

@@ -199,6 +199,12 @@ final class SettingsController: NSObject, NSWindowDelegate {
           ("只显示中文", value?.bilingual == false, .bilingual(false)),
         ])
       choices(
+        "英文词性 · 保存此选择",
+        values: [
+          ("显示词性（n. / v. / adj. / adv.）", value?.showPOS == true, .showPOS(true)),
+          ("隐藏词性", value?.showPOS == false, .showPOS(false)),
+        ])
+      choices(
         "标点",
         values: PunctuationMode.allCases.map {
           ($0.title, value?.punctuation == $0, .punctuation($0))

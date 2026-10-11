@@ -6,6 +6,7 @@ enum InputSetting {
   case bilingual(Bool)
   case punctuation(PunctuationMode)
   case remember(Bool)
+  case showPOS(Bool)
 
   var payload: [String: String] {
     switch self {
@@ -14,6 +15,7 @@ enum InputSetting {
     case .bilingual(let enabled): return ["setting": "bilingual", "value": enabled ? "on" : "off"]
     case .punctuation(let mode): return ["setting": "punctuation", "value": String(mode.rawValue)]
     case .remember(let enabled): return ["setting": "remember", "value": enabled ? "on" : "off"]
+    case .showPOS(let enabled): return ["setting": "pos", "value": enabled ? "on" : "off"]
     }
   }
   init?(payload: [AnyHashable: Any]) {
@@ -27,6 +29,8 @@ enum InputSetting {
     case ("bilingual", "off"): self = .bilingual(false)
     case ("remember", "on"): self = .remember(true)
     case ("remember", "off"): self = .remember(false)
+    case ("pos", "on"): self = .showPOS(true)
+    case ("pos", "off"): self = .showPOS(false)
     case ("punctuation", _):
       guard let raw = Int(value), let mode = PunctuationMode(rawValue: raw) else { return nil }
       self = .punctuation(mode)
@@ -39,6 +43,7 @@ enum InputSetting {
     case .bilingual(let value): Runtime.bilingual = value
     case .punctuation(let value): Runtime.punctuationMode = value
     case .remember(let value): Runtime.remember = value
+    case .showPOS(let value): CandidatePreferences.current.select(value)
     }
   }
 }
@@ -70,14 +75,17 @@ struct InputSettingsSnapshot {
   let bilingual: Bool
   let punctuation: PunctuationMode
   let remember: Bool
+  let showPOS: Bool
   init?(payload: [AnyHashable: Any]) {
     guard let mode = payload["typingMode"] as? String, ["chinese", "english"].contains(mode),
       let bilingual = payload["bilingual"] as? Bool, let remember = payload["remember"] as? Bool,
+      let showPOS = payload["showPartOfSpeech"] as? Bool,
       let raw = payload["punctuationMode"] as? Int, let punctuation = PunctuationMode(rawValue: raw)
     else { return nil }
     typing = mode == "chinese" ? .chinese : .english
     self.bilingual = bilingual
     self.remember = remember
+    self.showPOS = showPOS
     self.punctuation = punctuation
   }
 }
@@ -98,6 +106,7 @@ final class SettingsInputClient {
       case .bilingual: actual = value.bilingual ? "on" : "off"
       case .punctuation: actual = String(value.punctuation.rawValue)
       case .remember: actual = value.remember ? "on" : "off"
+      case .showPOS: actual = value.showPOS ? "on" : "off"
       }
       guard actual == setting.payload["value"] else { exit(1) }
       print("输入设置已应用并回读确认。")
@@ -137,7 +146,7 @@ final class SettingsInputClient {
         let snapshot = InputSettingsSnapshot(payload: payload)
       else { return }
       self.snapshot = snapshot
-      self.finish(message: "输入设置已连接；此页选项在本次输入法运行期间生效。")
+      self.finish(message: "输入设置已连接；词性显示会保存，其余选项在本次运行期间生效。")
     }
     DistributedNotificationCenter.default().postNotificationName(
       setting == nil ? InputDiagnostics.request : RuntimeSettings.change,

@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $Root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $Manifest = Join-Path $Root 'native-windows/Cargo.toml'
+& python (Join-Path $Root 'tools/test_part_of_speech.py')
+if ($LASTEXITCODE -ne 0) { throw 'POS provenance tests failed.' }
 & python (Join-Path $Root 'tools/test_frequency.py')
 if ($LASTEXITCODE -ne 0) { throw 'Frequency permission tests failed.' }
 & python (Join-Path $Root 'tools/test_prepare_lexicon.py')

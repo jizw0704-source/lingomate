@@ -210,14 +210,16 @@ final class CandidatePanel: NSPanel {
           let senseWidth =
             (englishWidth - 52 - 8 - CGFloat(senses.count - 1) * 8) / CGFloat(senses.count)
           for (senseIndex, sense) in senses.enumerated() {
-            let english = ActionButton(sense.word, label: "输出英文 \(sense.word)") { [weak self] in
+            let english = ActionButton(sense.displayWord, label: "输出英文 \(sense.word)") {
+              [weak self] in
               self?.onEnglish?(index, senseIndex)
             }
             english.style = .accent
+            english.secondarySuffix = sense.visiblePOS
             english.alignment = .left
             english.widthAnchor.constraint(equalToConstant: senseWidth).isActive = true
             english.cell?.lineBreakMode = .byTruncatingTail
-            english.toolTip = sense.word
+            english.toolTip = sense.displayWord
             englishViews.append(english)
           }
           let more = ActionButton("更多", label: "展开 \(candidate.text) 的译法与用法") { [weak self] in
@@ -299,7 +301,7 @@ final class CandidatePanel: NSPanel {
         (title as NSString).size(withAttributes: [.font: NativeTheme.font(15)]).width + 24
       let english =
         bilingual
-        ? ((candidate.translations.first?.word ?? "") as NSString)
+        ? ((candidate.translations.first?.displayWord ?? "") as NSString)
           .size(withAttributes: [.font: NativeTheme.font(13)]).width + 24 : 0
       return min(140, max(44, chinese, english))
     }
@@ -334,14 +336,16 @@ final class CandidatePanel: NSPanel {
       cell.widthAnchor.constraint(equalToConstant: columnWidth).isActive = true
       if hasEnglish {
         if let sense = candidate.translations.first {
-          let english = ActionButton(sense.word, label: "输出英文 \(sense.word)") { [weak self] in
+          let english = ActionButton(sense.displayWord, label: "输出英文 \(sense.word)") {
+            [weak self] in
             self?.onEnglish?(index, 0)
           }
           english.font = NativeTheme.font(13)
           english.style = .accent
+          english.secondarySuffix = sense.visiblePOS
           english.alignment = .left
           english.widthAnchor.constraint(equalToConstant: columnWidth).isActive = true
-          english.toolTip = "\(sense.word) · 更多译法请点顶部‘译法’或按 Tab"
+          english.toolTip = "\(sense.displayWord) · 更多译法请点顶部‘译法’或按 Tab"
           cell.addArrangedSubview(english)
         } else {
           let missing = NativeTheme.label("—", size: 12, secondary: true)
@@ -420,13 +424,14 @@ final class CandidatePanel: NSPanel {
       ]), to: stack)
     for (senseIndex, sense) in candidate.translations.enumerated() {
       let prefix = senseIndex == state.sense ? "› " : ""
-      let title = "\(prefix)\(sense.word)\(sense.pos.isEmpty ? "" : " · \(sense.pos)")"
+      let title = "\(prefix)\(sense.displayWord)"
       let select = fittedButton(
         title, width: width, size: 16,
         label:
           "输出英文 \(sense.word)，第 \(senseIndex + 1) 种译法\(senseIndex == state.sense ? "，当前选中" : "")"
       ) { [weak self] in self?.onEnglish?(state.active, senseIndex) }
       select.style = .accent
+      select.secondarySuffix = sense.visiblePOS
       add(select, to: stack)
       if !sense.note.isEmpty { add(NativeTheme.label(sense.note, secondary: true), to: stack) }
       if !sense.example.isEmpty {

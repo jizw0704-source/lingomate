@@ -163,6 +163,10 @@ let previewTheme: AppearanceChoice? = {
 }()
 AppearanceSettings.configure(
   isolated: isPreview || arguments.contains("--isolated-appearance"), initial: previewTheme)
+CandidatePreferences.configure(isolated: isPreview)
+if isPreview && arguments.contains("--preview-hide-pos") {
+  CandidatePreferences.current.select(false)
+}
 if arguments.contains("--updates") || arguments.contains("--update-background")
   || arguments.contains("--update-preview") || arguments.contains("--update-window-test")
 {

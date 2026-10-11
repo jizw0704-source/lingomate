@@ -185,6 +185,9 @@ enum Preview {
       translateSentence()
     }
     panel?.onSetupTranslation = { TranslationSetup.launch() }
+    if CommandLine.arguments.contains("--preview-expanded") && !mixedPreview {
+      state.expanded = true
+    }
     translateSentence()
     draw()
   }

@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 mod memory;
+mod part_of_speech;
 mod ranking;
 
 struct Pending {
@@ -58,6 +59,7 @@ struct Adapter {
     details: HashMap<String, Vec<Detail>>,
     memory: memory::Memory,
     ranking: ranking::Ranking,
+    parts_of_speech: part_of_speech::PartsOfSpeech,
     pending: HashMap<String, Pending>,
     chains: HashMap<String, Chain>,
     token: u64,
@@ -75,10 +77,8 @@ impl Adapter {
         };
         let dictionary_path = data_path("dict.tsv", "data/generated/dict.tsv");
         let dictionary = Dictionary::from_path(&dictionary_path)?;
-        let glossary = Glossary::from_path(
-            Language::English,
-            data_path("glossary-en.tsv", "data/generated/glossary-en.tsv"),
-        )?;
+        let glossary_path = data_path("glossary-en.tsv", "data/generated/glossary-en.tsv");
+        let glossary = Glossary::from_path(Language::English, &glossary_path)?;
         Ok(Self {
             engine: Engine::new(dictionary).with_translator(Box::new(glossary)),
             details: serde_json::from_str(&std::fs::read_to_string(data_path(
@@ -87,6 +87,7 @@ impl Adapter {
             ))?)?,
             memory: memory::Memory::open(None),
             ranking: ranking::Ranking::load(&dictionary_path)?,
+            parts_of_speech: part_of_speech::PartsOfSpeech::load(&glossary_path)?,
             pending: HashMap::new(),
             chains: HashMap::new(),
             token: 0,
@@ -102,9 +103,7 @@ impl Adapter {
                 .iter()
                 .map(|sense| Detail {
                     word: sense.text.clone(),
-                    pos: sense
-                        .part_of_speech
-                        .map_or_else(String::new, |p| p.to_string()),
+                    pos: self.parts_of_speech.get(&sense.text).to_owned(),
                     note: "本地词表释义；暂未提供用法说明。".into(),
                     example: String::new(),
                 })

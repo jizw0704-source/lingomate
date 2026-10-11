@@ -111,6 +111,7 @@ struct State {
     document: RefCell<Option<Rc<document::Document>>>,
     panel: RefCell<Option<panel::Panel>>,
     client: Cell<u32>,
+    show_pos: Cell<bool>,
 }
 impl State {
     fn new() -> Rc<Self> {
@@ -121,6 +122,7 @@ impl State {
             document: RefCell::new(None),
             panel: RefCell::new(None),
             client: Cell::new(0),
+            show_pos: Cell::new(crate::preferences::load()),
         })
     }
     fn key(self: &Rc<Self>, key: Key) {
@@ -274,6 +276,9 @@ impl ITfTextInputProcessor_Impl for Service_Impl {
 impl ITfKeyEventSink_Impl for Service_Impl {
     fn OnSetFocus(&self, foreground: BOOL) -> Result<()> {
         guarded(|| {
+            if foreground.as_bool() {
+                self.state.show_pos.set(crate::preferences::load());
+            }
             self.shift.set(None);
             if !foreground.as_bool() {
                 self.state.finish();
@@ -294,7 +299,9 @@ impl ITfKeyEventSink_Impl for Service_Impl {
                 return Ok(FALSE);
             };
             if blocked(context) || self.state.input.borrow().english || command_modifier() {
-                if !blocked(context) && updates::shortcut(key.0) {
+                if !blocked(context)
+                    && (updates::shortcut(key.0) || panel::settings_shortcut(key.0))
+                {
                     return Ok(TRUE);
                 }
                 return Ok(FALSE);
@@ -307,6 +314,12 @@ impl ITfKeyEventSink_Impl for Service_Impl {
     fn OnKeyDown(&self, context: Ref<ITfContext>, key: WPARAM, _flags: LPARAM) -> Result<BOOL> {
         guarded(|| {
             let context = context.ok()?;
+            if !blocked(context) && panel::settings_shortcut(key.0) {
+                if let Some(panel) = self.state.panel.borrow().as_ref() {
+                    panel.settings();
+                }
+                return Ok(TRUE);
+            }
             if !blocked(context) && updates::shortcut(key.0) {
                 let _ = updates::launch(false);
                 return Ok(TRUE);
@@ -361,6 +374,7 @@ impl ITfThreadMgrEventSink_Impl for Service_Impl {
         _previous: Ref<ITfDocumentMgr>,
     ) -> Result<()> {
         guarded(|| {
+            self.state.show_pos.set(crate::preferences::load());
             self.shift.set(None);
             self.state.finish();
             if let Ok(manager) = manager.ok()

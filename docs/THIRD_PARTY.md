@@ -6,6 +6,7 @@
 | --- | --- | --- | --- |
 | [青简](https://github.com/qingjian-team/qingjian) | c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e | 中文候选引擎代码 | GPL-3.0-or-later；保留固定源码引用，当前不使用其中文字典、释义及语料生成数据 |
 | [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cedict) | 2026-10-09T09:12:50Z；镜像 8359384e656a3437b2cca08f13c092745db8d3e4 | 中文词面、拼音及英文释义 | 原始文件头与发布页明确 CC BY-SA 4.0；同许可提供改编数据、保留署名与修改说明 |
+| [Princeton WordNet](https://wordnet.princeton.edu/license-and-commercial-use) | 3.0；官方固定压缩包 | 英文完整词及短语的词性索引 | WordNet 许可允许使用、修改及分发；保留完整版权、许可与免责文本 |
 | [Google Books Ngram](https://books.google.com/ngrams/info) | 简体中文 unigram 20200217，出版年份 1980–2019 | 已有词面的基础排序词频 | 官方许可问答明确数据可用于任何用途；保留来源及处理说明，标识 LicenseRef-Google-Books-Ngram |
 | [rime-translate](https://github.com/daocatt/rime-translate) | c5ffa0ed2fa2a5530a39929fc356dadd4cea161c | 前期离线对照研究，不作为原生运行依赖 | 插件为 MIT；样例数据依据各自许可说明判断 |
 | Apple Translation | 系统框架 | 本机整句中译英 | 仓库不分发框架或语言模型；语言资源由系统下载 |
@@ -65,6 +66,19 @@ runtime/python/bin/python tools/prepare_lexicon.py --check --package native-maco
 Windows 构建使用已安装的 Python 3.10+ 标准库执行同一脚本。生成表无需新增产品运行依赖，接收安装包的用户不需要 Python。构建前自动准备数据；两端完整检查同时验证新表、来源、声明和包内字节。错误摘要、错误许可、缺失声明或旧包数据均会拒绝通过；共享桥接缺失新数据时不会回退到旧上游目录。
 
 词库来源缺口已通过独立替换处理，旧混合表的未确认来源不再进入新构建。此结论限于本节列出的新词库输入与生成物；旧 DMG／EXE／ZIP 和维护者草稿不会因源码更新而获得相同状态。发行签名、公证、对应源码交付及 Windows 11 实机验收仍应在开放下载前完成。
+
+## 英文词性来源
+
+Mac 0.12.3 / Windows 0.1.5 起读取 [Princeton WordNet 3.0 官方快照](https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz)中的四类索引，字段定义见 [WordNet 数据格式](https://wordnet.princeton.edu/documentation/wndb5wn)。[官方许可](https://wordnet.princeton.edu/license-and-commercial-use)允许为任何用途使用、复制、修改和分发，但须保留版权、许可及免责文本；本项目不使用 Princeton 名称作推广或背书。完整原文见 [WORDNET-3.0.txt](licenses/WORDNET-3.0.txt)。
+
+`data/pos-source.json` 固定 11,537,239 字节快照及 SHA-256 `640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52`。标准库生成器核对来源、文件摘要、压缩包中的许可全文与固定索引成员，不提取或分发定义和软件。词性映射为 `n.`、`v.`、`adj.`、`adv.`，忽略大小写，将下划线归一为空格，仅做完整词匹配；`to ...` 须核实动词，分号并列译法须词性一致。未知、冲突及长句不标注，不采用短语首尾猜测。多词性保留为 `n./v.` 等，它表示词典中的可能词性，不是上下文语法判定。
+
+生成后在原 `glossary-en.tsv` 末尾加入 `# POS` 展示元数据，原译文及排序数据不变；128,898 个离线义项中标注 27,153 个。人工编写的 30 项用法保留自身词性，不被词典中的多词性覆盖。完整 WordNet 许可同时嵌入释义表注释及两份原有 NOTICE，随两端构建、安装与更新包提供。开关默认显示并仅保存展示偏好，实际提交仍校验原英文内容。
+
+```sh
+runtime/python/bin/python tools/test_part_of_speech.py
+runtime/python/bin/python tools/prepare_lexicon.py --check
+```
 
 ## 旧安装包与混合词库审计
 

@@ -7,6 +7,7 @@ final class ActionButton: NSButton {
   var style = Style.plain { didSet { needsDisplay = true } }
   var wrapsTitle = false
   var horizontalPadding: CGFloat = 12
+  var secondarySuffix = ""
   private var hovered = false
   private var hoverArea: NSTrackingArea?
 
@@ -77,8 +78,18 @@ final class ActionButton: NSButton {
     let rect = NSRect(
       x: horizontalPadding, y: (bounds.height - ceil(height)) / 2, width: width,
       height: ceil(height))
-    (title as NSString).draw(
-      with: rect, options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: attributes)
+    let content = NSMutableAttributedString(string: title, attributes: attributes)
+    if !secondarySuffix.isEmpty, title.hasSuffix(secondarySuffix) {
+      content.addAttributes(
+        [
+          .font: NativeTheme.font(max(11, (font?.pointSize ?? 14) - 2)),
+          .foregroundColor: NativeTheme.muted,
+        ],
+        range: NSRange(
+          location: (title as NSString).length - (secondarySuffix as NSString).length,
+          length: (secondarySuffix as NSString).length))
+    }
+    content.draw(with: rect, options: [.usesLineFragmentOrigin, .usesFontLeading])
   }
 
   override func drawFocusRingMask() {

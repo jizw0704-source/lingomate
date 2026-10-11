@@ -6,6 +6,16 @@ struct TranslationDetail: Codable {
   let pos: String
   let note: String
   let example: String
+  var visiblePOS: String {
+    guard CandidatePreferences.current.showPartOfSpeech, !pos.isEmpty,
+      pos.split(separator: "/", omittingEmptySubsequences: false).allSatisfy({
+        ["n.", "v.", "adj.", "adv.", "pron.", "prep.", "conj.", "det.", "num.", "int.", "phr."]
+          .contains(String($0))
+      })
+    else { return "" }
+    return pos
+  }
+  var displayWord: String { word + (visiblePOS.isEmpty ? "" : " \(visiblePOS)") }
 }
 
 struct EngineCandidate: Codable {

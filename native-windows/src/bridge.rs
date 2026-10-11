@@ -16,6 +16,52 @@ pub struct Translation {
     #[serde(default)]
     pub example: String,
 }
+impl Translation {
+    pub fn visible_pos(&self, show: bool) -> &str {
+        if show
+            && !self.pos.is_empty()
+            && self.pos.split('/').all(|p| {
+                [
+                    "n.", "v.", "adj.", "adv.", "pron.", "prep.", "conj.", "det.", "num.", "int.",
+                    "phr.",
+                ]
+                .contains(&p)
+            })
+        {
+            &self.pos
+        } else {
+            ""
+        }
+    }
+    pub fn display_word(&self, show: bool) -> String {
+        let pos = self.visible_pos(show);
+        if pos.is_empty() {
+            self.word.clone()
+        } else {
+            format!("{} {pos}", self.word)
+        }
+    }
+}
+
+#[cfg(test)]
+mod pos_tests {
+    use super::*;
+    #[test]
+    fn output_word_never_contains_display_metadata() {
+        let mut word = Translation {
+            word: "study".into(),
+            pos: "n./v.".into(),
+            ..Default::default()
+        };
+        assert_eq!(word.display_word(true), "study n./v.");
+        assert_eq!(word.display_word(false), "study");
+        assert_eq!(word.word, "study");
+        word.pos = "名词".into();
+        assert_eq!(word.display_word(true), "study");
+        word.pos.clear();
+        assert_eq!(word.display_word(true), "study");
+    }
+}
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Candidate {
     pub text: String,

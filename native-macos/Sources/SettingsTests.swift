@@ -3,10 +3,12 @@ import AppKit
 
 enum SettingsTests {
   static func run() {
+    CandidatePreferencesTests.run()
     for value in [
       InputSetting.typing(.chinese), .typing(.english), .bilingual(true), .bilingual(false),
       .punctuation(.automatic), .punctuation(.chinese), .punctuation(.english),
       .remember(true), .remember(false),
+      .showPOS(true), .showPOS(false),
     ] {
       precondition(InputSetting(payload: value.payload)?.payload == value.payload)
     }
@@ -14,6 +16,7 @@ enum SettingsTests {
       [:], ["setting": "typing", "value": "unknown"], ["setting": "remember", "value": true],
       ["setting": "punctuation", "value": "3"], ["setting": "endpoint", "value": "test"],
       ["setting": "bilingual", "value": "on", "text": "not allowed"],
+      ["setting": "pos", "value": "中文"],
     ] { precondition(InputSetting(payload: value) == nil) }
     precondition(InputSettingsSnapshot(payload: [:]) == nil)
     let client = SettingsInputClient(preview: true)
@@ -50,6 +53,11 @@ enum SettingsTests {
           ($0 as? NSTextField)?.placeholderString == "账号服务 HTTPS 地址"
         })
       controller.select(.input)
+      let hidePOS = allViews(controller.window.contentView!).compactMap { $0 as? ActionButton }
+        .first { $0.title.contains("隐藏词性") }!
+      hidePOS.performClick(nil)
+      precondition(controller.input.snapshot?.showPOS == false)
+      controller.input.request(.showPOS(true))
       let english = allViews(controller.window.contentView!).compactMap { $0 as? ActionButton }
         .first { $0.title.contains("中文拼音") }!
       english.performClick(nil)
