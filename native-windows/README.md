@@ -22,7 +22,7 @@ Windows 版本采用系统原生 Text Services Framework（TSF，文本服务框
 
 ## 同事试用安装包
 
-Windows 0.1.4 的安装 EXE、SHA-256 文件、对应项目源码快照及试用说明已保存至[维护者草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-2855ec5e836cb4996779)。[生成与上传检查](https://github.com/jizw0704-source/lingomate/actions/runs/38038928439)通过后，下载回本机核对，安装 EXE 与构建校验文件及 GitHub 附件摘要一致。源码对应提交 `699e5b7e7a89cb3f05c147e3de514228466497a9`，快照含构建脚本及固定第三方源码引用，不含本机修改、个人数据或生成词库。
+Windows 0.1.4 的安装 EXE、SHA-256 文件、对应项目源码快照及试用说明已保存至[维护者草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-8a3046913bf42e94be14)。[生成与上传检查](https://github.com/jizw0704-source/lingomate/actions/runs/38038928439)通过后，下载回本机核对，安装 EXE 与构建校验文件及 GitHub 附件摘要一致。源码对应提交 `699e5b7e7a89cb3f05c147e3de514228466497a9`，快照含构建脚本及固定第三方源码引用，不含本机修改、个人数据或生成词库。
 
 草稿附件仅供维护者下载，普通同事不能直接通过草稿链接下载。维护者可下载 `lingomate-windows-x64-0.1.4-setup.exe`，将安装程序、试用说明与对应源码一并转交同事；接收者无需自行安装 Rust、Python 或开发工具。
 

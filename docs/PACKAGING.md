@@ -4,8 +4,8 @@
 
 | 平台 | 目标设备 | 构建文件 | 当前范围 |
 | --- | --- | --- | --- |
-| macOS | Apple 芯片，macOS 13+ | `lingomate-macos-arm64-0.11.9.dmg` | 已上传维护者可见的 Release 草稿，内含原生安装程序 |
-| Windows | Windows 11，Intel / AMD x64 | `lingomate-windows-x64-0.1.4-setup.exe` | 已生成并上传独立维护者草稿，下载回校验通过；未开放公开下载 |
+| macOS | Apple 芯片，macOS 13+ | `lingomate-macos-arm64-0.12.2.dmg` | 已上传双平台内部草稿，附对应项目源码与试用说明；下载回校验通过 |
+| Windows | Windows 11，Intel / AMD x64 | `lingomate-windows-x64-0.1.4-setup.exe` | 已生成并保存在同一双平台内部草稿，下载回校验通过；未开放公开下载 |
 
 2026-10-10，Mac 0.12.0 / build 22 的新 DMG 与更新 ZIP 已在本地生成。DMG 镜像校验、只读挂载后的应用版本 / 字节 / 安装器签名，以及真实更新 ZIP 路径检查通过。文件位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.0.dmg` 和 `native-macos/build/updates/verified-2026-10-10/release-0.12.0/`。随后已按用户授权通过 DMG 安装器更新本机，旧版备份与输入设置保留；未上传替换上述维护者草稿。本地签名仍为 ad-hoc，远程清单仍未发布。当时 Windows 源码为 0.1.2，维护者草稿为 0.1.1；最新安装包见下节。
 
@@ -21,11 +21,21 @@ Mac 0.12.1 的本地 DMG 位于 `native-macos/build/packages/lingomate-macos-arm
 
 Mac 0.12.2 / build 24 与 Windows 0.1.4 的源码共用许可明确的 Google Books Ngram 词频与完整词优先排序。官方许可、版本、摘要及加工说明加入已有两份 NOTICE，包内文件清单保持兼容；未导入书籍正文或新增 Google 词条。[来源与处理说明](THIRD_PARTY.md#候选排序与词频来源)提供重建方法和有限回归结果。
 
-Mac 新 DMG 位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.2.dmg`。完整构建检查、镜像和只读挂载后的版本／build、最终桥接、词库、声明及签名核对通过；本机仍安装 0.12.1。本地更新 ZIP 位于 `native-macos/build/updates/ranking-20261010/release-0.12.2/`，摘要／大小、CRC／路径及桥接／数据／声明逐字节校验通过，元数据保持未发布。Windows 0.1.4 的 [MSVC 构建、来源／候选回归和安装 EXE 编译检查](https://github.com/jizw0704-source/lingomate/actions/runs/38037661244)通过，未登记 TSF 或执行实际安装。历史本地包和旧维护者草稿保留，Mac 新包尚未上传，Windows 新包见下节；均未公开发布或启用更新源；发行签名、公证与新版实机输入仍待验证。
+Mac 新 DMG 位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.2.dmg`。完整构建检查、镜像和只读挂载后的版本／build、最终桥接、词库、声明及签名核对通过；本机已安装 0.12.2，用户已确认 Codex 中英候选和“我AI学习”混合输入，英文确认回车未发送消息。本地更新 ZIP 位于 `native-macos/build/updates/ranking-20261010/release-0.12.2/`，摘要／大小、CRC／路径及桥接／数据／声明逐字节校验通过，元数据保持未发布。Windows 0.1.4 的 [MSVC 构建、来源／候选回归和安装 EXE 编译检查](https://github.com/jizw0704-source/lingomate/actions/runs/38037661244)通过，未登记 TSF 或执行实际安装。历史本地包和旧维护者草稿保留，Mac 新包已于 2026-10-11 补入 Windows 0.1.4 的维护者草稿，两端新包见下节；均未公开发布或启用更新源；发行签名、公证与新版实机输入仍待验证。
+
+## Mac 0.12.2 内部试用包上传
+
+2026-10-11，已将 Mac 0.12.2 / build 24 的 DMG、SHA-256 文件、对应项目源码快照和试用说明补入[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-8a3046913bf42e94be14)。构建输入与固定提交 `699e5b7e7a89cb3f05c147e3de514228466497a9` 一致，项目源码快照只包含该提交已跟踪文件，第三方源码及依赖由固定准备脚本获取；不含本机未提交修改、个人数据或生成表。
+
+本机转交副本位于 `native-macos/build/packages/trial-0.12.2/`，共五个文件。DMG 大小为 5,555,997 字节，SHA-256 为 `45a912105f85a50234237cc94dc312eaadbdd21b5bc0f00e51dec70490bcc53f`。五份附件下载回后与本地字节及 GitHub 摘要一致；镜像校验、只读挂载后的版本、18 个应用文件、两层签名及七项隔离安装检查通过。挂载已卸载，本轮未执行安装或重载输入服务。
+
+Mac、Windows 各五份附件均保存在本草稿中，旧双平台草稿保留。维护者下载后可将对应安装文件、源码和 `lingomate-macos-0.12.2-trial-guide.txt` 或 Windows 试用说明转交同事。Mac 目标为 Apple 芯片；Windows 目标为 Windows 11 Intel / AMD x64；普通同事无法直接访问草稿链接。
+
+用户已确认本机 0.12.2 在 Codex 显示中英候选，并能混合输入“我AI学习”，英文确认回车未发送消息。新设备安装及系统安全检查、候选排序、其他提交、跨应用、休眠唤醒、Windows 11 实机与长期稳定性仍待确认；发行签名、公证和公开更新清单未完成。
 
 ## Windows 0.1.4 安装包保存与上传
 
-2026-10-10，[生成与上传流程](https://github.com/jizw0704-source/lingomate/actions/runs/38038928439)基于固定提交 `699e5b7e7a89cb3f05c147e3de514228466497a9` 重建 Windows MSVC 程序、核对词库及声明、通过候选／记忆／更新回归、安装 EXE 编译和初始窗口检查后，将 EXE 与校验文件上传至独立[维护者草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-2855ec5e836cb4996779)。原双平台草稿保留，旧 Mac 与 Windows 附件未覆盖。
+2026-10-10，[生成与上传流程](https://github.com/jizw0704-source/lingomate/actions/runs/38038928439)基于固定提交 `699e5b7e7a89cb3f05c147e3de514228466497a9` 重建 Windows MSVC 程序、核对词库及声明、通过候选／记忆／更新回归、安装 EXE 编译和初始窗口检查后，将 EXE 与校验文件上传至独立[维护者草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-8a3046913bf42e94be14)。原双平台草稿保留，旧 Mac 与 Windows 附件未覆盖。
 
 本机副本位于 `native-windows/package/installer-0.1.4/`，安装文件为 `lingomate-windows-x64-0.1.4-setup.exe`，大小 5,327,681 字节。上传后下载回校验，文件与构建 `.sha256` 及 GitHub 附件摘要一致，SHA-256 为 `422f1377d2350793fa643bc9fcaecff95b57f7535337bbfc548105aff21246bb`。同目录保存项目源码快照、对应校验文件和 `lingomate-windows-0.1.4-trial-guide.txt`；它们也已附在草稿中。源码快照只包含上述提交的已跟踪项目文件，第三方源码与依赖通过固定准备脚本取得，不混入本机修改、个人数据或生成表。
 
@@ -49,7 +59,7 @@ DMG 与 SHA-256 文件位于被 Git 忽略的 `native-macos/build/packages/`。�
 
 安装器界面预览在安装包内执行 `Contents/MacOS/LingoMateInstaller --preview`，不读取个人词库或执行安装。独立安装逻辑回归使用 `--selftest`，只操作临时模拟应用。
 
-当前签名为本地 ad-hoc 签名，未完成 Developer ID 发行签名及公证。下载后 Gatekeeper 是否允许运行尚未验证；不建议关闭安全检查。Intel Mac 不在当前构建范围。Mac 源码 0.12.0 已包含独立远程更新器，旧版需要先手动安装一次；维护者草稿仍为 0.11.9，没有更新器。远程 ZIP 与首次安装 DMG 分开，准备方法见 [Mac 软件更新](../native-macos/README.md#软件更新)。
+当前签名为本地 ad-hoc 签名，未完成 Developer ID 发行签名及公证。下载后 Gatekeeper 是否允许运行尚未验证；不建议关闭安全检查。Intel Mac 不在当前构建范围。Mac 源码 0.12.0 已包含独立远程更新器，旧版需要先手动安装一次；历史维护者草稿中的 0.11.9 没有更新器；当前 0.12.2 内部草稿已包含更新器，清单仍未发布。远程 ZIP 与首次安装 DMG 分开，准备方法见 [Mac 软件更新](../native-macos/README.md#软件更新)。
 
 ## Windows 构建与安装
 
