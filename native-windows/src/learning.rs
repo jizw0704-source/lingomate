@@ -270,7 +270,30 @@ pub fn confirmed(word: Word) {
         SAVE_WARNING.store(true, Ordering::Relaxed);
         return;
     }
-    // Hold a COM DLL lifetime reference before spawning; release only after disk work ends.
+    // A COM count alone has an unload race in the worker's return epilogue.
+    // Pin this already-loaded module once until host exit, before creating any worker.
+    static PINNED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let pinned = PINNED.get_or_init(|| {
+        use windows::Win32::Foundation::HMODULE;
+        use windows::Win32::System::LibraryLoader::{
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_PIN,
+            GetModuleHandleExW,
+        };
+        let mut module = HMODULE::default();
+        unsafe {
+            GetModuleHandleExW(
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+                windows::core::PCWSTR(confirmed as *const () as *const u16),
+                &mut module,
+            )
+            .is_ok()
+        }
+    });
+    if !pinned {
+        PENDING.fetch_sub(1, Ordering::SeqCst);
+        SAVE_WARNING.store(true, Ordering::Relaxed);
+        return;
+    }
     let guard = crate::tsf::Guard::new();
     let result = std::thread::Builder::new()
         .name("lingomate-learning".into())
