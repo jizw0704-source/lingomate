@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - '.gitattributes'
       - 'native-windows/src/**'
       - 'native-windows/tests/**'
       - 'native-windows/tools/**'
@@ -27,6 +28,7 @@ on:
       - '.github/workflows/windows.yml'
   pull_request:
     paths:
+      - '.gitattributes'
       - 'native-windows/src/**'
       - 'native-windows/tests/**'
       - 'native-windows/tools/**'

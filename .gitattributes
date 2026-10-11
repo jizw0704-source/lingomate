@@ -1,0 +1,2 @@
+# Preserve the byte-pinned upstream license on Windows checkouts.
+docs/licenses/WORDNET-3.0.txt text eol=lf
