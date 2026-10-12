@@ -103,6 +103,8 @@ Windows 日常开发使用 `codex/windows-dev` 分支，相关修改通过 Pull 
 
 Mac 新功能通过 PR 提供参考实现，再使用 [Mac 新功能同步到 Windows 任务模板](https://github.com/jizw0704-source/lingomate/issues/new?template=macos-to-windows.md)交接给 Wright。任务集中记录用户行为、参考代码及共同验收用例，分别跟踪 Mac 完成、Windows 实现和 Windows 实机验证。完整步骤见 [功能同步流程](CONTRIBUTING.md#mac-新功能同步到-windows)。
 
+当前 Mac 功能、默认设置、安装包源码覆盖范围与 Windows 共同验收用例集中在 [Mac 版本功能基线](docs/MAC_FEATURE_BASELINE.md)，供两端维护者对照。
+
 | 目录 | 内容 |
 | --- | --- |
 | `native-windows/` | Rust Windows TSF 客户端、候选窗口与构建／安装脚本 |
