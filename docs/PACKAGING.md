@@ -1,5 +1,13 @@
 # 安装包与同事试用
 
+## Windows 0.1.10 最新修复交付 · 2026-10-12
+
+本轮交付包含已授权合并的 PR #2 外观、字号、标点、图标及最新候选恢复修复。新版本采用 0.1.10，保留既有 0.1.9 文件；合并状态见 [PR #2](https://github.com/jizw0704-source/lingomate/pull/2)。维护者从 [Release 草稿](https://github.com/jizw0704-source/lingomate/releases)下载安装 EXE、SHA-256、精确源码 ZIP 及其 SHA-256、试用说明五份文件后转交同事。
+
+产物名称为 `lingomate-windows-x64-0.1.10-setup.exe`、`lingomate-windows-0.1.10-project-source.zip` 及 `lingomate-windows-0.1.10-trial-guide.txt`，本机忽略目录为 `native-windows/package/installer-0.1.10/`。构建来源、大小和 SHA-256 以草稿记录和随包校验文件为准；源码 ZIP 的 `SOURCE-SNAPSHOT.json` 记录对应提交，不混入本机未提交文件。
+
+仍为内部预览，更新清单未公开。普通安装 EXE 的 TSF 登记权限及异常退出码问题尚未单独修复；Windows 11 实际安装和跨应用输入须由 Wright 先核验，不能以编译或退出码判断安装成功。安装注意事项见试用说明及 [Windows 验证记录](../native-windows/QA.md)。Mac 安装和旧附件保留。
+
 ## Windows 0.1.9 外观与输入规则试用包 · 2026-10-12
 
 Windows **0.1.9** 的安装 EXE、SHA-256、对应源码 ZIP 及其校验文件、试用说明共五份已上传[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e25b2e907874382cdb4a)，并下载回核对字节、大小和 GitHub 摘要。安装 EXE 为 5,516,168 字节，SHA-256 为 `9a4e5ce52a86b39cb3da49d64323deb8279d6f01c0bad66a2aca43954c647f4e`；源码固定为 `d5ae1d9f18bcec0c12902ea7b0ef5b8358d60be7`。此前 40 份附件的身份、大小和摘要保留，草稿现有 45 份附件，Mac 0.12.9 安装包保持原状。

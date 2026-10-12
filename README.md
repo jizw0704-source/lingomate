@@ -46,7 +46,7 @@ Windows 尚未接入账号同步与 MiniMax 整句翻译。Windows 10、ARM 与 
 
 ## 安装与试用
 
-当前内部试用包为 **Windows 0.1.9** 和 **Mac 0.12.9 / build 31**，保存在维护者可见的 [GitHub Releases 草稿](https://github.com/jizw0704-source/lingomate/releases)中，附带校验文件、对应源码与试用说明。维护者可下载后将完整文件转交试用者；安装包使用者无需准备开发工具。
+本轮内部试用交付版本为 **Windows 0.1.10** 和 **Mac 0.12.9 / build 31**，保存在维护者可见的 [GitHub Releases 草稿](https://github.com/jizw0704-source/lingomate/releases)中，附带校验文件、对应源码与试用说明。维护者可下载后将完整文件转交试用者；安装包使用者无需准备开发工具。
 
 正式发行签名、Mac 公证与完整安装验收尚未完成，远程更新清单保持未发布。两端已实现版本检查、可选每日提醒、下载校验、确认安装及旧版恢复，实际发布下载与升级仍需验证。制作、交付与验收步骤见 [安装包与同事试用](docs/PACKAGING.md)。
 
