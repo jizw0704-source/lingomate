@@ -113,6 +113,7 @@ pub struct Bridge {
     reader: Option<std::thread::JoinHandle<()>>,
     pub generation: u64,
     live: bool,
+    startup_pending: bool,
 }
 impl Bridge {
     pub fn start(executable: &Path, resources: &Path) -> Result<Self, String> {
@@ -169,6 +170,7 @@ impl Bridge {
             reader: Some(reader),
             generation: GENERATION.fetch_add(1, Ordering::Relaxed),
             live: true,
+            startup_pending: true,
         })
     }
 
@@ -205,6 +207,9 @@ impl Bridge {
         Ok(true)
     }
     fn exchange(&mut self, request: Value) -> Result<Value, String> {
+        // Every first reply, including cancel after Backspace/Return, waits for
+        // loading the pinned tables. Warm calls keep their shorter deadline.
+        let timeout_ms = if self.startup_pending { 1500 } else { 500 };
         serde_json::to_writer(&mut self.input, &request).map_err(|e| e.to_string())?;
         self.input
             .write_all(b"\n")
@@ -214,8 +219,9 @@ impl Bridge {
             .replies
             .as_ref()
             .ok_or("Engine connection closed")?
-            .recv_timeout(Duration::from_millis(500))
-            .map_err(|_| "Engine did not respond within 500 ms".to_string())??;
+            .recv_timeout(Duration::from_millis(timeout_ms))
+            .map_err(|_| format!("Engine did not respond within {timeout_ms} ms"))??;
+        self.startup_pending = false;
         serde_json::from_str(&reply).map_err(|_| "Invalid engine frame".into())
     }
     fn poison(&mut self) {

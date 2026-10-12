@@ -158,6 +158,56 @@ fn hung_invalid_and_oversized_engine_responses_are_bounded() {
 }
 
 #[test]
+fn slow_first_reply_has_a_startup_budget_but_warm_requests_remain_bounded() {
+    let fixture = PathBuf::from(env!("CARGO_BIN_EXE_lingomate-fixture"));
+    for action in ["query", "cancel"] {
+        let mut bridge = Bridge::start(&fixture, &PathBuf::from("slow-start-and-reply")).unwrap();
+        let first = Instant::now();
+        assert!(bridge.call(json!({"action":action, "input":""})).is_ok());
+        assert!(first.elapsed() >= Duration::from_millis(700));
+        let warm = Instant::now();
+        assert!(bridge.call(json!({"action":"query", "input":""})).is_err());
+        assert!(warm.elapsed() < Duration::from_secs(1));
+        assert!(bridge.call(json!({"action":"query", "input":""})).is_err());
+    }
+}
+
+#[test]
+fn replacement_engine_recovers_retained_composition_before_candidate_actions() {
+    for (key, expected) in [(Key::Space(false), "学习"), (Key::Space(true), "study")] {
+        let mut engine = engine();
+        let mut input = Input {
+            raw: "XueXI".into(),
+            error: true,
+            ..Input::default()
+        };
+        assert_eq!(
+            input.handle(key, &mut engine).unwrap().as_deref(),
+            Some(expected)
+        );
+        assert!(input.raw.is_empty());
+        assert!(!input.error);
+    }
+    for key in [Key::Tab(false), Key::Next] {
+        let mut engine = engine();
+        let mut input = Input {
+            raw: "xuexi".into(),
+            error: true,
+            ..Input::default()
+        };
+        assert!(input.handle(key, &mut engine).unwrap().is_none());
+        assert!(!input.frame.candidates.is_empty());
+        assert!(!input.error);
+        assert_eq!(input.raw, "xuexi");
+        if matches!(key, Key::Tab(_)) {
+            assert!(input.expanded);
+        } else {
+            assert_eq!(input.page(), 1);
+        }
+    }
+}
+
+#[test]
 fn learning_metadata_only_follows_validated_english_candidate_commit() {
     let mut engine = engine();
     let mut input = Input::default();

@@ -6,6 +6,7 @@ pub struct Layout {
     pub columns: usize,
     pub count: usize,
     pub extra: usize,
+    minimum_width: i32,
 }
 impl Layout {
     pub fn new(count: usize, extra: usize, font: u32, dpi: i32, available: i32) -> Self {
@@ -18,10 +19,13 @@ impl Layout {
             columns: columns.min(count.max(2)).min(5),
             count,
             extra,
+            minimum_width: available.min(row * 5 + (160 * dpi + 48) / 96),
         }
     }
     pub fn width(self) -> i32 {
-        (self.columns as i32 * self.column).max(self.row * 5)
+        (self.columns as i32 * self.column)
+            .max(self.row * 5)
+            .max(self.minimum_width)
     }
     pub fn groups(self) -> usize {
         self.count.max(1).div_ceil(self.columns)

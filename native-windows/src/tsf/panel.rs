@@ -38,13 +38,14 @@ fn work_area(x: i32, y: i32) -> RECT {
 }
 fn layout(window: HWND, state: &State) -> Layout {
     let input = state.input.borrow();
+    let empty = input.error || input.frame.candidates.is_empty();
     let count = input
         .frame
         .candidates
         .len()
         .saturating_sub(input.page() * 5)
         .min(5);
-    let extra = if input.expanded {
+    let extra = if input.expanded && !empty {
         input
             .frame
             .candidates
@@ -60,7 +61,7 @@ fn layout(window: HWND, state: &State) -> Layout {
         .map_or(POINT { x: 40, y: 40 }, |p| p.caret.get());
     let work = work_area(point.x, point.y);
     Layout::new(
-        count,
+        if empty { 0 } else { count },
         extra,
         state.display.get().font,
         appearance::dpi(window),
@@ -406,8 +407,9 @@ fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
     let hovered = state.panel.borrow().as_ref().and_then(|p| p.hovered.get());
     let pressed = state.panel.borrow().as_ref().and_then(|p| p.pressed.get());
     let input = state.input.borrow();
-    let title = if input.error {
-        format!("{} · 引擎未连接 · 回车提交字母", input.raw)
+    let empty = input.error || input.frame.candidates.is_empty();
+    let title = if empty {
+        input.raw.clone()
     } else {
         format!(
             "{}  {}/{}",
@@ -429,12 +431,36 @@ fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
         SelectObject(dc, main.into());
         let _ = DeleteObject(header.into());
     }
+    if empty {
+        text(
+            dc,
+            if input.error {
+                "引擎暂不可用"
+            } else {
+                "未找到候选"
+            },
+            px(12, dpi),
+            l.row,
+            l.width() - px(24, dpi),
+            l.row,
+            palette.foreground,
+        );
+        text(
+            dc,
+            "回车可提交原样字母",
+            px(12, dpi),
+            l.row * 2,
+            l.width() - px(24, dpi),
+            l.row,
+            palette.secondary,
+        );
+    }
     for (slot, candidate) in input
         .frame
         .candidates
         .iter()
         .skip(input.page() * 5)
-        .take(5)
+        .take(if empty { 0 } else { 5 })
         .enumerate()
     {
         let (x, y) = l.position(slot);
@@ -530,7 +556,8 @@ fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
             }
         }
     }
-    if input.expanded
+    if !empty
+        && input.expanded
         && let Some(candidate) = input.frame.candidates.get(input.selected)
     {
         for (row, sense) in candidate
@@ -884,4 +911,208 @@ fn render_preview_never_opens_engine_or_commits_words() {
     assert!(state.engine.borrow().is_none());
     assert!(state.input.borrow().pending_memory.is_none());
     assert!(state.input.borrow().pending_study.is_none());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bridge::{Candidate, Translation};
+    use crate::input::Input;
+    use std::ffi::c_void;
+
+    struct Surface {
+        dc: HDC,
+        bitmap: HBITMAP,
+        original: HGDIOBJ,
+        bits: *mut c_void,
+        width: i32,
+        height: i32,
+    }
+    impl Surface {
+        fn new(width: i32, height: i32) -> Self {
+            let dc = unsafe { CreateCompatibleDC(None) };
+            assert!(!dc.is_invalid(), "Preview device context unavailable");
+            let info = BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: width,
+                    biHeight: -height,
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: BI_RGB.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let mut bits = std::ptr::null_mut();
+            let bitmap =
+                unsafe { CreateDIBSection(Some(dc), &info, DIB_RGB_COLORS, &mut bits, None, 0) }
+                    .expect("Preview bitmap unavailable");
+            let original = unsafe { SelectObject(dc, bitmap.into()) };
+            Self {
+                dc,
+                bitmap,
+                original,
+                bits,
+                width,
+                height,
+            }
+        }
+        fn pixels(&self) -> &[u8] {
+            unsafe {
+                std::slice::from_raw_parts(
+                    self.bits.cast(),
+                    (self.width * self.height * 4) as usize,
+                )
+            }
+        }
+        fn ink_pixels(&self, left: i32, top: i32, right: i32, bottom: i32) -> usize {
+            let pixels = self.pixels();
+            (top..bottom.min(self.height))
+                .flat_map(|y| (left..right.min(self.width)).map(move |x| (x, y)))
+                .filter(|(x, y)| {
+                    let offset = ((y * self.width + x) * 4) as usize;
+                    pixels[offset..offset + 3]
+                        .iter()
+                        .zip(&pixels[..3])
+                        .any(|(value, background)| value.abs_diff(*background) > 32)
+                })
+                .count()
+        }
+        fn save_preview(&self, name: &str) {
+            // Optional artifacts contain only the synthetic inputs below. Normal
+            // test runs create no files and never open an input source or engine.
+            let Some(directory) = std::env::var_os("LINGOMATE_CANDIDATE_PREVIEW_DIR") else {
+                return;
+            };
+            let directory = std::path::PathBuf::from(directory);
+            std::fs::create_dir_all(&directory).unwrap();
+            let pixels = self.pixels();
+            let mut bytes = Vec::with_capacity(54 + pixels.len());
+            bytes.extend_from_slice(b"BM");
+            bytes.extend_from_slice(&(54 + pixels.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(&[0; 4]);
+            bytes.extend_from_slice(&54u32.to_le_bytes());
+            bytes.extend_from_slice(&40u32.to_le_bytes());
+            bytes.extend_from_slice(&self.width.to_le_bytes());
+            bytes.extend_from_slice(&(-self.height).to_le_bytes());
+            bytes.extend_from_slice(&1u16.to_le_bytes());
+            bytes.extend_from_slice(&32u16.to_le_bytes());
+            bytes.extend_from_slice(&0u32.to_le_bytes());
+            bytes.extend_from_slice(&(pixels.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(&[0; 16]);
+            bytes.extend_from_slice(pixels);
+            std::fs::write(directory.join(format!("candidates-{name}.bmp")), bytes).unwrap();
+        }
+    }
+    impl Drop for Surface {
+        fn drop(&mut self) {
+            unsafe {
+                SelectObject(self.dc, self.original);
+                let _ = DeleteObject(self.bitmap.into());
+                let _ = DeleteDC(self.dc);
+            }
+        }
+    }
+
+    #[test]
+    fn hidden_candidate_window_renders_empty_status_and_short_page_headers() {
+        let foreground = unsafe { GetForegroundWindow() };
+        let state = State::with_display_preferences(false);
+        let panel =
+            Panel::new(Rc::downgrade(&state)).expect("Isolated candidate window unavailable");
+        assert!(!unsafe { IsWindowVisible(panel.window) }.as_bool());
+        let style = unsafe { GetWindowLongPtrW(panel.window, GWL_EXSTYLE) } as u32;
+        assert_ne!(style & WS_EX_NOACTIVATE.0, 0);
+        assert_ne!(style & WS_EX_TOOLWINDOW.0, 0);
+        for (name, error, count) in [
+            ("engine-unavailable", true, 0),
+            ("engine-unavailable-stale", true, 3),
+            ("no-match", false, 0),
+            ("one", false, 1),
+            ("two", false, 2),
+            ("three", false, 3),
+            ("four", false, 4),
+            ("five", false, 5),
+        ] {
+            let mut input = Input {
+                raw: "wode".into(),
+                error,
+                ..Default::default()
+            };
+            input.frame.candidates = (0..count)
+                .map(|_| Candidate {
+                    text: "我的".into(),
+                    translations: vec![Translation {
+                        word: "my".into(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                })
+                .collect();
+            let l = crate::candidate_layout::Layout::new(
+                if error { 0 } else { count as usize },
+                0,
+                18,
+                96,
+                1000,
+            );
+            let (width, height) = (l.width(), l.height());
+            *state.input.borrow_mut() = input;
+            unsafe {
+                SetWindowPos(
+                    panel.window,
+                    None,
+                    0,
+                    0,
+                    width,
+                    height,
+                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+                )
+                .unwrap();
+            }
+            let mut rect = RECT::default();
+            unsafe { GetClientRect(panel.window, &mut rect) }.unwrap();
+            let surface = Surface::new(rect.right, rect.bottom);
+            // Exercise the actual HWND callback and the same native GDI painter
+            // used for WM_PAINT; keep the window hidden throughout the capture.
+            unsafe {
+                SendMessageW(
+                    panel.window,
+                    WM_PRINTCLIENT,
+                    Some(WPARAM(surface.dc.0 as usize)),
+                    Some(LPARAM(PRF_CLIENT as isize)),
+                );
+                assert!(GdiFlush().as_bool());
+            }
+            assert!(
+                surface.ink_pixels(228, 0, rect.right, 40) > 10,
+                "{name}: composition title is outside the visible window"
+            );
+            if error || count == 0 {
+                assert!(
+                    surface.ink_pixels(12, 44, rect.right - 12, 84) > 10,
+                    "{name}: empty candidate state is invisible"
+                );
+                assert!(
+                    surface.ink_pixels(12, 88, rect.right - 12, 128) > 10,
+                    "{name}: raw-letter submission guidance is invisible"
+                );
+                assert_eq!(
+                    surface.ink_pixels(260, 44, rect.right, 128),
+                    0,
+                    "{name}: stale candidates are still visible during engine failure"
+                );
+            } else {
+                for slot in 0..count {
+                    let left = slot * l.column + 8;
+                    assert!(surface.ink_pixels(left, 44, left + l.column - 16, 84) > 10);
+                    assert!(surface.ink_pixels(left, 88, left + l.column - 16, 128) > 10);
+                }
+            }
+            surface.save_preview(name);
+            assert!(!unsafe { IsWindowVisible(panel.window) }.as_bool());
+        }
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+    }
 }
