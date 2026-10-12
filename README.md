@@ -146,6 +146,8 @@ Apple 翻译语言资源首次下载需要联网。系统框架的数据处理�
 
 macOS 由[项目发起人](https://github.com/jizw0704-source)主要维护，Windows 由 [Wright](https://github.com/LightningFlashEvE) 主要维护；拼音引擎、候选排序、词库与兼容接口由双方协作。平台分工、功能分支、检查命令与实机验证流程见 [协作维护说明](CONTRIBUTING.md)。
 
+Windows 日常开发使用 `codex/windows-dev` 分支，相关修改通过 Pull Request 请求合并到 `main`，由项目创建者或有权限的维护者审核后合并。
+
 ## 许可与文档同步
 
 本项目代码采用 **GPL-3.0-or-later**，见 [LICENSE](LICENSE)；当前中文词库及英文释义改编数据采用 **CC BY-SA 4.0**，词性索引另保留 **WordNet** 许可声明。第三方来源、数据构建及旧版审计见 [第三方来源](docs/THIRD_PARTY.md)；前期调查见 [历史调研](RESEARCH.md)。

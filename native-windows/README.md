@@ -64,6 +64,8 @@ Windows 0.1.8 的安装 EXE、SHA-256 文件、对应项目源码快照及试用
 
 ## 构建与检查
 
+Windows 日常开发使用 `codex/windows-dev` 分支，相关修改通过 Pull Request 请求合并到 `main`。每次提交只包含当前任务的改动，并记录自动检查与 Windows 实机验证范围；PR 合并后同步最新 `origin/main`。完整流程见 [协作维护说明](../CONTRIBUTING.md#开发与合并)。
+
 面向同事的安装形式为安装 EXE，使用 Inno Setup 6 构建，详见 [安装包与同事试用](../docs/PACKAGING.md#windows-构建与安装)。安装器沿用当前用户目录与文件校验流程，保留历史版本；已上传维护者 Release 草稿，尚未提供公开下载。引擎 EXE 与安装 EXE 是不同文件。
 
 准备 Windows 64 位 PowerShell、Git、Rustup、Python 3.10+，以及带 MSVC 与 Windows SDK 的 Visual Studio C++ 构建工具。执行：

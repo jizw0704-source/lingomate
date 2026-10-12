@@ -1,5 +1,9 @@
 # 灵果 · 开发进展
 
+## Windows 开发分支与 PR 流程 · 2026-10-12
+
+Windows 日常开发改用 `codex/windows-dev`，所有 Windows 相关修改通过 Pull Request 请求合并到 `main`，由项目创建者或有权限的维护者审核后合并。分支从最新远端 `main` 创建，原有未提交的 Windows 代码改动保留，本次仅整理协作规则，没有新增功能或实机验收结果。PR 合并后同步最新 `origin/main`，详见 [协作维护说明](../CONTRIBUTING.md#开发与合并)。
+
 ## 双平台协作维护 · 2026-10-12
 
 项目发起人主要维护 macOS，Wright（GitHub：LightningFlashEvE）主要维护 Windows。已核对 Wright 现有仓库 Write 写入权限；本轮整理协作说明及平台责任，共享桥接、词库、排序和接口兼容由双方协作。Windows 0.1.8 的实机试用由 Wright 推进，已有自动检查不替代真实输入验证。功能分支、检查命令和记录范围见 [协作维护说明](../CONTRIBUTING.md)。
