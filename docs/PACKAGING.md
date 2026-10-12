@@ -1,8 +1,18 @@
 # 安装包与同事试用
 
+## Windows 0.1.6 安装包草稿 · 2026-10-12
+
+已将 Windows 0.1.6 的五份附件新增至[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-9ba80405aa93c64cd308)：`lingomate-windows-x64-0.1.6-setup.exe`、SHA-256 校验文件、`lingomate-windows-0.1.6-project-source.zip` 及其校验文件、`lingomate-windows-0.1.6-trial-guide.txt`。Mac 0.12.7 及此前十五份附件身份、大小和摘要保持不变；当前两端试用版本为 Mac 0.12.7 / Windows 0.1.6，草稿仍未发布，更新清单未启用。
+
+[受控构建和上传](https://github.com/jizw0704-source/lingomate/actions/runs/38192767635)基于固定提交 `6909ba41262dbb8144c716ccbcad856fd9abe157`，构建引用为 `windows-draft-build-0.1.6-2026.10.12`。草稿目标同步为此 Windows 构建；Mac 对应源码仍由其独立快照交付。Windows 原生构建、格式／Clippy、单元与真实引擎回归、词库／词性许可和数据再生成、更新回归、DLL 生命周期、安装 EXE 编译和初始窗口检查均通过；未安装或登记 TSF。
+
+安装 EXE 为 5,480,288 字节，SHA-256 为 `4af61bef0a2032845e47ce313f25e2d144b22446a8e2ed087a39a1a854c0286d`。全部五份附件上传后下载回校验：字节、大小、GitHub 摘要和校验文件一致。源码 ZIP 只含固定提交的项目文件、构建脚本和来源说明，不混入本机修改、学习记录、账号或密钥；第三方源码和依赖通过固定准备脚本获取。本机保存于 `native-windows/package/installer-0.1.6/`。
+
+维护者可下载后将 EXE、校验文件、对应源码和试用说明转交 Windows 11 Intel／AMD x64 同事。发行签名、真实首次安装、实体键盘、本地学习计数、跨应用、高 DPI、升级／恢复及卸载仍待实机验收。草稿没有公开发布或自动更新步骤。
+
 ## Mac 0.12.7 安装包草稿 · 2026-10-12
 
-已将 Mac 0.12.7 / build 29 的五份附件上传至[既有双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-a9d7b0680001083dbb8f)：`lingomate-macos-arm64-0.12.7.dmg`、SHA-256 校验文件、`lingomate-macos-0.12.7-project-source.zip` 及其校验文件、`lingomate-macos-0.12.7-trial-guide.txt`。旧 Mac 0.12.2 和 Windows 0.1.4 的十份附件身份、大小与摘要保持一致，草稿仍为未发布预览。
+已将 Mac 0.12.7 / build 29 的五份附件上传至[既有双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-9ba80405aa93c64cd308)：`lingomate-macos-arm64-0.12.7.dmg`、SHA-256 校验文件、`lingomate-macos-0.12.7-project-source.zip` 及其校验文件、`lingomate-macos-0.12.7-trial-guide.txt`。旧 Mac 0.12.2 和 Windows 0.1.4 的十份附件身份、大小与摘要保持一致，草稿仍为未发布预览。
 
 DMG 为 5,787,789 字节，SHA-256 为 `3143a17b4fbcd42c813d4b9b372ada0908e7aeaf663ea44670524762b1477596`。镜像检查、只读挂载后 18 个应用文件与本机已安装版一致性、安装器和应用签名、七项隔离安装器测试、预览退出测试、词库来源及 NOTICE 检查通过。上传后重新下载全部五份附件，大小、逐字节内容、GitHub 摘要和校验文件一致。
 
@@ -37,7 +47,7 @@ Mac 新 DMG 位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.2.dmg
 
 ## Mac 0.12.2 内部试用包上传
 
-2026-10-11，已将 Mac 0.12.2 / build 24 的 DMG、SHA-256 文件、对应项目源码快照和试用说明补入[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-a9d7b0680001083dbb8f)。构建输入与固定提交 `699e5b7e7a89cb3f05c147e3de514228466497a9` 一致，项目源码快照只包含该提交已跟踪文件，第三方源码及依赖由固定准备脚本获取；不含本机未提交修改、个人数据或生成表。
+2026-10-11，已将 Mac 0.12.2 / build 24 的 DMG、SHA-256 文件、对应项目源码快照和试用说明补入[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-9ba80405aa93c64cd308)。构建输入与固定提交 `699e5b7e7a89cb3f05c147e3de514228466497a9` 一致，项目源码快照只包含该提交已跟踪文件，第三方源码及依赖由固定准备脚本获取；不含本机未提交修改、个人数据或生成表。
 
 本机转交副本位于 `native-macos/build/packages/trial-0.12.2/`，共五个文件。DMG 大小为 5,555,997 字节，SHA-256 为 `45a912105f85a50234237cc94dc312eaadbdd21b5bc0f00e51dec70490bcc53f`。五份附件下载回后与本地字节及 GitHub 摘要一致；镜像校验、只读挂载后的版本、18 个应用文件、两层签名及七项隔离安装检查通过。挂载已卸载，本轮未执行安装或重载输入服务。
 
@@ -47,7 +57,7 @@ Mac、Windows 各五份附件均保存在本草稿中，旧双平台草稿保留
 
 ## Windows 0.1.4 安装包保存与上传
 
-2026-10-10，[生成与上传流程](https://github.com/jizw0704-source/lingomate/actions/runs/38038928439)基于固定提交 `699e5b7e7a89cb3f05c147e3de514228466497a9` 重建 Windows MSVC 程序、核对词库及声明、通过候选／记忆／更新回归、安装 EXE 编译和初始窗口检查后，将 EXE 与校验文件上传至独立[维护者草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-a9d7b0680001083dbb8f)。原双平台草稿保留，旧 Mac 与 Windows 附件未覆盖。
+2026-10-10，[生成与上传流程](https://github.com/jizw0704-source/lingomate/actions/runs/38038928439)基于固定提交 `699e5b7e7a89cb3f05c147e3de514228466497a9` 重建 Windows MSVC 程序、核对词库及声明、通过候选／记忆／更新回归、安装 EXE 编译和初始窗口检查后，将 EXE 与校验文件上传至独立[维护者草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-9ba80405aa93c64cd308)。原双平台草稿保留，旧 Mac 与 Windows 附件未覆盖。
 
 本机副本位于 `native-windows/package/installer-0.1.4/`，安装文件为 `lingomate-windows-x64-0.1.4-setup.exe`，大小 5,327,681 字节。上传后下载回校验，文件与构建 `.sha256` 及 GitHub 附件摘要一致，SHA-256 为 `422f1377d2350793fa643bc9fcaecff95b57f7535337bbfc548105aff21246bb`。同目录保存项目源码快照、对应校验文件和 `lingomate-windows-0.1.4-trial-guide.txt`；它们也已附在草稿中。源码快照只包含上述提交的已跟踪项目文件，第三方源码与依赖通过固定准备脚本取得，不混入本机修改、个人数据或生成表。
 
