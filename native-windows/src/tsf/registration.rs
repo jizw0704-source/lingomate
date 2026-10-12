@@ -58,7 +58,7 @@ pub(super) fn register() -> Result<()> {
                 0x0804,
                 &PROFILE,
                 &wide("灵果 · LingoMate"),
-                &wide(""),
+                &wide(&path.to_string_lossy()),
                 0,
             )?;
             profiles.EnableLanguageProfile(&CLASS, 0x0804, &PROFILE, true)?;

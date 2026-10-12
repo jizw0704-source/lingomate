@@ -9,6 +9,7 @@ on:
       - 'native-windows/tools/**'
       - 'native-windows/packaging/**'
       - 'native-windows/Cargo.*'
+      - 'native-windows/build.rs'
       - 'prototype/bridge/**'
       - 'prototype/tests/engine_test.py'
       - 'prototype/tests/memory_test.py'
@@ -34,6 +35,7 @@ on:
       - 'native-windows/tools/**'
       - 'native-windows/packaging/**'
       - 'native-windows/Cargo.*'
+      - 'native-windows/build.rs'
       - 'prototype/bridge/**'
       - 'prototype/tests/engine_test.py'
       - 'prototype/tests/memory_test.py'
@@ -74,6 +76,9 @@ jobs:
       - name: Check scripts, formatting, lint, real engine and DLL lifetime
         shell: pwsh
         run: ./native-windows/tools/check.ps1 -SkipUpdates
+      - name: Check embedded icon and render isolated candidate windows
+        shell: pwsh
+        run: ./native-windows/tools/test-appearance.ps1 -Dll "$PWD/native-windows/package/windows-x64/lingomate_tsf.dll" -OutputDirectory "$PWD/native-windows/package"
       - name: Render isolated offline learning windows
         shell: pwsh
         run: ./native-windows/tools/test-learning-window.ps1 -Dll "$PWD/native-windows/package/windows-x64/lingomate_tsf.dll" -OutputDirectory "$PWD/native-windows/package"
@@ -92,5 +97,7 @@ jobs:
             native-windows/package/update-preview*.png
             native-windows/package/installer-preview.png
             native-windows/package/learning-preview-*.png
+            native-windows/package/candidate-preview-*.png
+            native-windows/package/input-icon.png
           retention-days: 7
       # Full dictionaries and local install packages are not published by this workflow.

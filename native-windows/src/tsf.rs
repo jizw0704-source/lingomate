@@ -96,11 +96,25 @@ fn decode(vk: usize, composing: bool) -> Option<Key> {
         0x21 | 0xBD if composing && !shift => Some(Key::Previous),
         0x22 | 0xBB if composing && !shift => Some(Key::Next),
         0x31..=0x35 if composing && !shift => Some(Key::Digit(vk - 0x31)),
-        0xBC if !shift => Some(Key::Punctuation(',')),
-        0xBE if !shift => Some(Key::Punctuation('.')),
-        0xBF if shift => Some(Key::Punctuation('?')),
+        0x30 if shift => Some(Key::Punctuation(')')),
+        0x39 if shift => Some(Key::Punctuation('(')),
+        0x32 if shift => Some(Key::Punctuation('@')),
+        0xDB => Some(Key::Punctuation('[')),
+        0xDD => Some(Key::Punctuation(']')),
+        0xDE => Some(Key::Punctuation(if shift { '"' } else { '\'' })),
+        0xDC => Some(Key::Punctuation('\\')),
+        0xBD if shift => Some(Key::Punctuation('_')),
+        0xBC => Some(Key::Punctuation(if shift { '<' } else { ',' })),
+        0xBE => Some(Key::Punctuation(if shift { '>' } else { '.' })),
+        0xBF => Some(Key::Punctuation(if shift { '?' } else { '/' })),
         0x31 if shift => Some(Key::Punctuation('!')),
         0xBA => Some(Key::Punctuation(if shift { ':' } else { ';' })),
+        0x30..=0x39 if !composing && !shift => Some(Key::Literal(vk as u8 as char)),
+        0x60..=0x69 if !composing => Some(Key::Literal((vk as u8 - 0x60 + b'0') as char)),
+        0x6E if !composing => Some(Key::Punctuation('.')),
+        0x20 if !composing => Some(Key::Literal(' ')),
+        0xBD if !composing => Some(Key::Literal('-')),
+        0xBB if !composing => Some(Key::Literal(if shift { '+' } else { '=' })),
         _ => None,
     }
 }
@@ -112,6 +126,7 @@ struct State {
     panel: RefCell<Option<panel::Panel>>,
     client: Cell<u32>,
     show_pos: Cell<bool>,
+    display: Cell<crate::preferences::Display>,
     memory_warning: Cell<bool>,
 }
 impl State {
@@ -124,6 +139,7 @@ impl State {
             panel: RefCell::new(None),
             client: Cell::new(0),
             show_pos: Cell::new(crate::preferences::load()),
+            display: Cell::new(crate::preferences::display()),
             memory_warning: Cell::new(false),
         })
     }
@@ -181,14 +197,31 @@ impl State {
                 input.handle(key, engine)
             } else {
                 match key {
-                    Key::Letter(ch) if input.raw.len() < 240 => input.raw.push(ch),
-                    Key::Backspace => {
-                        input.raw.pop();
+                    Key::Literal(ch) if input.raw.is_empty() => {
+                        input.punctuation.observe_literal(&ch.to_string());
+                        Ok(Some(ch.to_string()))
                     }
-                    Key::Escape => input.reset(),
-                    _ => {}
+                    Key::Punctuation(ch) if input.raw.is_empty() => {
+                        let mode = input.punctuation_mode;
+                        Ok(input.punctuation.render(ch, mode))
+                    }
+                    Key::Letter(ch) if input.raw.is_empty() && input.punctuation.is_latin() => {
+                        input.punctuation.observe_literal(&ch.to_string());
+                        Ok(Some(ch.to_string()))
+                    }
+                    _ => {
+                        match key {
+                            Key::Letter(ch) if input.raw.len() < 240 => input.raw.push(ch),
+                            Key::Backspace => {
+                                input.raw.pop();
+                                input.punctuation.reset_context();
+                            }
+                            Key::Escape => input.reset(),
+                            _ => {}
+                        }
+                        Err("Engine unavailable".into())
+                    }
                 }
-                Err("Engine unavailable".into())
             };
             match result {
                 Ok(text) => text,
@@ -223,6 +256,7 @@ impl State {
     }
     fn finish(self: &Rc<Self>) {
         self.finish_memory();
+        self.input.borrow_mut().punctuation.reset_context();
         let terminated = self
             .document
             .borrow()
@@ -323,6 +357,7 @@ impl ITfKeyEventSink_Impl for Service_Impl {
         guarded(|| {
             if foreground.as_bool() {
                 self.state.show_pos.set(crate::preferences::load());
+                self.state.display.set(crate::preferences::display());
             }
             self.shift.set(None);
             if !foreground.as_bool() {
@@ -345,6 +380,7 @@ impl ITfKeyEventSink_Impl for Service_Impl {
             };
             if blocked(context) || self.state.input.borrow().english || command_modifier() {
                 self.state.cancel_memory();
+                self.state.input.borrow_mut().punctuation.reset_context();
                 if !blocked(context)
                     && (updates::shortcut(key.0) || panel::settings_shortcut(key.0))
                 {
@@ -354,6 +390,9 @@ impl ITfKeyEventSink_Impl for Service_Impl {
             }
             let decoded = decode(key.0, !self.state.input.borrow().raw.is_empty());
             if decoded.is_none() {
+                if !matches!(key.0, 0x10 | 0xA0 | 0xA1) {
+                    self.state.input.borrow_mut().punctuation.reset_context();
+                }
                 if key.0 == 0x20 || key.0 == 0x0D {
                     self.state.finish_memory();
                 } else {
@@ -401,7 +440,13 @@ impl ITfKeyEventSink_Impl for Service_Impl {
                 self.state.finish();
                 let mut input = self.state.input.borrow_mut();
                 input.english = !input.english;
-                input.last_english = false;
+                input.last_english = input.english;
+                let language = if input.english {
+                    crate::punctuation::Language::English
+                } else {
+                    crate::punctuation::Language::Chinese
+                };
+                input.punctuation.confirm(language);
             }
             Ok(FALSE)
         })
@@ -427,6 +472,7 @@ impl ITfThreadMgrEventSink_Impl for Service_Impl {
     ) -> Result<()> {
         guarded(|| {
             self.state.show_pos.set(crate::preferences::load());
+            self.state.display.set(crate::preferences::display());
             self.shift.set(None);
             self.state.finish();
             if let Ok(manager) = manager.ok()

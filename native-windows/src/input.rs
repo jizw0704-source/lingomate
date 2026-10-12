@@ -1,4 +1,5 @@
 use crate::bridge::{Bridge, Confirmation, Frame};
+use crate::punctuation::{Action, Language, Mode, Punctuation};
 use serde_json::json;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -15,6 +16,7 @@ pub const PAGE_SIZE: usize = 5;
 #[derive(Clone, Copy, Debug)]
 pub enum Key {
     Letter(char),
+    Literal(char),
     Backspace,
     Space(bool),
     Return,
@@ -41,6 +43,8 @@ pub struct Input {
     pub pending_memory: Option<Confirmation>,
     pub memory_context: String,
     pub remember: bool,
+    pub punctuation: Punctuation,
+    pub punctuation_mode: Mode,
 }
 impl Default for Input {
     fn default() -> Self {
@@ -57,6 +61,8 @@ impl Default for Input {
             pending_memory: None,
             memory_context: memory_context(),
             remember: true,
+            punctuation: Punctuation::default(),
+            punctuation_mode: Mode::default(),
         }
     }
 }
@@ -81,6 +87,7 @@ impl Input {
         self.frame.candidates.len().div_ceil(PAGE_SIZE)
     }
     pub fn reset(&mut self) {
+        self.punctuation.reset_context();
         self.raw.clear();
         self.frame = Frame::default();
         self.selected = 0;
@@ -93,20 +100,34 @@ impl Input {
     pub fn raw_commit(&mut self) -> String {
         let text = self.raw.clone();
         self.reset();
-        self.last_english = true;
+        if !text.is_empty() {
+            self.last_english = true;
+            self.punctuation.confirm(Language::English);
+        }
         text
     }
     pub fn handle(&mut self, key: Key, engine: &mut Bridge) -> Result<Option<String>, String> {
         self.pending_study = None;
         self.pending_memory = None;
         match key {
+            Key::Literal(ch) => {
+                self.finish_memory(engine);
+                self.punctuation.observe_literal(&ch.to_string());
+                return Ok(Some(ch.to_string()));
+            }
             Key::Letter(ch) => {
+                if self.punctuation.is_latin() && self.raw.is_empty() {
+                    self.finish_memory(engine);
+                    self.punctuation.observe_literal(&ch.to_string());
+                    return Ok(Some(ch.to_string()));
+                }
                 if self.raw.len() < 240 && (ch.is_ascii_alphabetic() || ch == '\'') {
                     self.raw.push(ch);
                     self.refresh(engine)?;
                 }
             }
             Key::Backspace => {
+                self.punctuation.reset_context();
                 self.break_memory(engine);
                 self.raw.pop();
                 self.refresh(engine)?;
@@ -165,29 +186,31 @@ impl Input {
             }
             Key::Space(english) => return self.commit(engine, english),
             Key::Punctuation(ch) => {
-                let chosen = if self.raw.is_empty() {
-                    None
-                } else {
-                    self.commit(engine, false)?
+                let Some(action) = Punctuation::action(
+                    ch,
+                    &self.normalized(),
+                    !self.frame.candidates.is_empty(),
+                    self.punctuation_mode,
+                ) else {
+                    return self.handle(Key::Letter(ch), engine);
+                };
+                let chosen = match action {
+                    Action::Symbol => None,
+                    Action::Raw => {
+                        let raw = self.raw_commit();
+                        self.punctuation.observe_literal(&raw);
+                        Some(raw)
+                    }
+                    Action::CommitChinese => self.commit(engine, false)?,
                 };
                 if !self.raw.is_empty() {
                     return Ok(chosen);
                 }
-                let punctuation = if self.last_english {
-                    ch
-                } else {
-                    match ch {
-                        ',' => '，',
-                        '.' => '。',
-                        '?' => '？',
-                        '!' => '！',
-                        ':' => '：',
-                        ';' => '；',
-                        _ => ch,
-                    }
+                let Some(punctuation) = self.punctuation.render(ch, self.punctuation_mode) else {
+                    return Ok(chosen);
                 };
                 if let Some(receipt) = &mut self.pending_memory {
-                    receipt.output.push(punctuation);
+                    receipt.output.push_str(&punctuation);
                     receipt.boundary_after = true;
                 }
                 let receipt = self.pending_memory.take();
@@ -277,6 +300,11 @@ impl Input {
         self.sense = 0;
         self.expanded = false;
         self.last_english = english;
+        self.punctuation.confirm(if english {
+            Language::English
+        } else {
+            Language::Chinese
+        });
         Ok(result.committed)
     }
 }

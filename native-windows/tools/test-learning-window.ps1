@@ -14,8 +14,8 @@ public static class LearningPreview {
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder text, int count);
 }
 '@
-foreach ($Kind in @('wide', 'narrow')) {
-    $Entry = if ($Kind -eq 'wide') { 'LingoMateLearningPreviewW' } else { 'LingoMateLearningNarrowPreviewW' }
+foreach ($Kind in @('wide', 'narrow', 'dark', 'dark-narrow')) {
+    $Entry = switch ($Kind) { 'wide' { 'LingoMateLearningPreviewW' } 'narrow' { 'LingoMateLearningNarrowPreviewW' } 'dark' { 'LingoMateLearningDarkPreviewW' } 'dark-narrow' { 'LingoMateLearningDarkNarrowPreviewW' } }
     $Process = Start-Process -FilePath (Join-Path $env:WINDIR 'System32/rundll32.exe') -ArgumentList ('"' + (Resolve-Path $Dll).Path + '",' + $Entry) -PassThru
     try {
         $Deadline = [DateTime]::UtcNow.AddSeconds(15)
