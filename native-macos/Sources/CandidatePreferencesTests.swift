@@ -13,6 +13,18 @@ enum CandidatePreferencesTests {
       precondition(store.synchronize())
       precondition(CandidatePreferences(store: store).showPartOfSpeech == show)
     }
+    precondition(CandidatePreferences(store: store).fontSize == .standard)
+    for invalid: Any in [0, 17, 100, "large"] {
+      store.set(invalid, forKey: CandidatePreferences.fontKey)
+      precondition(CandidatePreferences(store: store).fontSize == .standard)
+    }
+    for size in CandidateFontSize.allCases {
+      CandidatePreferences(store: store).selectFont(size)
+      precondition(store.synchronize())
+      let readback = CandidatePreferences(store: store)
+      precondition(readback.fontSize == size)
+      precondition(abs(readback.scaled(18) - CGFloat(size.rawValue)) < 0.01)
+    }
     let saved = CandidatePreferences.current
     CandidatePreferences.current = CandidatePreferences()
     defer { CandidatePreferences.current = saved }

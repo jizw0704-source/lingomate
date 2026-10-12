@@ -4,11 +4,13 @@ import AppKit
 enum SettingsTests {
   static func run() {
     CandidatePreferencesTests.run()
+    CandidateFontTests.run()
     for value in [
       InputSetting.typing(.chinese), .typing(.english), .bilingual(true), .bilingual(false),
       .punctuation(.automatic), .punctuation(.chinese), .punctuation(.english),
       .remember(true), .remember(false),
       .showPOS(true), .showPOS(false),
+      .fontSize(.small), .fontSize(.standard), .fontSize(.large), .fontSize(.extraLarge),
     ] {
       precondition(InputSetting(payload: value.payload)?.payload == value.payload)
     }
@@ -17,6 +19,8 @@ enum SettingsTests {
       ["setting": "punctuation", "value": "3"], ["setting": "endpoint", "value": "test"],
       ["setting": "bilingual", "value": "on", "text": "not allowed"],
       ["setting": "pos", "value": "中文"],
+      ["setting": "fontSize", "value": "17"], ["setting": "fontSize", "value": "018"],
+      ["setting": "fontSize", "value": "large"],
     ] { precondition(InputSetting(payload: value) == nil) }
     precondition(InputSettingsSnapshot(payload: [:]) == nil)
     let client = SettingsInputClient(preview: true)
@@ -63,6 +67,13 @@ enum SettingsTests {
       english.performClick(nil)
       precondition(controller.input.snapshot?.typing == .chinese)
       controller.select(.appearance)
+      for size in CandidateFontSize.allCases {
+        let button = allViews(controller.window.contentView!).compactMap { $0 as? ActionButton }
+          .first { $0.accessibilityLabel() == "候选栏字体：" + size.title }!
+        button.performClick(nil)
+        precondition(controller.input.snapshot?.fontSize == size)
+      }
+      controller.input.request(.fontSize(.standard))
       let dark = allViews(controller.window.contentView!).compactMap { $0 as? ActionButton }
         .first { $0.title == "黑色" }!
       dark.performClick(nil)
