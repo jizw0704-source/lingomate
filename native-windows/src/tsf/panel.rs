@@ -6,6 +6,23 @@ use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{Result, w};
 
+const PANEL_WIDTH: i32 = 560;
+
+fn panel_size(input: &crate::input::Input) -> (i32, i32) {
+    let extra = if input.expanded && !input.error {
+        input
+            .frame
+            .candidates
+            .get(input.selected)
+            .map_or(0, |c| c.translations.len().min(6))
+    } else {
+        0
+    };
+    // The five toolbar targets occupy 220 px before the composition title.
+    // Keep that title visible even on an empty or short final candidate page.
+    (PANEL_WIDTH, 132 + extra as i32 * 44)
+}
+
 pub(super) struct Panel {
     window: HWND,
     owner: *mut Weak<State>,
@@ -36,7 +53,7 @@ impl Panel {
                 WS_POPUP | WS_BORDER,
                 40,
                 40,
-                560,
+                PANEL_WIDTH,
                 132,
                 None,
                 None,
@@ -65,29 +82,15 @@ impl Panel {
             self.hide();
             return;
         }
-        let count = input
-            .frame
-            .candidates
-            .len()
-            .saturating_sub(input.page() * 5)
-            .min(5);
-        let extra = if input.expanded {
-            input
-                .frame
-                .candidates
-                .get(input.selected)
-                .map_or(0, |c| c.translations.len().min(6))
-        } else {
-            0
-        };
+        let (width, height) = panel_size(&input);
         unsafe {
             let _ = SetWindowPos(
                 self.window,
                 Some(HWND_TOPMOST),
                 0,
                 0,
-                (count.max(2) * 112) as i32,
-                132 + extra as i32 * 44,
+                width,
+                height,
                 SWP_NOMOVE | SWP_NOACTIVATE,
             );
             let _ = InvalidateRect(Some(self.window), None, false);
@@ -152,6 +155,18 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
             paint(window, &state);
             return LRESULT(0);
         }
+        if message == WM_PRINTCLIENT {
+            let mut rect = RECT::default();
+            if unsafe { GetClientRect(window, &mut rect) }.is_ok() {
+                draw(
+                    HDC(wparam.0 as *mut _),
+                    &rect,
+                    &state.input.borrow(),
+                    state.show_pos.get(),
+                );
+            }
+            return LRESULT(0);
+        }
         if message == WM_LBUTTONUP {
             let x = (lparam.0 as u16) as i16 as i32;
             let y = ((lparam.0 >> 16) as u16) as i16 as i32;
@@ -214,6 +229,15 @@ fn text_height(dc: HDC, content: &str, x: i32, y: i32, width: i32, height: i32, 
 fn paint(window: HWND, state: &Rc<State>) {
     let mut ps = PAINTSTRUCT::default();
     let dc = unsafe { BeginPaint(window, &mut ps) };
+    let mut rect = RECT::default();
+    if unsafe { GetClientRect(window, &mut rect) }.is_ok() {
+        draw(dc, &rect, &state.input.borrow(), state.show_pos.get());
+    }
+    unsafe {
+        let _ = EndPaint(window, &ps);
+    }
+}
+fn draw(dc: HDC, rect: &RECT, input: &crate::input::Input, show_pos: bool) {
     let font = unsafe {
         CreateFontW(
             -14,
@@ -234,17 +258,17 @@ fn paint(window: HWND, state: &Rc<State>) {
     };
     let original = unsafe { SelectObject(dc, font.into()) };
     unsafe {
-        FillRect(dc, &ps.rcPaint, HBRUSH(GetStockObject(WHITE_BRUSH).0));
+        FillRect(dc, rect, HBRUSH(GetStockObject(WHITE_BRUSH).0));
         SetBkMode(dc, TRANSPARENT);
     }
-    let input = state.input.borrow();
     text(dc, "‹", 16, 0, 28, COLORREF(0x101010));
     text(dc, "›", 60, 0, 28, COLORREF(0x101010));
     text(dc, "译法", 90, 0, 44, COLORREF(0x101010));
     text(dc, "更新", 138, 0, 44, COLORREF(0x101010));
     text(dc, "设置", 180, 0, 44, COLORREF(0x101010));
-    let title = if input.error {
-        format!("{} · 引擎未连接 · 回车提交字母", input.raw)
+    let empty = input.error || input.frame.candidates.is_empty();
+    let title = if empty {
+        input.raw.clone()
     } else {
         format!(
             "{}   {}/{}",
@@ -254,12 +278,34 @@ fn paint(window: HWND, state: &Rc<State>) {
         )
     };
     text(dc, &title, 228, 0, 322, COLORREF(0x4A4A4A));
+    if empty {
+        text(
+            dc,
+            if input.error {
+                "引擎暂不可用"
+            } else {
+                "未找到候选"
+            },
+            12,
+            44,
+            PANEL_WIDTH - 24,
+            COLORREF(0x101010),
+        );
+        text(
+            dc,
+            "回车可提交原样字母",
+            12,
+            88,
+            PANEL_WIDTH - 24,
+            COLORREF(0x4A4A4A),
+        );
+    }
     for (slot, candidate) in input
         .frame
         .candidates
         .iter()
         .skip(input.page() * 5)
-        .take(5)
+        .take(if empty { 0 } else { 5 })
         .enumerate()
     {
         let x = slot as i32 * 112;
@@ -288,7 +334,7 @@ fn paint(window: HWND, state: &Rc<State>) {
             COLORREF(0x101010),
         );
         if let Some(translation) = candidate.translations.first() {
-            let pos = translation.visible_pos(state.show_pos.get());
+            let pos = translation.visible_pos(show_pos);
             if pos.is_empty() {
                 text(dc, &translation.word, x + 8, 88, 96, COLORREF(0x4A4A4A));
             } else {
@@ -320,7 +366,8 @@ fn paint(window: HWND, state: &Rc<State>) {
             }
         }
     }
-    if input.expanded
+    if !empty
+        && input.expanded
         && let Some(candidate) = input.frame.candidates.get(input.selected)
     {
         for (row, sense) in candidate
@@ -333,11 +380,7 @@ fn paint(window: HWND, state: &Rc<State>) {
             let marker = if row == input.sense { "› " } else { "  " };
             text(
                 dc,
-                &format!(
-                    "{marker}{} · {}",
-                    sense.display_word(state.show_pos.get()),
-                    sense.note
-                ),
+                &format!("{marker}{} · {}", sense.display_word(show_pos), sense.note),
                 12,
                 132 + (row % 6) as i32 * 44,
                 530,
@@ -348,7 +391,6 @@ fn paint(window: HWND, state: &Rc<State>) {
     unsafe {
         SelectObject(dc, original);
         let _ = DeleteObject(font.into());
-        let _ = EndPaint(window, &ps);
     }
 }
 
@@ -429,5 +471,199 @@ fn settings(window: HWND, state: &Rc<State>) {
             }
         }
         let _ = InvalidateRect(Some(window), None, false);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bridge::{Candidate, Translation};
+    use crate::input::Input;
+    use std::ffi::c_void;
+
+    struct Surface {
+        dc: HDC,
+        bitmap: HBITMAP,
+        original: HGDIOBJ,
+        bits: *mut c_void,
+        width: i32,
+        height: i32,
+    }
+    impl Surface {
+        fn new(width: i32, height: i32) -> Self {
+            let dc = unsafe { CreateCompatibleDC(None) };
+            assert!(!dc.is_invalid(), "Preview device context unavailable");
+            let info = BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: width,
+                    biHeight: -height,
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: BI_RGB.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let mut bits = std::ptr::null_mut();
+            let bitmap =
+                unsafe { CreateDIBSection(Some(dc), &info, DIB_RGB_COLORS, &mut bits, None, 0) }
+                    .expect("Preview bitmap unavailable");
+            let original = unsafe { SelectObject(dc, bitmap.into()) };
+            Self {
+                dc,
+                bitmap,
+                original,
+                bits,
+                width,
+                height,
+            }
+        }
+        fn pixels(&self) -> &[u8] {
+            unsafe {
+                std::slice::from_raw_parts(
+                    self.bits.cast(),
+                    (self.width * self.height * 4) as usize,
+                )
+            }
+        }
+        fn dark_pixels(&self, left: i32, top: i32, right: i32, bottom: i32) -> usize {
+            let pixels = self.pixels();
+            (top..bottom.min(self.height))
+                .flat_map(|y| (left..right.min(self.width)).map(move |x| (x, y)))
+                .filter(|(x, y)| {
+                    let offset = ((y * self.width + x) * 4) as usize;
+                    pixels[offset..offset + 3].iter().any(|value| *value < 128)
+                })
+                .count()
+        }
+        fn save_preview(&self, name: &str) {
+            // Optional artifacts contain only the synthetic inputs below. Normal
+            // test runs create no files and never open an input source or engine.
+            let Some(directory) = std::env::var_os("LINGOMATE_CANDIDATE_PREVIEW_DIR") else {
+                return;
+            };
+            let directory = std::path::PathBuf::from(directory);
+            std::fs::create_dir_all(&directory).unwrap();
+            let pixels = self.pixels();
+            let mut bytes = Vec::with_capacity(54 + pixels.len());
+            bytes.extend_from_slice(b"BM");
+            bytes.extend_from_slice(&(54 + pixels.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(&[0; 4]);
+            bytes.extend_from_slice(&54u32.to_le_bytes());
+            bytes.extend_from_slice(&40u32.to_le_bytes());
+            bytes.extend_from_slice(&self.width.to_le_bytes());
+            bytes.extend_from_slice(&(-self.height).to_le_bytes());
+            bytes.extend_from_slice(&1u16.to_le_bytes());
+            bytes.extend_from_slice(&32u16.to_le_bytes());
+            bytes.extend_from_slice(&0u32.to_le_bytes());
+            bytes.extend_from_slice(&(pixels.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(&[0; 16]);
+            bytes.extend_from_slice(pixels);
+            std::fs::write(directory.join(format!("candidates-{name}.bmp")), bytes).unwrap();
+        }
+    }
+    impl Drop for Surface {
+        fn drop(&mut self) {
+            unsafe {
+                SelectObject(self.dc, self.original);
+                let _ = DeleteObject(self.bitmap.into());
+                let _ = DeleteDC(self.dc);
+            }
+        }
+    }
+
+    #[test]
+    fn hidden_candidate_window_renders_empty_status_and_short_page_headers() {
+        let foreground = unsafe { GetForegroundWindow() };
+        let state = State::with_display_preferences(false);
+        let panel =
+            Panel::new(Rc::downgrade(&state)).expect("Isolated candidate window unavailable");
+        assert!(!unsafe { IsWindowVisible(panel.window) }.as_bool());
+        let style = unsafe { GetWindowLongPtrW(panel.window, GWL_EXSTYLE) } as u32;
+        assert_ne!(style & WS_EX_NOACTIVATE.0, 0);
+        assert_ne!(style & WS_EX_TOOLWINDOW.0, 0);
+        for (name, error, count) in [
+            ("engine-unavailable", true, 0),
+            ("engine-unavailable-stale", true, 3),
+            ("no-match", false, 0),
+            ("one", false, 1),
+            ("two", false, 2),
+            ("three", false, 3),
+            ("four", false, 4),
+            ("five", false, 5),
+        ] {
+            let mut input = Input {
+                raw: "wode".into(),
+                error,
+                ..Default::default()
+            };
+            input.frame.candidates = (0..count)
+                .map(|_| Candidate {
+                    text: "我的".into(),
+                    translations: vec![Translation {
+                        word: "my".into(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                })
+                .collect();
+            let (width, height) = panel_size(&input);
+            *state.input.borrow_mut() = input;
+            unsafe {
+                SetWindowPos(
+                    panel.window,
+                    None,
+                    0,
+                    0,
+                    width,
+                    height,
+                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+                )
+                .unwrap();
+            }
+            let mut rect = RECT::default();
+            unsafe { GetClientRect(panel.window, &mut rect) }.unwrap();
+            let surface = Surface::new(rect.right, rect.bottom);
+            // Exercise the actual HWND callback and the same native GDI painter
+            // used for WM_PAINT; keep the window hidden throughout the capture.
+            unsafe {
+                SendMessageW(
+                    panel.window,
+                    WM_PRINTCLIENT,
+                    Some(WPARAM(surface.dc.0 as usize)),
+                    Some(LPARAM(PRF_CLIENT as isize)),
+                );
+                assert!(GdiFlush().as_bool());
+            }
+            assert!(
+                surface.dark_pixels(228, 0, rect.right, 40) > 10,
+                "{name}: composition title is outside the visible window"
+            );
+            if error || count == 0 {
+                assert!(
+                    surface.dark_pixels(12, 44, rect.right - 12, 84) > 10,
+                    "{name}: empty candidate state is invisible"
+                );
+                assert!(
+                    surface.dark_pixels(12, 88, rect.right - 12, 128) > 10,
+                    "{name}: raw-letter submission guidance is invisible"
+                );
+                assert_eq!(
+                    surface.dark_pixels(160, 44, rect.right, 128),
+                    0,
+                    "{name}: stale candidates are still visible during engine failure"
+                );
+            } else {
+                for slot in 0..count {
+                    let left = slot * 112 + 8;
+                    assert!(surface.dark_pixels(left, 44, left + 96, 84) > 10);
+                    assert!(surface.dark_pixels(left, 88, left + 96, 128) > 10);
+                }
+            }
+            surface.save_preview(name);
+            assert!(!unsafe { IsWindowVisible(panel.window) }.as_bool());
+        }
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
     }
 }
