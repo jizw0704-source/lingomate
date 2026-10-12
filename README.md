@@ -101,6 +101,8 @@ macOS 由[项目发起人](https://github.com/jizw0704-source)主要维护，Win
 
 Windows 日常开发使用 `codex/windows-dev` 分支，相关修改通过 Pull Request 请求合并到 `main`，由项目创建者或有权限的维护者审核后合并。每次 PR 说明改动、测试结果和实际验证范围；共享变更同时检查两端兼容性。详细分工与流程见 [协作维护说明](CONTRIBUTING.md)。
 
+Mac 新功能通过 PR 提供参考实现，再使用 [Mac 新功能同步到 Windows 任务模板](https://github.com/jizw0704-source/lingomate/issues/new?template=macos-to-windows.md)交接给 Wright。任务集中记录用户行为、参考代码及共同验收用例，分别跟踪 Mac 完成、Windows 实现和 Windows 实机验证。完整步骤见 [功能同步流程](CONTRIBUTING.md#mac-新功能同步到-windows)。
+
 | 目录 | 内容 |
 | --- | --- |
 | `native-windows/` | Rust Windows TSF 客户端、候选窗口与构建／安装脚本 |
