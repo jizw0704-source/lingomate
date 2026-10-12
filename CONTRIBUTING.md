@@ -12,7 +12,9 @@ macOS 主要位于 `native-macos/`，Windows 主要位于 `native-windows/`。�
 
 ## 开发与合并
 
-建议各自在功能分支开发，例如 `macos/<功能名>`、`windows/<功能名>` 或 `shared/<功能名>`，通过 Pull Request 合并。说明具体改动、测试结果和实际验证范围；共享改动建议由另一平台维护者复核。
+Windows 日常开发使用 `codex/windows-dev` 分支，所有 Windows 相关修改通过 Pull Request 请求合并到 `main`，不直接推送到 `main`。PR 的目标分支（base）为 `main`，来源分支（head）为 `codex/windows-dev`；项目创建者或有权限的维护者审核后合并。未经用户明确要求，不自动合并 PR。
+
+每次 PR 聚焦一项修改，说明具体改动、测试结果和实际验证范围；已有未提交改动只在属于本次任务时纳入提交。PR 合并后，在工作区干净时将最新 `origin/main` 合并回 `codex/windows-dev`，再开始下一项修改。macOS 和共享改动可使用各自的功能分支，例如 `codex/macos-<功能名>` 或 `codex/shared-<功能名>`；共享改动建议由另一平台维护者复核。
 
 共享请求／响应字段、个人词库格式、词库转换与排序规则变更，需要同时检查两端兼容性。平台特有问题可以先在对应客户端修复，并在说明中记录另一平台的影响。版本号分别维护，使用相同的功能名称与验证用例对照进度。
 
