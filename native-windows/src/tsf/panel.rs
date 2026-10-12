@@ -162,6 +162,9 @@ impl Panel {
     }
     pub fn hide(&self) {
         self.pressed.set(None);
+        if unsafe { windows::Win32::UI::Input::KeyboardAndMouse::GetCapture() } == self.window {
+            let _ = unsafe { windows::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture() };
+        }
         unsafe {
             let _ = ShowWindow(self.window, SW_HIDE);
         }
@@ -249,7 +252,17 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
             }
             return LRESULT(0);
         }
+        if message == WM_CAPTURECHANGED {
+            if let Some(panel) = state.panel.borrow().as_ref() {
+                panel.pressed.set(None);
+            }
+            return LRESULT(0);
+        }
         if message == WM_LBUTTONDOWN {
+            unsafe {
+                windows::Win32::UI::Input::KeyboardAndMouse::SetCapture(window);
+            }
+            let _ = unsafe { InvalidateRect(Some(window), None, false) };
             if let Some(panel) = state.panel.borrow().as_ref() {
                 panel.pressed.set(Some((
                     (lparam.0 as u16) as i16 as i32,
@@ -262,6 +275,13 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
             let x = (lparam.0 as u16) as i16 as i32;
             let y = ((lparam.0 >> 16) as u16) as i16 as i32;
             let pressed = state.panel.borrow().as_ref().and_then(|p| p.pressed.take());
+            if unsafe { windows::Win32::UI::Input::KeyboardAndMouse::GetCapture() } == window {
+                let _ = unsafe { windows::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture() };
+            }
+            let _ = unsafe { InvalidateRect(Some(window), None, false) };
+            if state.preview {
+                return LRESULT(0);
+            }
             let l = layout(window, &state);
             if pressed.is_none() {
                 return LRESULT(0);
@@ -384,6 +404,7 @@ fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
         );
     }
     let hovered = state.panel.borrow().as_ref().and_then(|p| p.hovered.get());
+    let pressed = state.panel.borrow().as_ref().and_then(|p| p.pressed.get());
     let input = state.input.borrow();
     let title = if input.error {
         format!("{} · 引擎未连接 · 回车提交字母", input.raw)
@@ -433,6 +454,26 @@ fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
                 },
                 palette.selected,
             );
+        }
+        if selected
+            || pressed
+                .and_then(|(x, y)| l.hit(x, y))
+                .is_some_and(|(clicked, _)| clicked == slot)
+        {
+            let brush = unsafe { CreateSolidBrush(palette.foreground) };
+            unsafe {
+                FrameRect(
+                    dc,
+                    &RECT {
+                        left: x + px(1, dpi),
+                        top: y + px(1, dpi),
+                        right: x + l.column - px(1, dpi),
+                        bottom: y + l.row * 2 - px(1, dpi),
+                    },
+                    brush,
+                );
+                let _ = DeleteObject(brush.into());
+            }
         }
         let foreground = if selected {
             palette.selected_text
@@ -545,6 +586,9 @@ pub(super) fn settings_shortcut(key: usize) -> bool {
     key == 0x50 && down(0x11) && down(0x10) && !down(0x12) && !down(0x5B) && !down(0x5C)
 }
 fn settings(window: HWND, state: &Rc<State>) {
+    if state.preview {
+        return;
+    }
     // Native checked menu; no activation or host text access. Cancel makes no change.
     let Ok(menu) = (unsafe { CreatePopupMenu() }) else {
         return;
@@ -711,39 +755,7 @@ fn preview(
     size: u32,
     narrow: bool,
 ) -> Result<()> {
-    use crate::bridge::{Candidate, Translation};
-    let state = Rc::new(State {
-        input: std::cell::RefCell::new(crate::input::Input::default()),
-        engine: std::cell::RefCell::new(None),
-        retry_after: Cell::new(None),
-        document: std::cell::RefCell::new(None),
-        panel: std::cell::RefCell::new(None),
-        client: Cell::new(0),
-        show_pos: Cell::new(true),
-        display: Cell::new(crate::preferences::Display { theme, font: size }),
-        memory_warning: Cell::new(false),
-    });
-    {
-        let mut input = state.input.borrow_mut();
-        input.raw = "xuexi".into();
-        input.expanded = true;
-        input.frame.candidates = ["学习", "学系", "学戏", "雪溪", "雪西"]
-            .iter()
-            .map(|s| Candidate {
-                text: (*s).into(),
-                syllables: vec!["xue".into(), "xi".into()],
-                translations: ["study", "learn", "learning"]
-                    .iter()
-                    .map(|word| Translation {
-                        word: (*word).into(),
-                        pos: "v.".into(),
-                        note: "学习；研究".into(),
-                        example: String::new(),
-                    })
-                    .collect(),
-            })
-            .collect();
-    }
+    let state = preview_state(theme, size);
     let panel = Panel::new(Rc::downgrade(&state))?;
     let window = panel.window;
     if narrow {
@@ -814,4 +826,62 @@ pub extern "system" fn LingoMateCandidateNarrowPreviewW(
 ) {
     let _ =
         std::panic::catch_unwind(|| preview(instance, crate::preferences::Theme::Dark, 22, true));
+}
+
+fn preview_state(theme: crate::preferences::Theme, size: u32) -> Rc<State> {
+    use crate::bridge::{Candidate, Translation};
+    let state = Rc::new(State {
+        input: std::cell::RefCell::new(crate::input::Input::default()),
+        engine: std::cell::RefCell::new(None),
+        retry_after: Cell::new(None),
+        document: std::cell::RefCell::new(None),
+        panel: std::cell::RefCell::new(None),
+        client: Cell::new(0),
+        show_pos: Cell::new(true),
+        display: Cell::new(crate::preferences::Display { theme, font: size }),
+        memory_warning: Cell::new(false),
+        preview: true,
+    });
+    {
+        let mut input = state.input.borrow_mut();
+        input.raw = "xuexi".into();
+        input.expanded = true;
+        input.frame.candidates = ["学习", "学系", "学戏", "雪溪", "雪西"]
+            .iter()
+            .map(|s| Candidate {
+                text: (*s).into(),
+                syllables: vec!["xue".into(), "xi".into()],
+                translations: ["study", "learn", "learning"]
+                    .iter()
+                    .map(|word| Translation {
+                        word: (*word).into(),
+                        pos: "v.".into(),
+                        note: "学习；研究".into(),
+                        example: String::new(),
+                    })
+                    .collect(),
+            })
+            .collect();
+    }
+    state
+}
+
+#[cfg(test)]
+#[test]
+fn render_preview_never_opens_engine_or_commits_words() {
+    let state = preview_state(crate::preferences::Theme::Dark, 22);
+    let raw = state.input.borrow().raw.clone();
+    for key in [
+        Key::Space(false),
+        Key::Space(true),
+        Key::Letter('a'),
+        Key::Punctuation(','),
+        Key::Return,
+    ] {
+        state.key(key);
+    }
+    assert_eq!(state.input.borrow().raw, raw);
+    assert!(state.engine.borrow().is_none());
+    assert!(state.input.borrow().pending_memory.is_none());
+    assert!(state.input.borrow().pending_study.is_none());
 }

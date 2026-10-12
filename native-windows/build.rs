@@ -28,7 +28,7 @@ fn main() {
     std::fs::write(
         &rc,
         format!(
-            "101 ICON \"{}\"\n",
+            "#pragma code_page(65001)\n101 ICON \"{}\"\n",
             icon.to_string_lossy().replace('\\', "\\\\")
         ),
     )

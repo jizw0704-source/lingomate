@@ -128,6 +128,7 @@ struct State {
     show_pos: Cell<bool>,
     display: Cell<crate::preferences::Display>,
     memory_warning: Cell<bool>,
+    preview: bool,
 }
 impl State {
     fn new() -> Rc<Self> {
@@ -141,6 +142,7 @@ impl State {
             show_pos: Cell::new(crate::preferences::load()),
             display: Cell::new(crate::preferences::display()),
             memory_warning: Cell::new(false),
+            preview: false,
         })
     }
     fn cancel_memory(&self) {
@@ -169,6 +171,9 @@ impl State {
         }
     }
     fn key(self: &Rc<Self>, key: Key) {
+        if self.preview {
+            return;
+        }
         let commit = {
             let mut input = self.input.borrow_mut();
             let mut engine = self.engine.borrow_mut();

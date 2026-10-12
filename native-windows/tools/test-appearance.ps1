@@ -15,7 +15,7 @@ public static class CandidatePreview {
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h,out Rect r);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h,IntPtr dc,uint flags);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h,uint m,IntPtr w,IntPtr l);
-    [DllImport("shell32.dll",CharSet=CharSet.Unicode)] public static extern uint ExtractIconEx(string path,int index,IntPtr[] large,IntPtr[] small,uint count);
+    [DllImport("shell32.dll",CharSet=CharSet.Unicode)] public static extern uint ExtractIconEx(string path,int index,[Out] IntPtr[] large,[Out] IntPtr[] small,uint count);
     [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr icon);
     public static IntPtr Find(uint expected) {
         IntPtr found=IntPtr.Zero;
@@ -27,7 +27,10 @@ public static class CandidatePreview {
 $Dll = (Resolve-Path $Dll).Path
 $Large = New-Object IntPtr[] 1
 $Small = New-Object IntPtr[] 1
-if ([CandidatePreview]::ExtractIconEx($Dll,0,$Large,$Small,1) -ne 1 -or $Large[0] -eq [IntPtr]::Zero -or $Small[0] -eq [IntPtr]::Zero) { throw 'Embedded 果 icon could not be extracted from the installed DLL.' }
+$GroupCount = [CandidatePreview]::ExtractIconEx($Dll,-1,$null,$null,0)
+$Extracted = [CandidatePreview]::ExtractIconEx($Dll,0,$Large,$Small,1)
+Write-Output ("Embedded icon groups={0}; extracted={1}; large={2}; small={3}" -f $GroupCount,$Extracted,$Large[0],$Small[0])
+if ($GroupCount -ne 1 -or $Extracted -lt 1 -or $Extracted -eq [uint32]::MaxValue -or $Large[0] -eq [IntPtr]::Zero -or $Small[0] -eq [IntPtr]::Zero) { throw 'Embedded 果 icon could not be extracted from the installed DLL.' }
 try {
     $Icon = [Drawing.Icon]::FromHandle($Large[0])
     $Bitmap = $Icon.ToBitmap()
