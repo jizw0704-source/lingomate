@@ -99,6 +99,17 @@ impl Input {
     pub fn handle(&mut self, key: Key, engine: &mut Bridge) -> Result<Option<String>, String> {
         self.pending_study = None;
         self.pending_memory = None;
+        // A replacement bridge has no frame for the retained composition.
+        // Candidate actions must query it before selecting or paging anything.
+        if self.error
+            && !self.raw.is_empty()
+            && !matches!(
+                key,
+                Key::Letter(_) | Key::Backspace | Key::Return | Key::Escape
+            )
+        {
+            self.refresh(engine)?;
+        }
         match key {
             Key::Letter(ch) => {
                 if self.raw.len() < 240 && (ch.is_ascii_alphabetic() || ch == '\'') {

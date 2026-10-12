@@ -116,6 +116,9 @@ struct State {
 }
 impl State {
     fn new() -> Rc<Self> {
+        Self::with_display_preferences(crate::preferences::load())
+    }
+    fn with_display_preferences(show_pos: bool) -> Rc<Self> {
         Rc::new(Self {
             input: RefCell::new(Input::default()),
             engine: RefCell::new(None),
@@ -123,7 +126,7 @@ impl State {
             document: RefCell::new(None),
             panel: RefCell::new(None),
             client: Cell::new(0),
-            show_pos: Cell::new(crate::preferences::load()),
+            show_pos: Cell::new(show_pos),
             memory_warning: Cell::new(false),
         })
     }
@@ -153,24 +156,31 @@ impl State {
         }
     }
     fn key(self: &Rc<Self>, key: Key) {
+        self.key_with_start(key, || {
+            module_path()
+                .ok()
+                .and_then(|path| path.parent().map(PathBuf::from))
+                .and_then(|root| {
+                    let memory = std::env::var_os("LOCALAPPDATA").map(|path| {
+                        PathBuf::from(path).join("LingoMate/PersonalVocabulary/words.json")
+                    });
+                    Bridge::start_with_memory(
+                        &root.join("bilingual-ime-bridge.exe"),
+                        &root,
+                        memory.as_deref(),
+                    )
+                    .ok()
+                })
+        });
+    }
+    fn key_with_start(self: &Rc<Self>, key: Key, start: impl FnOnce() -> Option<Bridge>) {
         let commit = {
             let mut input = self.input.borrow_mut();
             let mut engine = self.engine.borrow_mut();
+            let mut attempted_start = false;
             if engine.is_none() && self.retry_after.get().is_none_or(|at| Instant::now() >= at) {
-                *engine = module_path()
-                    .ok()
-                    .and_then(|path| path.parent().map(PathBuf::from))
-                    .and_then(|root| {
-                        let memory = std::env::var_os("LOCALAPPDATA").map(|path| {
-                            PathBuf::from(path).join("LingoMate/PersonalVocabulary/words.json")
-                        });
-                        Bridge::start_with_memory(
-                            &root.join("bilingual-ime-bridge.exe"),
-                            &root,
-                            memory.as_deref(),
-                        )
-                        .ok()
-                    });
+                attempted_start = true;
+                *engine = start();
             }
             let result = if matches!(key, Key::Return) {
                 if let Some(engine) = engine.as_mut() {
@@ -193,9 +203,14 @@ impl State {
             match result {
                 Ok(text) => text,
                 Err(_) => {
+                    let connected = engine.is_some();
                     *engine = None;
-                    self.retry_after
-                        .set(Some(Instant::now() + Duration::from_secs(2)));
+                    // Continued typing during cooldown must not postpone the
+                    // next retry indefinitely. Advance only after an attempt.
+                    if attempted_start || connected {
+                        self.retry_after
+                            .set(Some(Instant::now() + Duration::from_secs(2)));
+                    }
                     input.frame = Default::default();
                     input.error = true;
                     None
@@ -546,4 +561,30 @@ extern "system" fn DllRegisterServer() -> HRESULT {
 #[unsafe(no_mangle)]
 extern "system" fn DllUnregisterServer() -> HRESULT {
     registration::unregister().err().map_or(S_OK, |e| e.code())
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+
+    #[test]
+    fn typing_during_failed_start_cooldown_does_not_postpone_retry() {
+        let state = State::with_display_preferences(true);
+        let starts = Cell::new(0);
+        let failed_start = || {
+            starts.set(starts.get() + 1);
+            None
+        };
+        state.key_with_start(Key::Letter('w'), failed_start);
+        let deadline = state.retry_after.get().unwrap();
+        state.key_with_start(Key::Letter('o'), failed_start);
+        assert_eq!(starts.get(), 1);
+        assert_eq!(state.retry_after.get(), Some(deadline));
+        assert_eq!(state.input.borrow().raw, "wo");
+        assert!(state.input.borrow().error);
+        state.retry_after.set(Some(Instant::now()));
+        state.key_with_start(Key::Letter('d'), failed_start);
+        assert_eq!(starts.get(), 2);
+        assert_eq!(state.input.borrow().raw, "wod");
+    }
 }
