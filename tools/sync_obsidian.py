@@ -10,6 +10,7 @@ PROJECT = Path(__file__).resolve().parents[1]
 MARKER = "<!-- bilingual-ime-managed-v1 -->"
 REPOSITORY = "https://github.com/jizw0704-source/lingomate"
 DOCUMENTS = {
+    "协作维护.md": "CONTRIBUTING.md",
     "安装包与同事试用.md": "docs/PACKAGING.md",
     "Windows更新与发布.md": "native-windows/UPDATES.md",
     "Windows使用指南.md": "native-windows/README.md",
@@ -22,6 +23,7 @@ DOCUMENTS = {
     "第三方来源.md": "docs/THIRD_PARTY.md",
 }
 LINKS = {
+    "CONTRIBUTING.md": "协作维护",
     "docs/PACKAGING.md": "安装包与同事试用",
     "native-windows/UPDATES.md": "Windows更新与发布",
     "native-windows/README.md": "Windows使用指南",
@@ -56,7 +58,7 @@ def mirrored(source):
             return f"[[{LINKS[relative]}|{label}]]"
         return f"[{label}]({REPOSITORY}/blob/main/{relative})"
 
-    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", link, path.read_text())
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", link, path.read_text(encoding="utf-8"))
     return f"{MARKER}\n\n{text}".encode()
 
 
@@ -70,7 +72,9 @@ def main():
         parser.error("Target must be an existing Obsidian vault.")
     destination = vault / "10 项目/中英输入法"
     manifest = destination / ".bilingual-ime-sync.json"
-    previous = json.loads(manifest.read_text()) if manifest.exists() else {}
+    previous = (
+        json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
+    )
     files = {name: mirrored(source) for name, source in DOCUMENTS.items()}
     files["项目总览.md"] = mirrored("README.md")
     for name, desired in files.items():
@@ -98,7 +102,8 @@ def main():
         temporary.replace(target)
     manifest.write_text(
         json.dumps({name: digest(data) for name, data in files.items()}, indent=2)
-        + "\n"
+        + "\n",
+        encoding="utf-8",
     )
     print(f"Synced {len(files)} project notes: {destination}")
 

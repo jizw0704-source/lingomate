@@ -12,9 +12,9 @@ SCRIPT = Path(__file__).with_name("sync_obsidian.py")
 class SyncTests(unittest.TestCase):
     def run_sync(self, vault, *args):
         return subprocess.run(
-            [sys.executable, str(SCRIPT), "--vault", str(vault), *args],
+            [sys.executable, "-X", "utf8", str(SCRIPT), "--vault", str(vault), *args],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             check=False,
         )
 
@@ -25,7 +25,11 @@ class SyncTests(unittest.TestCase):
             self.assertEqual(self.run_sync(vault).returncode, 0)
             notes = vault / "10 项目/中英输入法"
             before = {p.name: p.read_bytes() for p in notes.glob("*.md")}
-            self.assertEqual(len(before), 11)
+            self.assertEqual(len(before), 12)
+            self.assertIn(
+                "https://github.com/LightningFlashEvE",
+                (notes / "协作维护.md").read_text(encoding="utf-8"),
+            )
             self.assertEqual(self.run_sync(vault).returncode, 0)
             self.assertEqual(
                 before, {p.name: p.read_bytes() for p in notes.glob("*.md")}
@@ -39,7 +43,10 @@ class SyncTests(unittest.TestCase):
             self.assertEqual(self.run_sync(vault).returncode, 0)
             notes = vault / "10 项目/中英输入法"
             overview = notes / "项目总览.md"
-            overview.write_text(overview.read_text() + "\n手写记录：请保留。\n")
+            overview.write_text(
+                overview.read_text(encoding="utf-8") + "\n手写记录：请保留。\n",
+                encoding="utf-8",
+            )
             before = {p.name: p.read_bytes() for p in notes.iterdir()}
             self.assertNotEqual(self.run_sync(vault).returncode, 0)
             self.assertEqual(before, {p.name: p.read_bytes() for p in notes.iterdir()})
@@ -52,9 +59,9 @@ class SyncTests(unittest.TestCase):
             notes = vault / "10 项目/中英输入法"
             notes.mkdir(parents=True)
             guide = notes / "使用指南.md"
-            guide.write_text("原有手写指南")
+            guide.write_text("原有手写指南", encoding="utf-8")
             self.assertNotEqual(self.run_sync(vault).returncode, 0)
-            self.assertEqual(guide.read_text(), "原有手写指南")
+            self.assertEqual(guide.read_text(encoding="utf-8"), "原有手写指南")
             self.assertFalse((notes / "项目总览.md").exists())
 
 

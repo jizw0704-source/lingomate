@@ -1,5 +1,6 @@
 # Bilingual IME
 
+- Platform maintainers: repository owner jizw0704-source leads macOS; Wright (LightningFlashEvE) leads Windows. Collaboration and exact setup/check commands: CONTRIBUTING.md. Shared bridge, protocol, vocabulary format and data changes need both-platform checks and explicit real-device verification limits.
 - Windows native development is user-authorized in `native-windows/`; follow its instructions, preserve macOS behavior and pinned upstream sources.
 - Native macOS implementation is user-authorized in `native-macos/`; retain the browser prototype in `prototype/`. Follow each directory's instructions.
 - Release data is generated only by tools/prepare_lexicon.py from data/source.json (CC-CEDICT CC BY-SA 4.0). Keep source snapshots/generated tables ignored; never fall back to upstream mixed lexicon or glossary. Native builds prepare data automatically. frequency-source.json pins the official Google Books Ngram export and permission; only exact existing word counts enter ranking. ranking.json is independently authored CC BY-SA 4.0 prior data. Preserve both provenance records and packaged notices. data/pos-source.json pins WordNet 3.0; exact matching adds display-only POS comments and the full WordNet license to glossary/NOTICE files. Unknown senses remain untagged; never append POS to committed text.
