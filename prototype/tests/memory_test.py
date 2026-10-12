@@ -367,7 +367,7 @@ class MemoryTests(unittest.TestCase):
         for pinyin, character in [("gai", "钙"), ("tai", "钛"), ("nie", "镍")]:
             self.confirm(self.commit(pinyin, character))
         self.stop()
-        data = json.loads(self.path.read_text())
+        data = json.loads(self.path.read_text(encoding="utf-8"))
         data["sequence"] += 1000
         self.path.write_text(json.dumps(data), encoding="utf-8")
         self.start()
