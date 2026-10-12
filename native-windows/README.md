@@ -8,7 +8,7 @@
 
 个人词库只保存词条、拼音、累计次数和使用次序统计，不读取宿主正文或剪贴板，不保存逐次输入历史，不上传。沿用许可明确的词库与词频，没有新增语料、模型或生产依赖。 位置为 `%LOCALAPPDATA%\LingoMate\PersonalVocabulary\words.json`，与英文学习记录独立。多个应用共享本机词库，失败输出不记忆。
 
-Mac **0.12.9 / build 31** 与 Windows **0.1.8** 安装包、校验文件、对应源码及试用说明已上传[内部试用草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)并完成下载回校验；草稿仅维护者可见，须下载后转交同事。未公开发布或启用远程更新清单。本机已安装 Mac 0.12.9，用户已确认 Codex 中逐字确认后的整词靠前候选显示；未知新词记忆、重启保留、跨应用与 Windows 实机仍待验收。
+Mac **0.12.9 / build 31** 与 Windows **0.1.8** 安装包、校验文件、对应源码及试用说明已上传[内部试用草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)并完成下载回校验；草稿仅维护者可见，须下载后转交同事。未公开发布或启用远程更新清单。本机已安装 Mac 0.12.9，用户已确认 Codex 中已知词与新组合“钙钛镍”的逐字输入及靠前整词候选；整词提交、重启保留、跨应用与 Windows 实机仍待验收。
 
 Windows 版本采用系统原生 Text Services Framework（TSF，文本服务框架），由 Rust 文本服务 DLL 接入应用输入框，并通过独立本地进程调用现有拼音与英文释义引擎。
 
