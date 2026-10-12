@@ -15,3 +15,6 @@ $PreviewDirectory = Join-Path $Root 'native-windows/package'
 New-Item -ItemType Directory -Path $PreviewDirectory -Force | Out-Null
 & $LegacyShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'update.ps1') -SmokeTest -PreviewPath (Join-Path $PreviewDirectory 'update-preview.png')
 if ($LASTEXITCODE -ne 0) { throw 'Windows update UI smoke check failed.' }
+
+& $LegacyShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'update.ps1') -SmokeTest -PreviewTheme dark -PreviewPath (Join-Path $PreviewDirectory 'update-preview-dark.png')
+if ($LASTEXITCODE -ne 0) { throw 'Dark Windows update UI smoke check failed.' }

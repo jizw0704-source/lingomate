@@ -241,3 +241,151 @@ fn learning_metadata_only_follows_validated_english_candidate_commit() {
     assert!(input.handle(Key::Space(true), &mut engine).is_err());
     assert!(input.pending_study.is_none());
 }
+
+#[test]
+fn extended_punctuation_raw_addresses_quotes_and_numbers_use_real_engine() {
+    use lingomate_tsf::punctuation::Mode;
+    let mut engine = engine();
+    let mut input = Input::default();
+    assert_eq!(
+        input
+            .handle(Key::Punctuation('"'), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some("“")
+    );
+    type_letters(&mut input, &mut engine, "xuexi");
+    assert_eq!(
+        input
+            .handle(Key::Space(false), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some("学习")
+    );
+    assert_eq!(
+        input
+            .handle(Key::Punctuation('"'), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some("”")
+    );
+    for (key, expected) in [
+        ('(', "（"),
+        (')', "）"),
+        ('[', "【"),
+        (']', "】"),
+        ('<', "《"),
+        ('>', "》"),
+        ('/', "、"),
+        ('\\', "、"),
+    ] {
+        assert_eq!(
+            input
+                .handle(Key::Punctuation(key), &mut engine)
+                .unwrap()
+                .as_deref(),
+            Some(expected)
+        );
+    }
+    input.handle(Key::Literal('3'), &mut engine).unwrap();
+    assert_eq!(
+        input
+            .handle(Key::Punctuation('.'), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some(".")
+    );
+    input.handle(Key::Literal(' '), &mut engine).unwrap();
+    type_letters(&mut input, &mut engine, "https");
+    let mut url = input
+        .handle(Key::Punctuation(':'), &mut engine)
+        .unwrap()
+        .unwrap();
+    for key in [
+        Key::Punctuation('/'),
+        Key::Punctuation('/'),
+        Key::Letter('A'),
+        Key::Punctuation('.'),
+        Key::Letter('c'),
+        Key::Punctuation('/'),
+    ] {
+        url += &input.handle(key, &mut engine).unwrap().unwrap();
+    }
+    assert_eq!(url, "https://A.c/");
+    input.handle(Key::Literal(' '), &mut engine).unwrap();
+    type_letters(&mut input, &mut engine, "xuexi");
+    assert_eq!(
+        input
+            .handle(Key::Space(false), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some("学习")
+    );
+    assert_eq!(
+        input
+            .handle(Key::Punctuation(','), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some("，")
+    );
+    type_letters(&mut input, &mut engine, "test");
+    assert_eq!(
+        input
+            .handle(Key::Punctuation('@'), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some("test@")
+    );
+    input.handle(Key::Literal(' '), &mut engine).unwrap();
+    input.punctuation_mode = Mode::English;
+    type_letters(&mut input, &mut engine, "nihao");
+    assert_eq!(
+        input
+            .handle(Key::Punctuation(','), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some("nihao,")
+    );
+    input.handle(Key::Literal(' '), &mut engine).unwrap();
+    input.punctuation_mode = Mode::Chinese;
+    type_letters(&mut input, &mut engine, "AI");
+    assert_eq!(
+        input.handle(Key::Return, &mut engine).unwrap().as_deref(),
+        Some("AI")
+    );
+    assert_eq!(
+        input
+            .handle(Key::Punctuation(','), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some("，")
+    );
+    type_letters(&mut input, &mut engine, "xi'an");
+    assert_eq!(input.raw, "xi'an");
+}
+#[test]
+fn punctuation_does_not_drop_partial_composition_or_add_learning() {
+    let mut engine = engine();
+    let mut input = Input::default();
+    type_letters(&mut input, &mut engine, "kaiFaZhe");
+    input.selected = input
+        .frame
+        .candidates
+        .iter()
+        .position(|c| c.text == "开发")
+        .unwrap();
+    assert_eq!(
+        input
+            .handle(Key::Punctuation(','), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some("开发")
+    );
+    assert_eq!(input.raw, "Zhe");
+    assert!(input.pending_study.is_none());
+    input.handle(Key::Escape, &mut engine).unwrap();
+    type_letters(&mut input, &mut engine, "test");
+    input.handle(Key::Punctuation('@'), &mut engine).unwrap();
+    assert!(input.pending_study.is_none());
+    assert!(input.pending_memory.is_none());
+}

@@ -1,14 +1,30 @@
 # 安装包与同事试用
 
+## Windows 0.1.10 最新修复交付 · 2026-10-12
+
+本轮交付包含已授权合并的 PR #2 外观、字号、标点、图标及最新候选恢复修复。新版本采用 0.1.10，保留既有 0.1.9 文件；合并状态见 [PR #2](https://github.com/jizw0704-source/lingomate/pull/2)。维护者从 [Release 草稿](https://github.com/jizw0704-source/lingomate/releases)下载安装 EXE、SHA-256、精确源码 ZIP 及其 SHA-256、试用说明五份文件后转交同事。
+
+产物名称为 `lingomate-windows-x64-0.1.10-setup.exe`、`lingomate-windows-0.1.10-project-source.zip` 及 `lingomate-windows-0.1.10-trial-guide.txt`，本机忽略目录为 `native-windows/package/installer-0.1.10/`。构建来源、大小和 SHA-256 以草稿记录和随包校验文件为准；源码 ZIP 的 `SOURCE-SNAPSHOT.json` 记录对应提交，不混入本机未提交文件。
+
+仍为内部预览，更新清单未公开。普通安装 EXE 的 TSF 登记权限及异常退出码问题尚未单独修复；Windows 11 实际安装和跨应用输入须由 Wright 先核验，不能以编译或退出码判断安装成功。安装注意事项见试用说明及 [Windows 验证记录](../native-windows/QA.md)。Mac 安装和旧附件保留。
+
+## Windows 0.1.9 外观与输入规则试用包 · 2026-10-12
+
+Windows **0.1.9** 的安装 EXE、SHA-256、对应源码 ZIP 及其校验文件、试用说明共五份已上传[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases)，并下载回核对字节、大小和 GitHub 摘要。安装 EXE 为 5,516,168 字节，SHA-256 为 `9a4e5ce52a86b39cb3da49d64323deb8279d6f01c0bad66a2aca43954c647f4e`；源码固定为 `d5ae1d9f18bcec0c12902ea7b0ef5b8358d60be7`。此前 40 份附件的身份、大小和摘要保留，草稿现有 45 份附件，Mac 0.12.9 安装包保持原状。
+
+[受控构建和上传](https://github.com/jizw0704-source/lingomate/actions/runs/38214316742)通过，基于固定构建引用 `windows-draft-build-0.1.9-2026.10.12`。源码 ZIP 与该提交的 185 个项目文件逐项一致，无本机覆盖文件、个人配置、运行时或生成词库。没有安装或注册输入源，也未公开发布或启用更新清单；Windows 11 的安装、实体键盘、主题、DPI、跨应用及“果”图标展示仍待 Wright 实机核对。
+
+本机五份文件位于 `native-windows/package/installer-0.1.9/`。维护者下载后将完整文件转交同事；操作与本次新增功能见 `lingomate-windows-0.1.9-trial-guide.txt`。功能通过 [PR #2](https://github.com/jizw0704-source/lingomate/pull/2) 请求合并到 main，尚未合并。
+
 ## 连续逐字记忆安装包 · 2026-10-12
 
-Mac **0.12.9 / build 31** 与 Windows **0.1.8** 安装包、校验文件、对应源码及试用说明已上传[内部试用草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)并完成下载回校验；草稿仅维护者可见，须下载后转交同事。未公开发布或启用远程更新清单。本机已安装 Mac 0.12.9，用户已确认 Codex 中已知词与新组合“钙钛镍”的逐字输入及靠前整词候选；整词提交、重启保留、跨应用与 Windows 实机仍待验收。 既有三十份附件保留，新增双平台各五份文件；早期 Mac 0.12.8 / Windows 0.1.7 的并发保存检查存在偶发失败，建议使用修正版。
+Mac **0.12.9 / build 31** 与 Windows **0.1.8** 安装包、校验文件、对应源码及试用说明已上传[内部试用草稿](https://github.com/jizw0704-source/lingomate/releases)并完成下载回校验；草稿仅维护者可见，须下载后转交同事。未公开发布或启用远程更新清单。本机已安装 Mac 0.12.9，用户已确认 Codex 中已知词与新组合“钙钛镍”的逐字输入及靠前整词候选；整词提交、重启保留、跨应用与 Windows 实机仍待验收。 既有三十份附件保留，新增双平台各五份文件；早期 Mac 0.12.8 / Windows 0.1.7 的并发保存检查存在偶发失败，建议使用修正版。
 
 Windows 源码固定为 `27463a6301e872f57668e2daf5e4d5063b372a68`，见[构建与上传](https://github.com/jizw0704-source/lingomate/actions/runs/38199615445)。Mac 源码 ZIP 包含该基线及明确记录的字号／设置源文件覆盖项，不可用基线提交单独替代；包内 `SOURCE-SNAPSHOT.json` 记录逐文件哈希。安装文件仅保存于忽略目录，未提交生成词库或个人数据。Mac 采用临时签名且未公证，Windows 尚未完成发行签名，两端新设备与长期稳定性仍需试用验收。
 
 ## Windows 0.1.6 安装包草稿 · 2026-10-12
 
-已将 Windows 0.1.6 的五份附件新增至[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)：`lingomate-windows-x64-0.1.6-setup.exe`、SHA-256 校验文件、`lingomate-windows-0.1.6-project-source.zip` 及其校验文件、`lingomate-windows-0.1.6-trial-guide.txt`。Mac 0.12.7 及此前十五份附件身份、大小和摘要保持不变；该阶段两端试用版本为 Mac 0.12.7 / Windows 0.1.6，草稿仍未发布，更新清单未启用。
+已将 Windows 0.1.6 的五份附件新增至[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases)：`lingomate-windows-x64-0.1.6-setup.exe`、SHA-256 校验文件、`lingomate-windows-0.1.6-project-source.zip` 及其校验文件、`lingomate-windows-0.1.6-trial-guide.txt`。Mac 0.12.7 及此前十五份附件身份、大小和摘要保持不变；该阶段两端试用版本为 Mac 0.12.7 / Windows 0.1.6，草稿仍未发布，更新清单未启用。
 
 [受控构建和上传](https://github.com/jizw0704-source/lingomate/actions/runs/38192767635)基于固定提交 `6909ba41262dbb8144c716ccbcad856fd9abe157`，构建引用为 `windows-draft-build-0.1.6-2026.10.12`。草稿目标同步为此 Windows 构建；Mac 对应源码仍由其独立快照交付。Windows 原生构建、格式／Clippy、单元与真实引擎回归、词库／词性许可和数据再生成、更新回归、DLL 生命周期、安装 EXE 编译和初始窗口检查均通过；未安装或登记 TSF。
 
@@ -18,7 +34,7 @@ Windows 源码固定为 `27463a6301e872f57668e2daf5e4d5063b372a68`，见[构建�
 
 ## Mac 0.12.7 安装包草稿 · 2026-10-12
 
-已将 Mac 0.12.7 / build 29 的五份附件上传至[既有双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)：`lingomate-macos-arm64-0.12.7.dmg`、SHA-256 校验文件、`lingomate-macos-0.12.7-project-source.zip` 及其校验文件、`lingomate-macos-0.12.7-trial-guide.txt`。旧 Mac 0.12.2 和 Windows 0.1.4 的十份附件身份、大小与摘要保持一致，草稿仍为未发布预览。
+已将 Mac 0.12.7 / build 29 的五份附件上传至[既有双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases)：`lingomate-macos-arm64-0.12.7.dmg`、SHA-256 校验文件、`lingomate-macos-0.12.7-project-source.zip` 及其校验文件、`lingomate-macos-0.12.7-trial-guide.txt`。旧 Mac 0.12.2 和 Windows 0.1.4 的十份附件身份、大小与摘要保持一致，草稿仍为未发布预览。
 
 DMG 为 5,787,789 字节，SHA-256 为 `3143a17b4fbcd42c813d4b9b372ada0908e7aeaf663ea44670524762b1477596`。镜像检查、只读挂载后 18 个应用文件与本机已安装版一致性、安装器和应用签名、七项隔离安装器测试、预览退出测试、词库来源及 NOTICE 检查通过。上传后重新下载全部五份附件，大小、逐字节内容、GitHub 摘要和校验文件一致。
 
@@ -53,7 +69,7 @@ Mac 新 DMG 位于 `native-macos/build/packages/lingomate-macos-arm64-0.12.2.dmg
 
 ## Mac 0.12.2 内部试用包上传
 
-2026-10-11，已将 Mac 0.12.2 / build 24 的 DMG、SHA-256 文件、对应项目源码快照和试用说明补入[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)。构建输入与固定提交 `699e5b7e7a89cb3f05c147e3de514228466497a9` 一致，项目源码快照只包含该提交已跟踪文件，第三方源码及依赖由固定准备脚本获取；不含本机未提交修改、个人数据或生成表。
+2026-10-11，已将 Mac 0.12.2 / build 24 的 DMG、SHA-256 文件、对应项目源码快照和试用说明补入[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases)。构建输入与固定提交 `699e5b7e7a89cb3f05c147e3de514228466497a9` 一致，项目源码快照只包含该提交已跟踪文件，第三方源码及依赖由固定准备脚本获取；不含本机未提交修改、个人数据或生成表。
 
 本机转交副本位于 `native-macos/build/packages/trial-0.12.2/`，共五个文件。DMG 大小为 5,555,997 字节，SHA-256 为 `45a912105f85a50234237cc94dc312eaadbdd21b5bc0f00e51dec70490bcc53f`。五份附件下载回后与本地字节及 GitHub 摘要一致；镜像校验、只读挂载后的版本、18 个应用文件、两层签名及七项隔离安装检查通过。挂载已卸载，本轮未执行安装或重载输入服务。
 
@@ -63,7 +79,7 @@ Mac、Windows 各五份附件均保存在本草稿中，旧双平台草稿保留
 
 ## Windows 0.1.4 安装包保存与上传
 
-2026-10-10，[生成与上传流程](https://github.com/jizw0704-source/lingomate/actions/runs/38038928439)基于固定提交 `699e5b7e7a89cb3f05c147e3de514228466497a9` 重建 Windows MSVC 程序、核对词库及声明、通过候选／记忆／更新回归、安装 EXE 编译和初始窗口检查后，将 EXE 与校验文件上传至独立[维护者草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)。原双平台草稿保留，旧 Mac 与 Windows 附件未覆盖。
+2026-10-10，[生成与上传流程](https://github.com/jizw0704-source/lingomate/actions/runs/38038928439)基于固定提交 `699e5b7e7a89cb3f05c147e3de514228466497a9` 重建 Windows MSVC 程序、核对词库及声明、通过候选／记忆／更新回归、安装 EXE 编译和初始窗口检查后，将 EXE 与校验文件上传至独立[维护者草稿](https://github.com/jizw0704-source/lingomate/releases)。原双平台草稿保留，旧 Mac 与 Windows 附件未覆盖。
 
 本机副本位于 `native-windows/package/installer-0.1.4/`，安装文件为 `lingomate-windows-x64-0.1.4-setup.exe`，大小 5,327,681 字节。上传后下载回校验，文件与构建 `.sha256` 及 GitHub 附件摘要一致，SHA-256 为 `422f1377d2350793fa643bc9fcaecff95b57f7535337bbfc548105aff21246bb`。同目录保存项目源码快照、对应校验文件和 `lingomate-windows-0.1.4-trial-guide.txt`；它们也已附在草稿中。源码快照只包含上述提交的已跟踪项目文件，第三方源码与依赖通过固定准备脚本取得，不混入本机修改、个人数据或生成表。
 

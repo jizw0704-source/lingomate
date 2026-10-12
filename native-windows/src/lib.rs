@@ -5,5 +5,11 @@ pub mod learning;
 #[cfg(windows)]
 mod learning_window;
 pub mod preferences;
+pub mod punctuation;
 #[cfg(windows)]
 mod tsf;
+
+#[cfg(windows)]
+mod appearance;
+
+pub mod candidate_layout;

@@ -1,4 +1,4 @@
-﻿param([switch]$Background, [switch]$SmokeTest, [string]$PreviewPath)
+﻿param([switch]$Background, [switch]$SmokeTest, [string]$PreviewPath, [ValidateSet('light','dark','system')][string]$PreviewTheme = 'light')
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'update-core.psm1') -Force
@@ -167,6 +167,39 @@ $Close = New-Object Windows.Forms.Button
 $Close.Text = '关闭'; $Close.SetBounds(368, 356, 136, 44); $Close.Anchor = 'Bottom, Right'
 $Close.FlatStyle = 'System'; $Close.TabIndex = 3
 $Form.Controls.AddRange(@($Title, $Status, $Notes, $Auto, $Progress, $Primary, $Restore, $Close))
+# Only the app-owned appearance key; smoke mode never reads real preferences.
+function Set-LingoMateAppearance {
+    $Theme = if ($Script:Smoke) { $PreviewTheme } else { 'light' }
+    if (-not $Script:Smoke) {
+        $Appearance = Get-ItemProperty -LiteralPath 'HKCU:\Software\LingoMate\Candidates' -ErrorAction SilentlyContinue
+        if ($null -ne $Appearance -and $null -ne $Appearance.PSObject.Properties['Theme']) {
+            $Theme = switch ([int]$Appearance.Theme) { 1 { 'dark' } 2 { 'system' } default { 'light' } }
+        }
+    }
+    $Dark = $Theme -eq 'dark'
+    if ($Theme -eq 'system') {
+        # Windows' published application color determines the current system theme.
+        try {
+            $Settings = [Windows.UI.ViewManagement.UISettings, Windows.UI.ViewManagement, ContentType=WindowsRuntime]::new()
+            $Color = $Settings.GetColorValue([Windows.UI.ViewManagement.UIColorType]::Foreground)
+            $Dark = (5 * $Color.G + 2 * $Color.R + $Color.B) -gt (8 * 128)
+        } catch { $Dark = $false }
+    }
+    $Surface = if ($Dark) { [Drawing.Color]::FromArgb(25,25,25) } else { [Drawing.Color]::White }
+    $Ink = if ($Dark) { [Drawing.Color]::FromArgb(244,244,244) } else { [Drawing.Color]::FromArgb(23,23,23) }
+    if ([Windows.Forms.SystemInformation]::HighContrast) { $Surface = [Drawing.SystemColors]::Window; $Ink = [Drawing.SystemColors]::WindowText }
+    $Form.BackColor = $Surface; $Form.ForeColor = $Ink
+    foreach ($Control in $Form.Controls) {
+        if ($Control -isnot [Windows.Forms.ProgressBar]) { $Control.BackColor = $Surface; $Control.ForeColor = $Ink }
+        if ($Control -is [Windows.Forms.Button]) { $Control.FlatStyle = 'Flat'; $Control.FlatAppearance.BorderColor = $Ink }
+    }
+}
+Set-LingoMateAppearance
+$Form.Add_Activated({ Set-LingoMateAppearance })
+$ThemeTimer = New-Object Windows.Forms.Timer
+$ThemeTimer.Interval = 2000
+$ThemeTimer.Add_Tick({ Set-LingoMateAppearance })
+$ThemeTimer.Start()
 $Form.AcceptButton = $Primary
 $Form.CancelButton = $Close
 $Timer = New-Object Windows.Forms.Timer
@@ -224,7 +257,7 @@ try {
         [Windows.Forms.Application]::Run()
     } else { [Windows.Forms.Application]::Run($Form) }
 } finally {
-    $Timer.Stop(); $Timer.Dispose(); $Form.Dispose()
+    $Timer.Stop(); $Timer.Dispose(); $ThemeTimer.Stop(); $ThemeTimer.Dispose(); $Form.Dispose()
     if ($HasMutex) { $Mutex.ReleaseMutex() }
     if ($Mutex) { $Mutex.Dispose() }
     if ($Script:Work -and (Test-Path -LiteralPath $Script:Work)) { Remove-Item -LiteralPath $Script:Work -Recurse -Force -ErrorAction SilentlyContinue }

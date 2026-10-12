@@ -1,6 +1,7 @@
 //! Dedicated native helper in the installed DLL; never activates the TSF candidate window.
 use crate::learning::{Store, Word};
-use std::cell::RefCell;
+use crate::{appearance, preferences::Theme};
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Gdi::*;
@@ -26,6 +27,9 @@ impl Drop for Font {
     }
 }
 struct Window {
+    theme: Cell<Theme>,
+    preview: bool,
+    brush: Cell<HBRUSH>,
     store: Store,
     search: HWND,
     filter: HWND,
@@ -37,7 +41,30 @@ struct Window {
     export: HWND,
     visible: RefCell<Vec<Word>>,
 }
+impl Drop for Window {
+    fn drop(&mut self) {
+        let _ = unsafe { DeleteObject(self.brush.get().into()) };
+    }
+}
 impl Window {
+    fn recolor(&self, hwnd: HWND) {
+        if !self.preview {
+            self.theme.set(crate::preferences::display().theme);
+        }
+        let palette = appearance::palette(self.theme.get());
+        let brush = unsafe { CreateSolidBrush(palette.background) };
+        let old = self.brush.replace(brush);
+        let _ = unsafe { DeleteObject(old.into()) };
+        appearance::title(hwnd, palette);
+        unsafe {
+            let _ = RedrawWindow(
+                Some(hwnd),
+                None,
+                None,
+                RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_ERASE,
+            );
+        }
+    }
     fn selected(&self) -> Option<Word> {
         let index = unsafe { SendMessageW(self.list, LB_GETCURSEL, None, None) }.0;
         usize::try_from(index)
@@ -239,7 +266,7 @@ fn child(
     }
     Ok(control)
 }
-fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result<()> {
+fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool, theme: Theme) -> Result<()> {
     let preview_root =
         std::env::temp_dir().join(format!("lingomate-learning-preview-{}", std::process::id()));
     let store = if preview {
@@ -322,6 +349,9 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
         WINDOW_STYLE(0),
     )?;
     let state = Box::new(Window {
+        theme: Cell::new(theme),
+        preview,
+        brush: Cell::new(unsafe { CreateSolidBrush(appearance::palette(theme).background) }),
         store,
         search: child(
             hwnd,
@@ -367,7 +397,7 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
             w!("BUTTON"),
             w!("标记掌握"),
             5,
-            WINDOW_STYLE(0),
+            WINDOW_STYLE(BS_OWNERDRAW as u32),
         )?,
         delete: child(
             hwnd,
@@ -376,7 +406,7 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
             w!("BUTTON"),
             w!("删除词条"),
             6,
-            WINDOW_STYLE(0),
+            WINDOW_STYLE(BS_OWNERDRAW as u32),
         )?,
         refresh: child(
             hwnd,
@@ -385,7 +415,7 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
             w!("BUTTON"),
             w!("刷新"),
             7,
-            WINDOW_STYLE(0),
+            WINDOW_STYLE(BS_OWNERDRAW as u32),
         )?,
         export: child(
             hwnd,
@@ -394,7 +424,7 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
             w!("BUTTON"),
             w!("导出全部…"),
             8,
-            WINDOW_STYLE(0),
+            WINDOW_STYLE(BS_OWNERDRAW as u32),
         )?,
         visible: RefCell::new(Vec::new()),
     });
@@ -436,6 +466,7 @@ fn run(instance: HINSTANCE, preview: bool, narrow: bool, checks: bool) -> Result
         SendMessageW(state.list, LB_SETHORIZONTALEXTENT, Some(WPARAM(1000)), None);
     }
     state.layout(hwnd);
+    state.recolor(hwnd);
     state.reload();
     if checks {
         window_checks(hwnd, &state);
@@ -476,18 +507,53 @@ unsafe extern "system" fn procedure(
             item.itemHeight = 44;
             return LRESULT(1);
         }
-        if message == WM_DRAWITEM && wparam.0 == 2 {
+        let pointer = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *const Window;
+        let state = if pointer.is_null() {
+            None
+        } else {
+            Some(unsafe { &*pointer })
+        };
+        if let Some(state) = state {
+            if matches!(
+                message,
+                WM_SETTINGCHANGE | WM_SYSCOLORCHANGE | WM_THEMECHANGED | WM_ACTIVATE
+            ) {
+                state.recolor(hwnd);
+            }
+            let palette = appearance::palette(state.theme.get());
+            if message == WM_ERASEBKGND {
+                let mut rect = RECT::default();
+                let _ = unsafe { GetClientRect(hwnd, &mut rect) };
+                unsafe {
+                    FillRect(HDC(wparam.0 as *mut _), &rect, state.brush.get());
+                }
+                return LRESULT(1);
+            }
+            if matches!(
+                message,
+                WM_CTLCOLORSTATIC | WM_CTLCOLOREDIT | WM_CTLCOLORLISTBOX | WM_CTLCOLORBTN
+            ) {
+                let dc = HDC(wparam.0 as *mut _);
+                unsafe {
+                    SetTextColor(dc, palette.foreground);
+                    SetBkColor(dc, palette.background);
+                }
+                return LRESULT(state.brush.get().0 as isize);
+            }
+        }
+        if message == WM_DRAWITEM && (wparam.0 == 2 || (5..=8).contains(&wparam.0)) {
             let item = unsafe { &*(lparam.0 as *const DRAWITEMSTRUCT) };
             let selected = item.itemState.0 & ODS_SELECTED.0 != 0;
+            let palette = appearance::palette(state.map_or(Theme::Light, |s| s.theme.get()));
             let background = if selected {
-                COLOR_HIGHLIGHT
+                palette.selected
             } else {
-                COLOR_WINDOW
+                palette.background
             };
             let foreground = if selected {
-                COLOR_HIGHLIGHTTEXT
+                palette.selected_text
             } else {
-                COLOR_WINDOWTEXT
+                palette.foreground
             };
             let index = if item.itemID == u32::MAX {
                 unsafe { SendMessageW(item.hwndItem, CB_GETCURSEL, None, None) }
@@ -500,23 +566,50 @@ unsafe extern "system" fn procedure(
                 .get(index)
                 .copied()
                 .unwrap_or("");
+            let mut label = [0u16; 128];
+            let size = if wparam.0 == 2 {
+                0
+            } else {
+                (unsafe { GetWindowTextW(item.hwndItem, &mut label) }) as usize
+            };
+            let button = String::from_utf16_lossy(&label[..size]);
+            let value = if wparam.0 == 2 {
+                value
+            } else {
+                button.as_str()
+            };
             let mut text: Vec<_> = value.encode_utf16().collect();
             let mut rect = item.rcItem;
             rect.left += 8;
             unsafe {
                 let saved = SaveDC(item.hDC);
-                FillRect(item.hDC, &item.rcItem, GetSysColorBrush(background));
+                let brush = CreateSolidBrush(background);
+                FillRect(item.hDC, &item.rcItem, brush);
+                if wparam.0 != 2 {
+                    FrameRect(item.hDC, &item.rcItem, GetSysColorBrush(COLOR_GRAYTEXT));
+                }
+                let _ = DeleteObject(brush.into());
                 let font = SendMessageW(item.hwndItem, WM_GETFONT, None, None).0;
                 if font != 0 {
                     SelectObject(item.hDC, HGDIOBJ(font as *mut _));
                 }
                 SetBkMode(item.hDC, TRANSPARENT);
-                SetTextColor(item.hDC, COLORREF(GetSysColor(foreground)));
+                SetTextColor(
+                    item.hDC,
+                    if item.itemState.0 & windows::Win32::UI::Controls::ODS_DISABLED.0 != 0 {
+                        palette.secondary
+                    } else {
+                        foreground
+                    },
+                );
                 DrawTextW(
                     item.hDC,
                     &mut text,
                     &mut rect,
-                    DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX,
+                    DT_SINGLELINE
+                        | DT_VCENTER
+                        | DT_NOPREFIX
+                        | if wparam.0 == 2 { DT_LEFT } else { DT_CENTER },
                 );
                 if item.itemState.0 & ODS_FOCUS.0 != 0 {
                     let _ = DrawFocusRect(item.hDC, &item.rcItem);
@@ -598,7 +691,15 @@ pub extern "system" fn LingoMateLearningW(
     _command: PCWSTR,
     _show: i32,
 ) {
-    let _ = std::panic::catch_unwind(|| run(instance, false, false, false));
+    let _ = std::panic::catch_unwind(|| {
+        run(
+            instance,
+            false,
+            false,
+            false,
+            crate::preferences::display().theme,
+        )
+    });
 }
 #[unsafe(no_mangle)]
 pub extern "system" fn LingoMateLearningPreviewW(
@@ -607,7 +708,7 @@ pub extern "system" fn LingoMateLearningPreviewW(
     _command: PCWSTR,
     _show: i32,
 ) {
-    let _ = std::panic::catch_unwind(|| run(instance, true, false, false));
+    let _ = std::panic::catch_unwind(|| run(instance, true, false, false, Theme::Light));
 }
 
 #[unsafe(no_mangle)]
@@ -617,7 +718,7 @@ pub extern "system" fn LingoMateLearningNarrowPreviewW(
     _command: PCWSTR,
     _show: i32,
 ) {
-    let _ = std::panic::catch_unwind(|| run(instance, true, true, false));
+    let _ = std::panic::catch_unwind(|| run(instance, true, true, false, Theme::Light));
 }
 fn window_checks(owner: HWND, state: &Window) {
     assert_eq!(
@@ -669,6 +770,25 @@ fn isolated_native_learning_window_wide_and_narrow() {
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     let instance = HINSTANCE(unsafe { GetModuleHandleW(None) }.unwrap().0);
     for narrow in [false, true] {
-        run(instance, true, narrow, true).unwrap();
+        run(instance, true, narrow, true, Theme::Dark).unwrap();
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn LingoMateLearningDarkPreviewW(
+    _owner: HWND,
+    instance: HINSTANCE,
+    _command: PCWSTR,
+    _show: i32,
+) {
+    let _ = std::panic::catch_unwind(|| run(instance, true, false, false, Theme::Dark));
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn LingoMateLearningDarkNarrowPreviewW(
+    _owner: HWND,
+    instance: HINSTANCE,
+    _command: PCWSTR,
+    _show: i32,
+) {
+    let _ = std::panic::catch_unwind(|| run(instance, true, true, false, Theme::Dark));
 }

@@ -180,6 +180,7 @@ impl ITfEditSession_Impl for Edit_Impl {
                                 .is_some_and(|doc| Rc::ptr_eq(doc, &self.document))
                         {
                             state.cancel_memory();
+                            state.input.borrow_mut().punctuation.reset_context();
                         }
                     }
                 }
@@ -215,6 +216,7 @@ impl ITfCompositionSink_Impl for Sink_Impl {
                 document.terminated.set(true);
                 if let Some(state) = document.state.upgrade() {
                     state.cancel_memory();
+                    state.input.borrow_mut().punctuation.reset_context();
                 }
             }
             Ok(())
