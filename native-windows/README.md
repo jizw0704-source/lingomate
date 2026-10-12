@@ -16,7 +16,7 @@
 
 个人词库只保存词条、拼音、累计次数和使用次序统计，不读取宿主正文或剪贴板，不保存逐次输入历史，不上传。沿用许可明确的词库与词频，没有新增语料、模型或生产依赖。 位置为 `%LOCALAPPDATA%\LingoMate\PersonalVocabulary\words.json`，与英文学习记录独立。多个应用共享本机词库，失败输出不记忆。
 
-Mac **0.12.9 / build 31** 与 Windows **0.1.8** 安装包、校验文件、对应源码及试用说明已上传[内部试用草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)并完成下载回校验；草稿仅维护者可见，须下载后转交同事。未公开发布或启用远程更新清单。本机已安装 Mac 0.12.9，用户已确认 Codex 中已知词与新组合“钙钛镍”的逐字输入及靠前整词候选；整词提交、重启保留、跨应用与 Windows 实机仍待验收。
+Mac **0.12.9 / build 31** 与 Windows **0.1.8** 安装包、校验文件、对应源码及试用说明已上传[内部试用草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e25b2e907874382cdb4a)并完成下载回校验；草稿仅维护者可见，须下载后转交同事。未公开发布或启用远程更新清单。本机已安装 Mac 0.12.9，用户已确认 Codex 中已知词与新组合“钙钛镍”的逐字输入及靠前整词候选；整词提交、重启保留、跨应用与 Windows 实机仍待验收。
 
 Windows 版本采用系统原生 Text Services Framework（TSF，文本服务框架），由 Rust 文本服务 DLL 接入应用输入框，并通过独立本地进程调用现有拼音与英文释义引擎。
 
@@ -56,7 +56,17 @@ Mac 从输入源菜单“本地学习记录…”或“设置 → 学习”进�
 
 ## 同事试用安装包
 
-Windows 0.1.8 的安装 EXE、SHA-256 文件、对应项目源码快照及试用说明已保存至[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)。同一草稿同时提供 Mac 0.12.9；旧版本附件保留。Windows [构建和上传检查](https://github.com/jizw0704-source/lingomate/actions/runs/38199615445)全部通过：MSVC 构建、格式／Clippy、原生与真实引擎回归、许可和数据再生成、更新回归、DLL 生命周期、安装 EXE 编译及初始窗口检查。检查没有安装或登记 TSF，不等于 Windows 11 实机验收。
+Windows **0.1.9** 的安装 EXE、SHA-256、对应源码 ZIP 及其校验文件、试用说明共五份已上传[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e25b2e907874382cdb4a)，并下载回核对字节、大小和 GitHub 摘要。安装 EXE 为 5,516,168 字节，SHA-256 为 `9a4e5ce52a86b39cb3da49d64323deb8279d6f01c0bad66a2aca43954c647f4e`；源码固定为 `d5ae1d9f18bcec0c12902ea7b0ef5b8358d60be7`。此前 40 份附件的身份、大小和摘要保留，草稿现有 45 份附件，Mac 0.12.9 安装包保持原状。
+
+[构建和上传检查](https://github.com/jizw0704-source/lingomate/actions/runs/38214316742)全部通过：MSVC 构建、格式／Clippy、原生与真实引擎回归、许可和数据再生成、更新回归、DLL 生命周期、安装 EXE 编译及初始窗口检查。检查没有安装或登记 TSF，不等于 Windows 11 实机验收。功能通过 [PR #2](https://github.com/jizw0704-source/lingomate/pull/2) 请求合并到 main，尚未合并。
+
+草稿仅维护者可见。下载后将 `lingomate-windows-x64-0.1.9-setup.exe`、校验文件、对应源码及 `lingomate-windows-0.1.9-trial-guide.txt` 一并转交同事；接收者无需自行安装 Rust、Python 或开发工具。本机副本保存在 `native-windows/package/installer-0.1.9/`。
+
+保存工作并切换其他输入法后，双击安装 EXE。安装后检查 Win＋空格列表；如需添加输入源，在系统语言选项中操作。重新打开待试用的应用，先在记事本空白文稿验证中英候选、分页、混合输入、词性、学习记录，再核对本次外观／字号／标点与图标。Windows 11 首次安装、真实键盘、系统主题、高 DPI、跨应用、升级／恢复及卸载仍待验收；安装器未完成发行签名，公司策略拦截时联系 IT。草稿未公开发布，不触发远程更新。
+
+### 历史 0.1.8 试用包
+
+Windows 0.1.8 的安装 EXE、SHA-256 文件、对应项目源码快照及试用说明已保存至[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e25b2e907874382cdb4a)。同一草稿同时提供 Mac 0.12.9；旧版本附件保留。Windows [构建和上传检查](https://github.com/jizw0704-source/lingomate/actions/runs/38199615445)全部通过：MSVC 构建、格式／Clippy、原生与真实引擎回归、许可和数据再生成、更新回归、DLL 生命周期、安装 EXE 编译及初始窗口检查。检查没有安装或登记 TSF，不等于 Windows 11 实机验收。
 
 安装文件为 `lingomate-windows-x64-0.1.8-setup.exe`，大小 5,494,055 字节，SHA-256 为 `406a2c74b6b38977860c91a97b74faadcc2c3a0fce0e7c139272962cd000d854`。源码对应提交 `27463a6301e872f57668e2daf5e4d5063b372a68`，快照只含该提交的项目文件和来源说明，不包含本机未提交修改、个人数据或生成词库。全部五份附件已下载回核对，字节、大小和 GitHub 摘要一致。
 
