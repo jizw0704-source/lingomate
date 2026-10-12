@@ -8,7 +8,7 @@
 
 个人词库只保存词条、拼音、累计次数和使用次序统计，不读取宿主正文或剪贴板，不保存逐次输入历史，不上传。沿用许可明确的词库与词频，没有新增语料、模型或生产依赖。 位置为 `~/Library/Application Support/BilingualCompanion/PersonalVocabulary/words.json`，与英文学习记录独立。
 
-Mac **0.12.9 / build 31** 与 Windows **0.1.8** 安装包、校验文件、对应源码及试用说明已上传[内部试用草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)并完成下载回校验；草稿仅维护者可见，须下载后转交同事。未公开发布或启用远程更新清单。本机已安装 Mac 0.12.9；逐字组词记忆的实体键盘与跨应用验收待完成。
+Mac **0.12.9 / build 31** 与 Windows **0.1.8** 安装包、校验文件、对应源码及试用说明已上传[内部试用草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)并完成下载回校验；草稿仅维护者可见，须下载后转交同事。未公开发布或启用远程更新清单。本机已安装 Mac 0.12.9，用户已确认 Codex 中逐字确认后的整词靠前候选显示；未知新词记忆、重启保留、跨应用与 Windows 实机仍待验收。
 
 此前 **0.12.7 / build 29 的 DMG**已补入[双平台内部草稿](https://github.com/jizw0704-source/lingomate/releases/tag/untagged-e042388951845183f527)，下载回校验通过，包内全部 18 个应用文件与当时本机安装版一致。附带校验文件、对应源码 ZIP 及试用说明；该源码 ZIP 记录基线与显式构建修改，不能用基线提交单独替代。本机用户已确认 Codex 中英文候选显示。草稿仅维护者可见，未公开发布，远程更新清单未启用。
 
