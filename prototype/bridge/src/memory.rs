@@ -249,7 +249,7 @@ impl Memory {
                 match lock.try_lock() {
                     Ok(()) => break,
                     Err(TryLockError::WouldBlock)
-                        if started.elapsed() < Duration::from_millis(150) =>
+                        if started.elapsed() < Duration::from_millis(350) =>
                     {
                         std::thread::sleep(Duration::from_millis(2));
                     }
@@ -273,6 +273,8 @@ impl Memory {
             let write = (|| -> Result<(), Box<dyn std::error::Error>> {
                 file.write_all(&serde_json::to_vec(&latest)?)?;
                 file.sync_all()?;
+                // Windows replacement must not retain our writable temporary handle.
+                drop(file);
                 replace_file(&temporary, &path)?;
                 Ok(())
             })();

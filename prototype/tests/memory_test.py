@@ -320,7 +320,7 @@ class MemoryTests(unittest.TestCase):
                         "syllables": candidate["syllables"],
                     },
                 )
-                exchange(
+                confirmation = exchange(
                     process,
                     {
                         "action": "confirm",
@@ -329,6 +329,7 @@ class MemoryTests(unittest.TestCase):
                         "learning_token": commit["learningToken"],
                     },
                 )
+                self.assertFalse(confirmation.get("memoryWarning"), confirmation)
 
         try:
             with ThreadPoolExecutor(max_workers=2) as pool:
