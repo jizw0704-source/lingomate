@@ -22,6 +22,8 @@ Windows 日常开发使用 `codex/windows-dev` 分支，所有 Windows 相关修
 
 每项需要两端支持的新功能，以一个 Windows 同步任务记录交接和验收。Mac 功能的合并表示参考实现已经进入主分支；Windows 的实现和实机验证分别跟踪。
 
+现有功能以 [Mac 版本功能基线](docs/MAC_FEATURE_BASELINE.md)为对照，包含 0.12.9 的功能行为、默认值、源码覆盖说明及共同验收用例。先核对已有功能，再为待同步项创建单独任务。
+
 1. **完成 Mac 参考实现。** 在 `codex/macos-<功能名>` 分支开发，提交目标为 `main` 的 PR。说明用户操作、默认设置、快捷键、预期结果及已验证范围，附必要的截图或短视频。审核并获准合并后，记录 Mac PR、合并提交及版本。
 2. **建立 Windows 同步任务。** 在 [GitHub 新建任务](https://github.com/jizw0704-source/lingomate/issues/new/choose)中选择“Mac 新功能同步到 Windows”，填写功能名并交给 Wright。模板默认指定 `LightningFlashEvE`；提交前核对负责人。任务链接到已合并的 Mac PR，列出参考文件、用户行为、共用接口／数据影响和验收用例。已有同一功能的任务时补充原任务，避免重复创建。Mac 尚未合并时可以提前建任务，但注明等待参考提交稳定。
 3. **实现 Windows 对应功能。** Wright 在工作区干净时获取最新 `origin/main`，将其合并到 `codex/windows-dev`，再按任务实现。共享引擎和数据按现有接口复用，系统输入、候选窗和设置由 Windows 原生接口实现。同步主分支不会自动完成 Windows 功能。
