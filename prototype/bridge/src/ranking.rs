@@ -40,18 +40,30 @@ impl Ranking {
             .copied()
     }
 
+    pub fn known(&self, text: &str, syllables: &[String]) -> bool {
+        self.weights
+            .contains_key(&(text.to_owned(), syllables.concat()))
+    }
+
     pub fn order(&self, input: &str, items: &mut [Candidate], memory: &Memory) {
         let key = normalize(input);
+        let preferences = memory.preferences(input);
         // A real whole-word match must precede synthetic unigram concatenations.
         // Preserve the engine's ordering for abbreviation, prefix and correction paths.
         items.sort_by_key(|c| {
             if c.syllables.concat() == key {
-                if self.weight(c).is_some() { 0 } else { 1 }
+                if self.weight(c).is_some()
+                    || (c.syllables.len() > 1
+                        && preferences.contains_key(&(c.text.clone(), c.syllables.clone())))
+                {
+                    0
+                } else {
+                    1
+                }
             } else {
                 2
             }
         });
-        let preferences = memory.preferences(input);
         if preferences.is_empty() {
             return;
         }

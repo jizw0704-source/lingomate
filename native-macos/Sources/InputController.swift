@@ -117,6 +117,7 @@ final class BilingualInputController: IMKInputController {
       guard Runtime.engine != nil else { return false }
       switch event.keyCode {
       case 51:
+        Runtime.engine?.cancelLearning(context: learningContext)
         guard !state.input.isEmpty else {
           punctuation.resetContext()
           return false
@@ -125,6 +126,7 @@ final class BilingualInputController: IMKInputController {
         refresh()
         return true
       case 53:
+        if state.input.isEmpty { Runtime.engine?.cancelLearning(context: learningContext) }
         punctuation.resetContext()
         if state.expanded {
           state.expanded = false
@@ -135,6 +137,7 @@ final class BilingualInputController: IMKInputController {
         discard()
         return true
       case 125, 126:
+        if state.input.isEmpty { Runtime.engine?.cancelLearning(context: learningContext) }
         guard !state.input.isEmpty else {
           punctuation.resetContext()
           return false
@@ -171,6 +174,7 @@ final class BilingualInputController: IMKInputController {
         }
         return true
       case 36, 76:
+        Runtime.engine?.cancelLearning(context: learningContext)
         punctuation.resetContext()
         guard !state.input.isEmpty else { return false }
         rawCommit()
@@ -178,6 +182,7 @@ final class BilingualInputController: IMKInputController {
         punctuation.clearLiteral()
         return true
       case 115, 119, 123, 124:
+        Runtime.engine?.cancelLearning(context: learningContext)
         punctuation.resetContext()
         guard !state.input.isEmpty else { return false }
         rawCommit()
@@ -234,7 +239,7 @@ final class BilingualInputController: IMKInputController {
 
   private func refresh() {
     if state.input.isEmpty {
-      Runtime.engine?.cancelLearning(context: learningContext)
+      // A completed character keeps the bounded same-editor word run.
       sentenceTranslator.cancel()
       state.sentence = .none
       textClient?.setMarkedText(
@@ -386,11 +391,12 @@ final class BilingualInputController: IMKInputController {
       textClient.insertText(symbol, replacementRange: noReplacement)
       InputDiagnostics.insertCalls += 1
     }
+    Runtime.engine?.cancelLearning(context: learningContext)
     return true
   }
 
   private func rawCommit() {
-    if !state.input.isEmpty { Runtime.engine?.cancelLearning(context: learningContext) }
+    Runtime.engine?.cancelLearning(context: learningContext)
     sentenceTranslator.cancel()
     let raw = state.takeRawInput()
     panel.orderOut(nil)
@@ -415,7 +421,11 @@ final class BilingualInputController: IMKInputController {
       InputDiagnostics.activations += 1
       InputDiagnostics.controller = self
       shiftTap.reset()
-      textClient = (sender as? IMKTextInput) ?? client()
+      let nextClient = (sender as? IMKTextInput) ?? client()
+      if !isSessionActive || (textClient as AnyObject?) !== (nextClient as AnyObject?) {
+        Runtime.engine?.cancelLearning(context: learningContext)
+      }
+      textClient = nextClient
       isSessionActive = true
       // 每次激活明确指定会话的字母布局；不切换系统输入源或修改全局键盘设置。
       textClient?.overrideKeyboard(withKeyboardNamed: "com.apple.keylayout.ABC")
@@ -436,8 +446,15 @@ final class BilingualInputController: IMKInputController {
 
   override func commitComposition(_ sender: Any!) {
     mainSync {
-      if let client = sender as? IMKTextInput { textClient = client }
-      rawCommit()
+      if let client = sender as? IMKTextInput {
+        if (textClient as AnyObject?) !== (client as AnyObject?) {
+          Runtime.engine?.cancelLearning(context: learningContext)
+        }
+        textClient = client
+      }
+      // Empty host commit callbacks also occur when a marked composition ends.
+      // Actual focus/mouse/cursor/raw-output boundaries cancel separately.
+      if !state.input.isEmpty { rawCommit() }
     }
   }
 

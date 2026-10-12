@@ -5,12 +5,13 @@ use qingjian_dictionary::Dictionary;
 use qingjian_translate::Glossary;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 mod memory;
 mod part_of_speech;
 mod ranking;
+mod sequence;
 
 struct Pending {
     token: u64,
@@ -18,6 +19,7 @@ struct Pending {
     remaining: String,
     candidate: Candidate,
     chinese: bool,
+    deferred: bool,
 }
 
 struct Chain {
@@ -52,6 +54,8 @@ struct Request {
     learning_token: Option<u64>,
     #[serde(default)]
     chinese_output: Option<bool>,
+    #[serde(default)]
+    deferred_output: bool,
 }
 
 struct Adapter {
@@ -60,8 +64,10 @@ struct Adapter {
     memory: memory::Memory,
     ranking: ranking::Ranking,
     parts_of_speech: part_of_speech::PartsOfSpeech,
-    pending: HashMap<String, Pending>,
+    pending: HashMap<String, VecDeque<Pending>>,
     chains: HashMap<String, Chain>,
+    sequences: HashMap<String, sequence::Sequence>,
+    retired: HashSet<String>,
     token: u64,
 }
 
@@ -90,6 +96,8 @@ impl Adapter {
             parts_of_speech: part_of_speech::PartsOfSpeech::load(&glossary_path)?,
             pending: HashMap::new(),
             chains: HashMap::new(),
+            sequences: HashMap::new(),
+            retired: HashSet::new(),
             token: 0,
         })
     }
@@ -159,22 +167,61 @@ impl Adapter {
             return Err("无效输入会话。".into());
         }
         if request.action == "cancel" {
-            self.pending.remove(&request.context);
             self.chains.remove(&request.context);
+            if request.deferred_output {
+                // A retired TSF scope may still own already-queued host edits. It
+                // never receives new commits; its FIFO receipts require host success.
+                if let Some(queue) = self.pending.get_mut(&request.context) {
+                    queue.retain(|pending| pending.deferred);
+                }
+                if self
+                    .pending
+                    .get(&request.context)
+                    .is_none_or(VecDeque::is_empty)
+                {
+                    self.pending.remove(&request.context);
+                    self.sequences.remove(&request.context);
+                    self.retired.remove(&request.context);
+                } else {
+                    self.retired.insert(request.context.clone());
+                }
+            } else {
+                self.pending.remove(&request.context);
+                self.sequences.remove(&request.context);
+                self.retired.remove(&request.context);
+            }
             return Ok(self.frame(None, None));
+        }
+        if self.retired.contains(&request.context)
+            && matches!(request.action.as_str(), "query" | "commit")
+        {
+            return Err("输入会话已经结束。".into());
+        }
+        if matches!(request.action.as_str(), "query" | "commit") {
+            self.memory.refresh();
         }
         if request.action == "confirm" {
             let token = request.learning_token.ok_or("缺少选词确认。")?;
             if self
                 .pending
                 .get(&request.context)
+                .and_then(|queue| queue.front())
                 .is_none_or(|p| p.token != token)
             {
                 return Err("选词确认已失效。".into());
             }
-            let mut pending = self.pending.remove(&request.context).unwrap();
+            let queue = self.pending.get_mut(&request.context).unwrap();
+            let mut pending = queue.pop_front().unwrap();
+            if queue.is_empty() {
+                self.pending.remove(&request.context);
+            }
             pending.chinese &= request.chinese_output.unwrap_or(true);
             self.confirm(&request.context, pending);
+            if !self.pending.contains_key(&request.context) && self.retired.remove(&request.context)
+            {
+                self.sequences.remove(&request.context);
+                self.chains.remove(&request.context);
+            }
             return Ok(self.frame(None, None));
         }
         if self
@@ -185,7 +232,14 @@ impl Adapter {
             self.chains.remove(&request.context);
         }
         // A query/edit before confirmation invalidates the unconfirmed receipt.
-        self.pending.remove(&request.context);
+        if let Some(queue) = self.pending.get_mut(&request.context) {
+            // TSF confirms FIFO edit receipts only after the host has applied them.
+            // Normal synchronous clients retain edit-invalidated single-use receipts.
+            queue.retain(|pending| pending.deferred);
+            if queue.is_empty() {
+                self.pending.remove(&request.context);
+            }
+        }
         self.engine.clear();
         for ch in request.input.chars() {
             self.engine.push(ch);
@@ -226,20 +280,26 @@ impl Adapter {
             if self.memory.enabled() && !request.context.is_empty() {
                 self.token = self.token.saturating_add(1);
                 learning_token = Some(self.token);
-                if self.pending.len() >= 128 || self.chains.len() >= 128 {
+                if self.pending.values().map(VecDeque::len).sum::<usize>() >= 128
+                    || self.chains.len() >= 128
+                    || self.sequences.len() >= 128
+                {
                     self.pending.clear();
                     self.chains.clear();
+                    self.sequences.clear();
+                    self.retired.clear();
                 }
-                self.pending.insert(
-                    request.context.clone(),
-                    Pending {
+                self.pending
+                    .entry(request.context.clone())
+                    .or_default()
+                    .push_back(Pending {
                         token: self.token,
                         input: request.input.clone(),
                         remaining: self.engine.composition().text().to_owned(),
                         candidate,
                         chinese,
-                    },
-                );
+                        deferred: request.deferred_output,
+                    });
             }
         }
         Ok(self.frame(committed, learning_token))
@@ -251,6 +311,25 @@ impl Adapter {
             .strip_suffix(&pending.remaining)
             .unwrap_or(&pending.input);
         self.memory.remember(consumed, &pending.candidate);
+        let independent_character = pending.chinese
+            && pending.remaining.is_empty()
+            && pending.candidate.text.chars().count() == 1
+            && !self.chains.contains_key(context);
+        if independent_character {
+            let ranking = &self.ranking;
+            for word in self
+                .sequences
+                .entry(context.to_owned())
+                .or_default()
+                .push(&pending.candidate, |text, syllables| {
+                    ranking.known(text, syllables)
+                })
+            {
+                self.memory.remember(&word.syllables.concat(), &word);
+            }
+        } else {
+            self.sequences.remove(context);
+        }
         if pending.chinese {
             let previous = self
                 .chains

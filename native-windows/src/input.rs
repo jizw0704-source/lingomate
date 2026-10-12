@@ -1,5 +1,15 @@
-use crate::bridge::{Bridge, Frame};
+use crate::bridge::{Bridge, Confirmation, Frame};
 use serde_json::json;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+fn memory_context() -> String {
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    format!(
+        "win-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    )
+}
 
 pub const PAGE_SIZE: usize = 5;
 #[derive(Clone, Copy, Debug)]
@@ -17,7 +27,7 @@ pub enum Key {
     Digit(usize),
     Punctuation(char),
 }
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Input {
     pub raw: String,
     pub frame: Frame,
@@ -28,8 +38,39 @@ pub struct Input {
     pub error: bool,
     pub last_english: bool,
     pub pending_study: Option<crate::learning::Word>,
+    pub pending_memory: Option<Confirmation>,
+    pub memory_context: String,
+    pub remember: bool,
+}
+impl Default for Input {
+    fn default() -> Self {
+        Self {
+            raw: String::new(),
+            frame: Frame::default(),
+            selected: 0,
+            sense: 0,
+            expanded: false,
+            english: false,
+            error: false,
+            last_english: false,
+            pending_study: None,
+            pending_memory: None,
+            memory_context: memory_context(),
+            remember: true,
+        }
+    }
 }
 impl Input {
+    pub fn reset_memory_context(&mut self) -> String {
+        self.pending_memory = None;
+        std::mem::replace(&mut self.memory_context, memory_context())
+    }
+    pub fn break_memory(&mut self, engine: &mut Bridge) {
+        engine.cancel_memory(&self.reset_memory_context());
+    }
+    pub fn finish_memory(&mut self, engine: &mut Bridge) {
+        engine.retire_memory(&self.reset_memory_context());
+    }
     pub fn normalized(&self) -> String {
         self.raw.to_ascii_lowercase()
     }
@@ -47,6 +88,7 @@ impl Input {
         self.expanded = false;
         self.error = false;
         self.pending_study = None;
+        self.pending_memory = None;
     }
     pub fn raw_commit(&mut self) -> String {
         let text = self.raw.clone();
@@ -56,6 +98,7 @@ impl Input {
     }
     pub fn handle(&mut self, key: Key, engine: &mut Bridge) -> Result<Option<String>, String> {
         self.pending_study = None;
+        self.pending_memory = None;
         match key {
             Key::Letter(ch) => {
                 if self.raw.len() < 240 && (ch.is_ascii_alphabetic() || ch == '\'') {
@@ -64,14 +107,19 @@ impl Input {
                 }
             }
             Key::Backspace => {
+                self.break_memory(engine);
                 self.raw.pop();
                 self.refresh(engine)?;
             }
-            Key::Return => return Ok(Some(self.raw_commit())),
+            Key::Return => {
+                self.finish_memory(engine);
+                return Ok(Some(self.raw_commit()));
+            }
             Key::Escape => {
                 if self.expanded {
                     self.expanded = false;
                 } else {
+                    self.break_memory(engine);
                     self.reset();
                 }
             }
@@ -138,13 +186,22 @@ impl Input {
                         _ => ch,
                     }
                 };
+                if let Some(receipt) = &mut self.pending_memory {
+                    receipt.output.push(punctuation);
+                    receipt.boundary_after = true;
+                }
+                let receipt = self.pending_memory.take();
+                self.finish_memory(engine);
+                self.pending_memory = receipt;
                 return Ok(Some(format!("{}{punctuation}", chosen.unwrap_or_default())));
             }
         }
         Ok(None)
     }
     fn refresh(&mut self, engine: &mut Bridge) -> Result<(), String> {
-        self.frame = engine.call(json!({"action":"query", "input":self.normalized()}))?;
+        self.frame = engine.call(
+            json!({"action":"query", "input":self.normalized(), "context":self.memory_context}),
+        )?;
         self.selected = 0;
         self.sense = 0;
         self.expanded = false;
@@ -167,6 +224,10 @@ impl Input {
             return Ok(None);
         };
         let mut request = json!({"action":"commit", "input":self.normalized(), "candidate":candidate.text, "syllables":candidate.syllables});
+        if self.remember {
+            request["context"] = json!(self.memory_context);
+            request["deferred_output"] = json!(true);
+        }
         if english {
             let Some(sense) = candidate.translations.get(self.sense) else {
                 return Ok(None);
@@ -184,7 +245,15 @@ impl Input {
         } else {
             None
         };
+        let expected = if english {
+            study.as_ref().map(|w| w.english.clone())
+        } else {
+            Some(candidate.text.clone())
+        };
         let result = engine.call(request)?;
+        if result.committed != expected {
+            return Err("Invalid committed word".into());
+        }
         if let Some(word) = &study
             && result.committed.as_deref() != Some(word.english.as_str())
         {
@@ -199,6 +268,9 @@ impl Input {
             return Err("Invalid engine suffix".into());
         }
         self.pending_study = study.filter(|w| w.valid());
+        if self.remember {
+            self.pending_memory = Confirmation::new(&result, self.memory_context.clone(), !english);
+        }
         self.raw = self.raw[consumed..].to_string();
         self.frame = result.clone();
         self.selected = 0;

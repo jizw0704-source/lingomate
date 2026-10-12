@@ -3,7 +3,7 @@ mod document;
 mod panel;
 mod registration;
 mod updates;
-use crate::bridge::Bridge;
+use crate::bridge::{Bridge, Confirmation};
 use crate::input::{Input, Key};
 use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
@@ -112,6 +112,7 @@ struct State {
     panel: RefCell<Option<panel::Panel>>,
     client: Cell<u32>,
     show_pos: Cell<bool>,
+    memory_warning: Cell<bool>,
 }
 impl State {
     fn new() -> Rc<Self> {
@@ -123,7 +124,33 @@ impl State {
             panel: RefCell::new(None),
             client: Cell::new(0),
             show_pos: Cell::new(crate::preferences::load()),
+            memory_warning: Cell::new(false),
         })
+    }
+    fn cancel_memory(&self) {
+        let context = self.input.borrow_mut().reset_memory_context();
+        if let Some(engine) = self.engine.borrow_mut().as_mut() {
+            engine.cancel_memory(&context);
+        }
+    }
+    fn finish_memory(&self) {
+        let context = self.input.borrow_mut().reset_memory_context();
+        if let Some(engine) = self.engine.borrow_mut().as_mut() {
+            engine.retire_memory(&context);
+        }
+    }
+    fn confirm_memory(&self, receipt: &Confirmation, successful: bool, output: Option<&str>) {
+        let active = {
+            let input = self.input.borrow();
+            input.remember
+        };
+        if !active {
+            return;
+        }
+        if let Some(engine) = self.engine.borrow_mut().as_mut() {
+            self.memory_warning
+                .set(engine.confirm_output(receipt, successful, output).is_err());
+        }
     }
     fn key(self: &Rc<Self>, key: Key) {
         let commit = {
@@ -134,10 +161,21 @@ impl State {
                     .ok()
                     .and_then(|path| path.parent().map(PathBuf::from))
                     .and_then(|root| {
-                        Bridge::start(&root.join("bilingual-ime-bridge.exe"), &root).ok()
+                        let memory = std::env::var_os("LOCALAPPDATA").map(|path| {
+                            PathBuf::from(path).join("LingoMate/PersonalVocabulary/words.json")
+                        });
+                        Bridge::start_with_memory(
+                            &root.join("bilingual-ime-bridge.exe"),
+                            &root,
+                            memory.as_deref(),
+                        )
+                        .ok()
                     });
             }
             let result = if matches!(key, Key::Return) {
+                if let Some(engine) = engine.as_mut() {
+                    input.finish_memory(engine);
+                }
                 Ok(Some(input.raw_commit()))
             } else if let Some(engine) = engine.as_mut() {
                 input.handle(key, engine)
@@ -164,13 +202,18 @@ impl State {
                 }
             }
         };
+        if self.input.borrow().frame.memory_warning.is_some() {
+            self.memory_warning.set(true);
+        }
         self.update(commit);
     }
     fn update(self: &Rc<Self>, commit: Option<String>) {
         if let Some(doc) = self.document.borrow().clone() {
             let raw = self.input.borrow().raw.clone();
             let study = self.input.borrow_mut().pending_study.take();
-            if doc.enqueue(commit, raw, study).is_err() {
+            let memory = self.input.borrow_mut().pending_memory.take();
+            if doc.enqueue(commit, raw, study, memory).is_err() {
+                self.cancel_memory();
                 self.input.borrow_mut().reset();
             }
         }
@@ -179,6 +222,7 @@ impl State {
         }
     }
     fn finish(self: &Rc<Self>) {
+        self.finish_memory();
         let terminated = self
             .document
             .borrow()
@@ -300,6 +344,7 @@ impl ITfKeyEventSink_Impl for Service_Impl {
                 return Ok(FALSE);
             };
             if blocked(context) || self.state.input.borrow().english || command_modifier() {
+                self.state.cancel_memory();
                 if !blocked(context)
                     && (updates::shortcut(key.0) || panel::settings_shortcut(key.0))
                 {
@@ -307,9 +352,15 @@ impl ITfKeyEventSink_Impl for Service_Impl {
                 }
                 return Ok(FALSE);
             }
-            Ok(decode(key.0, !self.state.input.borrow().raw.is_empty())
-                .is_some()
-                .into())
+            let decoded = decode(key.0, !self.state.input.borrow().raw.is_empty());
+            if decoded.is_none() {
+                if key.0 == 0x20 || key.0 == 0x0D {
+                    self.state.finish_memory();
+                } else {
+                    self.state.cancel_memory();
+                }
+            }
+            Ok(decoded.is_some().into())
         })
     }
     fn OnKeyDown(&self, context: Ref<ITfContext>, key: WPARAM, _flags: LPARAM) -> Result<BOOL> {

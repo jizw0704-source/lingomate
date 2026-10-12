@@ -44,3 +44,5 @@ runtime/python/bin/ruff check native-windows/tools
 ```
 
 Install the Windows Rust standard target into the local runtime before cross-checking. macOS cannot link MSVC, register TSF or validate Windows host keyboard input. Keep README/QA, root status and Obsidian mirrors explicit about those limits.
+
+User authorized confirmed Chinese personal vocabulary and independent-character word memory, including heuristic unknown short words. Enable --memory only in the normal TSF bridge using LOCALAPPDATA/LingoMate/PersonalVocabulary/words.json; tests use explicit temporary paths and default Bridge::start remains memory-disabled. Queued TSF receipts are FIFO, one-use, output/generation-bound and confirmed only after the whole host edit succeeds; retired scopes accept only their already-queued successful edits and never join the new scope. Cancel failures/edits/disabled contexts; keep reader-thread teardown joined before DLL release. The current-application memory menu pauses writes without deleting words. No input history, clipboard/host text or cloud access.

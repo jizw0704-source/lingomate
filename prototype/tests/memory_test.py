@@ -226,6 +226,155 @@ class MemoryTests(unittest.TestCase):
             self.assertEqual(self.path.read_bytes(), original)
             self.stop()
 
+    def test_separate_compositions_learn_known_and_unknown_words_after_restart(self):
+        for pinyin, character in [("gai", "钙"), ("tai", "钛"), ("kuang", "矿")]:
+            self.confirm(self.commit(pinyin, character))
+        self.restart()
+        first = self.request("gaitaikuang")["candidates"][0]
+        self.assertEqual(first["text"], "钙钛矿")
+        self.assertTrue(first["personal"])
+        self.request(action="cancel")
+        for pinyin, character in [("gai", "钙"), ("tai", "钛"), ("nie", "镍")]:
+            self.confirm(self.commit(pinyin, character))
+        self.restart()
+        first = self.request("gaitainie")["candidates"][0]
+        self.assertEqual(first["text"], "钙钛镍")
+        self.assertTrue(first["personal"])
+        self.assertEqual(self.commit("gaitainie", "钙钛镍")["committed"], "钙钛镍")
+
+    def test_separate_characters_do_not_cross_cancel_context_or_english(self):
+        for boundary in ("cancel", "context", "english"):
+            self.request(action="cancel")
+            self.confirm(self.commit("nie", "镍"))
+            if boundary == "cancel":
+                self.request(action="cancel")
+            elif boundary == "english":
+                self.confirm(self.commit("shi", "市", english="city"))
+            context = "another" if boundary == "context" else "editor"
+            part = self.commit("gai", "钙", context=context)
+            self.confirm(part, context=context)
+            self.assertFalse(any(e["text"] == "镍钙" for e in self.entries()))
+
+    def test_function_word_sentence_is_not_joined_into_personal_entry(self):
+        for pinyin, character in [
+            ("wo", "我"),
+            ("xiang", "想"),
+            ("qu", "去"),
+            ("kan", "看"),
+            ("ni", "你"),
+        ]:
+            self.confirm(self.commit(pinyin, character))
+        self.assertFalse(any(e["text"] == "我想去看你" for e in self.entries()))
+        self.assertFalse(
+            any(e["text"] in ("我想", "想去", "去看", "看你") for e in self.entries())
+        )
+
+    def test_deferred_host_receipts_survive_later_queries_and_remain_fifo_single_use(
+        self,
+    ):
+        first = self.commit("gai", "钙", deferred_output=True)
+        second = self.commit("tai", "钛", deferred_output=True)
+        self.assertFalse(self.path.exists())
+        self.assertIn("error", self.confirm(second))
+        self.confirm(first)
+        self.assertIn("error", self.confirm(first))
+        self.confirm(second)
+        self.assertTrue(any(e["text"] == "钙钛" for e in self.entries()))
+        pending = self.commit("nie", "镍", deferred_output=True)
+        self.request(action="cancel")
+        self.assertIn("error", self.confirm(pending))
+        self.assertFalse(any(e["text"] == "钙钛镍" for e in self.entries()))
+
+    def test_concurrent_processes_merge_choices_and_reload_other_apps(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        other = subprocess.Popen(
+            [str(BRIDGE), RESOURCES, "--memory", str(self.path)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+        )
+
+        def exchange(process, request):
+            process.stdin.write(json.dumps(request) + "\n")
+            process.stdin.flush()
+            result = json.loads(process.stdout.readline())
+            self.assertNotIn("error", result)
+            return result
+
+        def select_many(process, text, word):
+            for _ in range(20):
+                query = exchange(
+                    process, {"action": "query", "input": text, "context": "app"}
+                )
+                candidate = next(c for c in query["candidates"] if c["text"] == word)
+                commit = exchange(
+                    process,
+                    {
+                        "action": "commit",
+                        "input": text,
+                        "context": "app",
+                        "candidate": word,
+                        "syllables": candidate["syllables"],
+                    },
+                )
+                exchange(
+                    process,
+                    {
+                        "action": "confirm",
+                        "input": "",
+                        "context": "app",
+                        "learning_token": commit["learningToken"],
+                    },
+                )
+
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                first = pool.submit(select_many, self.process, "shi", "市")
+                second = pool.submit(select_many, other, "qing", "青")
+                first.result(timeout=20)
+                second.result(timeout=20)
+            entries = self.entries()
+            self.assertEqual(
+                next(
+                    e["count"]
+                    for e in entries
+                    if e["text"] == "市" and e["pinyin"] == "shi"
+                ),
+                20,
+            )
+            self.assertEqual(
+                next(
+                    e["count"]
+                    for e in entries
+                    if e["text"] == "青" and e["pinyin"] == "qing"
+                ),
+                20,
+            )
+            self.assertTrue(
+                next(
+                    c for c in self.request("qing")["candidates"] if c["text"] == "青"
+                )["personal"]
+            )
+        finally:
+            other.stdin.close()
+            other.wait(timeout=5)
+            other.stdout.close()
+
+    def test_stale_custom_full_word_stays_a_word_instead_of_a_synthetic_tail(self):
+        for pinyin, character in [("gai", "钙"), ("tai", "钛"), ("nie", "镍")]:
+            self.confirm(self.commit(pinyin, character))
+        self.stop()
+        data = json.loads(self.path.read_text())
+        data["sequence"] += 1000
+        self.path.write_text(json.dumps(data), encoding="utf-8")
+        self.start()
+        first = self.request("gaitainie")["candidates"][0]
+        self.assertEqual(first["text"], "钙钛镍")
+        self.assertTrue(first["personal"])
+
     def test_save_failure_does_not_fail_output(self):
         # Directory created after startup obstructs the target; no user data is touched.
         self.request("shi")

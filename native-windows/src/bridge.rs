@@ -3,6 +3,7 @@ use serde_json::Value;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::time::Duration;
 
@@ -73,21 +74,64 @@ pub struct Frame {
     pub input: String,
     pub candidates: Vec<Candidate>,
     pub committed: Option<String>,
+    #[serde(default, rename = "learningToken")]
+    pub learning_token: Option<u64>,
+    #[serde(default, rename = "memoryWarning")]
+    pub memory_warning: Option<String>,
+    #[serde(skip)]
+    pub generation: u64,
+}
+
+static GENERATION: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Clone, Debug)]
+pub struct Confirmation {
+    pub context: String,
+    pub generation: u64,
+    token: u64,
+    pub output: String,
+    chinese: bool,
+    pub boundary_after: bool,
+}
+impl Confirmation {
+    pub fn new(frame: &Frame, context: String, chinese: bool) -> Option<Self> {
+        Some(Self {
+            context,
+            generation: frame.generation,
+            token: frame.learning_token?,
+            output: frame.committed.clone()?,
+            chinese,
+            boundary_after: false,
+        })
+    }
 }
 
 pub struct Bridge {
     child: Child,
     input: ChildStdin,
-    replies: Receiver<Result<String, String>>,
+    replies: Option<Receiver<Result<String, String>>>,
+    reader: Option<std::thread::JoinHandle<()>>,
+    pub generation: u64,
+    live: bool,
 }
 impl Bridge {
     pub fn start(executable: &Path, resources: &Path) -> Result<Self, String> {
+        Self::start_with_memory(executable, resources, None)
+    }
+    pub fn start_with_memory(
+        executable: &Path,
+        resources: &Path,
+        memory: Option<&Path>,
+    ) -> Result<Self, String> {
         let mut command = Command::new(executable);
         command
             .arg(resources)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
+        if let Some(path) = memory {
+            command.arg("--memory").arg(path);
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -97,7 +141,7 @@ impl Bridge {
         let input = child.stdin.take().ok_or("No engine input pipe")?;
         let output = child.stdout.take().ok_or("No engine output pipe")?;
         let (sender, replies) = mpsc::sync_channel(1);
-        std::thread::spawn(move || {
+        let reader = std::thread::spawn(move || {
             let mut reader = BufReader::new(output);
             loop {
                 let mut bytes = Vec::new();
@@ -121,10 +165,46 @@ impl Bridge {
         Ok(Self {
             child,
             input,
-            replies,
+            replies: Some(replies),
+            reader: Some(reader),
+            generation: GENERATION.fetch_add(1, Ordering::Relaxed),
+            live: true,
         })
     }
-    pub fn call(&mut self, request: Value) -> Result<Frame, String> {
+
+    pub fn cancel_memory(&mut self, context: &str) {
+        let _ = self.call(serde_json::json!({"action":"cancel", "input":"", "context":context}));
+    }
+    pub fn retire_memory(&mut self, context: &str) {
+        let _ = self.call(serde_json::json!({"action":"cancel", "input":"", "context":context, "deferred_output":true}));
+    }
+
+    pub fn confirm_output(
+        &mut self,
+        receipt: &Confirmation,
+        successful: bool,
+        output: Option<&str>,
+    ) -> Result<bool, String> {
+        if receipt.generation != self.generation {
+            return Ok(false);
+        }
+        if !successful || output != Some(receipt.output.as_str()) {
+            self.cancel_memory(&receipt.context);
+            return Ok(false);
+        }
+        let frame = self.call(
+            serde_json::json!({"action":"confirm", "input":"", "context":receipt.context,
+            "learning_token":receipt.token, "chinese_output":receipt.chinese}),
+        )?;
+        if receipt.boundary_after {
+            self.cancel_memory(&receipt.context);
+        }
+        if frame.memory_warning.is_some() {
+            return Err("中文选词记忆未保存".into());
+        }
+        Ok(true)
+    }
+    fn exchange(&mut self, request: Value) -> Result<Value, String> {
         serde_json::to_writer(&mut self.input, &request).map_err(|e| e.to_string())?;
         self.input
             .write_all(b"\n")
@@ -132,14 +212,46 @@ impl Bridge {
             .map_err(|e| e.to_string())?;
         let reply = self
             .replies
+            .as_ref()
+            .ok_or("Engine connection closed")?
             .recv_timeout(Duration::from_millis(500))
             .map_err(|_| "Engine did not respond within 500 ms".to_string())??;
-        let value: Value = serde_json::from_str(&reply).map_err(|_| "Invalid engine frame")?;
+        serde_json::from_str(&reply).map_err(|_| "Invalid engine frame".into())
+    }
+    fn poison(&mut self) {
+        self.live = false;
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        self.replies.take();
+        if let Some(reader) = self.reader.take() {
+            let _ = reader.join();
+        }
+    }
+    pub fn call(&mut self, request: Value) -> Result<Frame, String> {
+        if !self.live {
+            return Err("Engine connection closed".into());
+        }
+        let value = match self.exchange(request) {
+            Ok(value) => value,
+            Err(error) => {
+                self.poison();
+                return Err(error);
+            }
+        };
         if let Some(error) = value.get("error").and_then(Value::as_str) {
             return Err(error.into());
         }
-        let frame: Frame = serde_json::from_value(value).map_err(|_| "Invalid engine frame")?;
-        if frame.candidates.len() > 64 || frame.input.len() > 240 {
+        let mut frame: Frame = match serde_json::from_value(value) {
+            Ok(frame) => frame,
+            Err(_) => {
+                self.poison();
+                return Err("Invalid engine frame".into());
+            }
+        };
+        frame.generation = self.generation;
+        if frame.candidates.len() > 64 || frame.input.len() > 240 || frame.learning_token == Some(0)
+        {
+            self.poison();
             return Err("Invalid engine limits".into());
         }
         Ok(frame)
@@ -147,7 +259,6 @@ impl Bridge {
 }
 impl Drop for Bridge {
     fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        self.poison();
     }
 }

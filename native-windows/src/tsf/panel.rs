@@ -356,11 +356,13 @@ pub(super) fn settings_shortcut(key: usize) -> bool {
     key == 0x50 && down(0x11) && down(0x10) && !down(0x12) && !down(0x5B) && !down(0x5C)
 }
 fn settings(window: HWND, state: &Rc<State>) {
+    state.cancel_memory();
     // Native checked menu; no activation or host text access. Cancel makes no change.
     let Ok(menu) = (unsafe { CreatePopupMenu() }) else {
         return;
     };
     let current = crate::preferences::load();
+    let remember = state.input.borrow().remember;
     state.show_pos.set(current);
     let mut point = POINT::default();
     unsafe {
@@ -368,6 +370,16 @@ fn settings(window: HWND, state: &Rc<State>) {
         let flags = MF_STRING | if current { MF_CHECKED } else { MF_UNCHECKED };
         let _ = AppendMenuW(menu, flags, 1, w!("显示词性（n. / v. / adj. / adv.）"));
         let _ = AppendMenuW(menu, MF_STRING, 2, w!("本地学习记录…"));
+        let memory_flags = MF_STRING | if remember { MF_CHECKED } else { MF_UNCHECKED };
+        let _ = AppendMenuW(menu, memory_flags, 4, w!("中文选词记忆（当前应用）"));
+        if state.memory_warning.get() {
+            let _ = AppendMenuW(
+                menu,
+                MF_STRING | MF_GRAYED,
+                5,
+                w!("中文选词记忆未保存，请检查本机存储"),
+            );
+        }
         if crate::learning::SAVE_WARNING.load(Ordering::Relaxed) {
             let _ = AppendMenuW(
                 menu,
@@ -387,6 +399,10 @@ fn settings(window: HWND, state: &Rc<State>) {
         )
         .0;
         let _ = DestroyMenu(menu);
+        if selected == 4 {
+            state.cancel_memory();
+            state.input.borrow_mut().remember = !remember;
+        }
         if selected == 2
             && super::module_path()
                 .ok()

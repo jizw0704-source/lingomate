@@ -3,6 +3,10 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if arguments.contains("--character-memory-test") {
+  CharacterMemoryTests.run()
+  exit(0)
+}
 if arguments.contains("--preview-lifecycle-test") {
   PreviewLifecycleTests.run()
   exit(0)

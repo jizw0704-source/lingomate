@@ -7,7 +7,12 @@ use windows::Win32::Foundation::RECT;
 use windows::Win32::UI::TextServices::*;
 use windows::core::{Interface, Ref, Result, implement};
 
-type Operation = (Option<String>, String, Option<crate::learning::Word>);
+type Operation = (
+    Option<String>,
+    String,
+    Option<crate::learning::Word>,
+    Option<crate::bridge::Confirmation>,
+);
 
 pub(super) struct Document {
     pub context: ITfContext,
@@ -37,8 +42,11 @@ impl Document {
         commit: Option<String>,
         preedit: String,
         study: Option<crate::learning::Word>,
+        memory: Option<crate::bridge::Confirmation>,
     ) -> Result<()> {
-        self.queue.borrow_mut().push_back((commit, preedit, study));
+        self.queue
+            .borrow_mut()
+            .push_back((commit, preedit, study, memory));
         if self.scheduled.replace(true) {
             return Ok(());
         }
@@ -155,9 +163,28 @@ impl ITfEditSession_Impl for Edit_Impl {
         guarded(|| {
             let operations: Vec<_> = self.document.queue.borrow_mut().drain(..).collect();
             self.document.scheduled.set(false);
-            for (commit, preedit, study) in operations {
+            for (commit, preedit, study, memory) in operations {
+                let result = self.document.apply(cookie, commit.as_deref(), &preedit);
+                if let Some(state) = self.document.state.upgrade() {
+                    let eligible =
+                        !self.document.terminated.get() && !super::blocked(&self.document.context);
+                    if eligible {
+                        if let Some(receipt) = &memory {
+                            state.confirm_memory(receipt, result.is_ok(), commit.as_deref());
+                        }
+                        if result.is_err()
+                            && state
+                                .document
+                                .borrow()
+                                .as_ref()
+                                .is_some_and(|doc| Rc::ptr_eq(doc, &self.document))
+                        {
+                            state.cancel_memory();
+                        }
+                    }
+                }
                 crate::learning::after_output(
-                    self.document.apply(cookie, commit.as_deref(), &preedit),
+                    result,
                     commit.as_deref(),
                     study,
                     crate::learning::confirmed,
@@ -186,6 +213,9 @@ impl ITfCompositionSink_Impl for Sink_Impl {
                 document.composition.borrow_mut().take();
                 document.queue.borrow_mut().clear();
                 document.terminated.set(true);
+                if let Some(state) = document.state.upgrade() {
+                    state.cancel_memory();
+                }
             }
             Ok(())
         })
