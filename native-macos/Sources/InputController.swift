@@ -576,10 +576,12 @@ final class BilingualInputController: IMKInputController {
 
   func applySetting(_ setting: InputSetting) {
     mainSync {
-      if case .showPOS = setting {
+      switch setting {
+      case .showPOS, .fontSize:
         setting.apply()
         if !IsSecureEventInputEnabled() { draw() }
         return
+      default: break
       }
       if IsSecureEventInputEnabled() { discard() } else { rawCommit() }
       shiftTap.reset()

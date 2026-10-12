@@ -11,10 +11,10 @@
 | Mac 安装包 | `lingomate-macos-arm64-0.12.9.dmg`，Apple Silicon，位于维护者可见的 [Releases 草稿](https://github.com/jizw0704-source/lingomate/releases) |
 | 安装包源码 | 同草稿中的 `lingomate-macos-0.12.9-project-source.zip`；以其中 `SOURCE-SNAPSHOT.json` 为构建输入依据 |
 | 安装包源码基线 | [27463a6301e872f57668e2daf5e4d5063b372a68](https://github.com/jizw0704-source/lingomate/tree/27463a6301e872f57668e2daf5e4d5063b372a68)，另含清单列出的 11 项显式覆盖文件 |
-| 本轮仓库核对基线 | [04535f742c2c8518e04e0c82eb1ebbbdee0ec0ef](https://github.com/jizw0704-source/lingomate/tree/04535f742c2c8518e04e0c82eb1ebbbdee0ec0ef)；这是整理文档时的主分支，不等于安装包的完整构建输入 |
+| 原功能核对基线 | [04535f742c2c8518e04e0c82eb1ebbbdee0ec0ef](https://github.com/jizw0704-source/lingomate/tree/04535f742c2c8518e04e0c82eb1ebbbdee0ec0ef)；这是首次整理文档时的主分支，当时尚未包含字号相关覆盖代码 |
 | 系统条件 | 基础输入部署目标为 macOS 13，较早系统实测待补；Apple 本机整句翻译需要 macOS 26 及以上和已下载的中英文语言资源；Intel Mac 待构建与验证 |
 
-**字号及相关设置代码尚未完整进入上述主分支。** 安装包已包含这些功能，Wright 应从对应源码 ZIP 查看 `CandidatePreferences.swift`、`CandidateFontTests.swift`、`SettingsInput.swift`、`SettingsWindow.swift` 及其他清单覆盖项。不要将仅拉取基线提交视为获取了安装包全部源码；后续独立 PR 再处理源码整合。
+**字号及相关设置的 10 个 Swift 覆盖文件已纳入本次源码整理。** 所在代码分支的全部 50 个 Swift 构建输入与 0.12.9 包源码清单摘要一致，Wright 可直接查看 `CandidatePreferences.swift`、`CandidateFontTests.swift`、`SettingsInput.swift`、`SettingsWindow.swift` 及候选渲染支持代码。正式安装包仍以原源码 ZIP 的 `SOURCE-SNAPSHOT.json` 为依据，其中第 11 项覆盖文件为安装试用说明，本次不修改该历史交付文件。PR 未合并时从 PR 分支获取代码；合并后从 `main` 获取。
 
 源码 ZIP 的 SHA-256 为 `0379a676d68aa2162fb8b0d560e8102133b030e25be3bb8af88321ee9145b340`，DMG 为 `1ac9a48eb2e81c8ff6c0094e76a585f2712a8ad0807309a9edf4335187e52ea5`。草稿附件仍附有各自校验文件，转交试用者时一并提供。
 
@@ -147,10 +147,10 @@ Wright 在独立测试文稿或空白输入框中执行以下用例，记录 Win
 | 范围 | 参考文件 |
 | --- | --- |
 | 输入、分页与提交 | [InputController.swift](../native-macos/Sources/InputController.swift)、[SessionState.swift](../native-macos/Sources/SessionState.swift)、[TypingMode.swift](../native-macos/Sources/TypingMode.swift)、[Punctuation.swift](../native-macos/Sources/Punctuation.swift) |
-| 候选、外观与设置 | [CandidatePanel.swift](../native-macos/Sources/CandidatePanel.swift)、[AppearanceSettings.swift](../native-macos/Sources/AppearanceSettings.swift)、[CandidatePreferences.swift](../native-macos/Sources/CandidatePreferences.swift)、[SettingsWindow.swift](../native-macos/Sources/SettingsWindow.swift)；字号部分以包源码覆盖项为准 |
+| 候选、外观与设置 | [CandidatePanel.swift](../native-macos/Sources/CandidatePanel.swift)、[AppearanceSettings.swift](../native-macos/Sources/AppearanceSettings.swift)、[CandidatePreferences.swift](../native-macos/Sources/CandidatePreferences.swift)、[SettingsWindow.swift](../native-macos/Sources/SettingsWindow.swift)、[CandidateFontTests.swift](../native-macos/Sources/CandidateFontTests.swift)；字号相关 Swift 覆盖项已整理到同一分支 |
 | 引擎、排序与记忆 | [EngineClient.swift](../native-macos/Sources/EngineClient.swift)、[共享桥接](../prototype/bridge/src)、[CharacterMemoryTests.swift](../native-macos/Sources/CharacterMemoryTests.swift)、[固定数据配置](../data) |
 | 学习与账号 | [LocalLearningStore.swift](../native-macos/Sources/LocalLearningStore.swift)、[LocalLearningWindow.swift](../native-macos/Sources/LocalLearningWindow.swift)、[LearningStore.swift](../native-macos/Sources/LearningStore.swift)、[AccountService.swift](../native-macos/Sources/AccountService.swift) |
 | 整句翻译 | [SentenceTranslator.swift](../native-macos/Sources/SentenceTranslator.swift)、[AITranslation.swift](../native-macos/Sources/AITranslation.swift)、[TranslationSetup.swift](../native-macos/Sources/TranslationSetup.swift) |
 | 安装、更新与浮窗清理 | [安装器](../native-macos/Installer)、[UpdateCore.swift](../native-macos/Sources/UpdateCore.swift)、[ServiceLease.swift](../native-macos/Sources/ServiceLease.swift)、[PreviewLifecycle.swift](../native-macos/Sources/PreviewLifecycle.swift) |
 
-索引便于定位主分支实现。复现 0.12.9 安装包时使用上述固定基线和 `SOURCE-SNAPSHOT.json` 中全部覆盖项及摘要。以后每次 Mac 功能变更，更新本基线的版本、行为、默认值和证据范围，并用单项同步任务记录 Windows 进度。
+索引便于定位所在代码分支的实现。字号整理补齐后，Swift 文件可直接从该分支获取；复现历史 0.12.9 安装包仍使用对应源码 ZIP、固定基线和 `SOURCE-SNAPSHOT.json` 中全部覆盖项及摘要。以后每次 Mac 功能变更，更新本基线的版本、行为、默认值和证据范围，并用单项同步任务记录 Windows 进度。
