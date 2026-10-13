@@ -3,6 +3,10 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if arguments.contains("--english-fragment-test") {
+  EnglishFragmentTests.run()
+  exit(0)
+}
 if arguments.contains("--character-memory-test") {
   CharacterMemoryTests.run()
   exit(0)
@@ -185,6 +189,7 @@ let previewTheme: AppearanceChoice? = {
 AppearanceSettings.configure(
   isolated: isPreview || arguments.contains("--isolated-appearance"), initial: previewTheme)
 CandidatePreferences.configure(isolated: isPreview)
+EnglishInputPreferences.configure(isolated: isPreview)
 if isPreview && arguments.contains("--preview-hide-pos") {
   CandidatePreferences.current.select(false)
 }

@@ -10,6 +10,7 @@ enum SettingsTests {
       .punctuation(.automatic), .punctuation(.chinese), .punctuation(.english),
       .remember(true), .remember(false),
       .showPOS(true), .showPOS(false),
+      .capitalizeEnglish(true), .capitalizeEnglish(false),
       .fontSize(.small), .fontSize(.standard), .fontSize(.large), .fontSize(.extraLarge),
     ] {
       precondition(InputSetting(payload: value.payload)?.payload == value.payload)
@@ -21,6 +22,9 @@ enum SettingsTests {
       ["setting": "pos", "value": "中文"],
       ["setting": "fontSize", "value": "17"], ["setting": "fontSize", "value": "018"],
       ["setting": "fontSize", "value": "large"],
+      ["setting": "englishCapitalization", "value": "yes"],
+      ["setting": "englishCapitalization", "value": true],
+      ["setting": "englishCapitalization", "value": "on", "text": "not allowed"],
     ] { precondition(InputSetting(payload: value) == nil) }
     precondition(InputSettingsSnapshot(payload: [:]) == nil)
     let client = SettingsInputClient(preview: true)
@@ -62,6 +66,26 @@ enum SettingsTests {
       hidePOS.performClick(nil)
       precondition(controller.input.snapshot?.showPOS == false)
       controller.input.request(.showPOS(true))
+      precondition(controller.input.snapshot?.capitalizeEnglish == true)
+      let inputScroll = allViews(controller.window.contentView!).compactMap { $0 as? NSScrollView }
+        .first!
+      inputScroll.contentView.scroll(to: NSPoint(x: 0, y: 240))
+      inputScroll.reflectScrolledClipView(inputScroll.contentView)
+      let offset = inputScroll.contentView.bounds.origin.y
+      let keepCase = allViews(controller.window.contentView!).compactMap { $0 as? ActionButton }
+        .first { $0.title.contains("关闭（保留原样）") }!
+      controller.window.contentView?.layoutSubtreeIfNeeded()
+      precondition(keepCase.bounds.height >= 44)
+      keepCase.performClick(nil)
+      precondition(controller.input.snapshot?.capitalizeEnglish == false)
+      let refreshedScroll = allViews(controller.window.contentView!).compactMap {
+        $0 as? NSScrollView
+      }.first!
+      precondition(abs(refreshedScroll.contentView.bounds.origin.y - offset) < 1)
+      let capitalize = allViews(controller.window.contentView!).compactMap { $0 as? ActionButton }
+        .first { $0.title.contains("开启（默认）") }!
+      capitalize.performClick(nil)
+      precondition(controller.input.snapshot?.capitalizeEnglish == true)
       let english = allViews(controller.window.contentView!).compactMap { $0 as? ActionButton }
         .first { $0.title.contains("中文拼音") }!
       english.performClick(nil)
@@ -83,7 +107,7 @@ enum SettingsTests {
       controller.window.orderOut(nil)
       AppearanceSettings.current.select(.light)
     }
-    print("PASS 统一设置560/440布局路由、账号字段保留/高级设置、翻译嵌入、输入枚举白名单/隔离应用和外观；无真实账号/API/钥匙串")
+    print("PASS 统一设置560/440布局路由、英文片段大写开关、账号字段保留/高级设置、翻译嵌入、输入枚举白名单/隔离应用和外观；无真实账号/API/钥匙串")
   }
   private static func allViews(_ view: NSView) -> [NSView] {
     [view] + view.subviews.flatMap(allViews)

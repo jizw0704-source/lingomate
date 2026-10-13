@@ -43,6 +43,7 @@ bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --update-window-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --engine-resilience-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --selftest
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --english-fragment-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --punctuation-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --typing-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --sentence-state-test

@@ -12,6 +12,7 @@ enum Preview {
   static let sentenceTranslator = SentenceTranslator()
   static var learningDirectory: URL?
   static var punctuation = PunctuationState()
+  static var englishFragment = EnglishFragmentState()
   static var punctuationView: NSView?
   static let punctuationPreview = CommandLine.arguments.contains("--preview-punctuation")
   static let typingPreview = CommandLine.arguments.contains("--preview-typing")
@@ -74,7 +75,7 @@ enum Preview {
       }
     }
     if mixedPreview {
-      label.stringValue = "混输预览：输入字母，空格选中文，回车输出原样字母，Shift＋空格选译文。只使用隔离引擎。"
+      label.stringValue = "混输预览：空格选中文，回车确认英文，Shift＋空格选译文。英文片段首字母默认大写，已有大小写保留。只用隔离引擎。"
       eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
         guard event.window === window else { return event }
         return handleMixedEvent(event) ? nil : event
@@ -247,10 +248,23 @@ enum Preview {
     else { return false }
     switch event.keyCode {
     case 36, 76:
-      guard !state.input.isEmpty else { return false }
-      text?.stringValue += state.takeRawInput()
+      guard !state.input.isEmpty else {
+        englishFragment.reset()
+        return false
+      }
+      let raw = state.takeRawInput()
+      let output = englishFragment.formatted(
+        raw, enabled: EnglishInputPreferences.current.capitalizeFragments)
+      text?.stringValue += output
+      englishFragment.observe(output)
+      punctuation.observeLiteral(output)
+      punctuation.clearLiteral()
     case 49:
-      guard !state.input.isEmpty else { return false }
+      guard !state.input.isEmpty else {
+        text?.stringValue += " "
+        englishFragment.observe(" ")
+        return true
+      }
       commitMixed(
         index: state.active, sense: event.modifierFlags.contains(.shift) ? state.sense : nil)
       return true
@@ -265,7 +279,15 @@ enum Preview {
     case 53:
       state.clear()
     default:
-      guard let characters = event.characters, state.appendLetters(characters) else { return false }
+      guard let characters = event.characters else { return false }
+      if state.input.isEmpty,
+        let symbol = punctuation.render(characters, mode: Runtime.punctuationMode)
+      {
+        text?.stringValue += symbol
+        englishFragment.observe(symbol)
+        return true
+      }
+      guard state.appendLetters(characters) else { return false }
     }
     refreshMixed()
     return true
@@ -287,7 +309,14 @@ enum Preview {
       let remaining = state.rawRemainder(for: next.input)
       state.clear()
       state.replaceInput(next.input, original: remaining)
-      text?.stringValue += committed
+      let output =
+        sense == nil
+        ? committed
+        : englishFragment.formatted(
+          committed, enabled: EnglishInputPreferences.current.capitalizeFragments)
+      text?.stringValue += output
+      englishFragment.observe(output)
+      punctuation.confirm(sense == nil ? .chinese : .english)
       refreshMixed()
     } catch { NSSound.beep() }
   }
