@@ -12,7 +12,7 @@ macOS 主要位于 `native-macos/`，Windows 主要位于 `native-windows/`。�
 
 ## 开发与合并
 
-Windows 日常开发使用 `codex/windows-dev` 分支，所有 Windows 相关修改通过 Pull Request 请求合并到 `main`，不直接推送到 `main`。PR 的目标分支（base）为 `main`，来源分支（head）为 `codex/windows-dev`；项目创建者或有权限的维护者审核后合并。未经用户明确要求，不自动合并 PR。
+Windows 今后的开发只使用 `codex/windows-dev`，不再为 Windows 功能或问题另建开发分支。所有 Windows 相关修改通过 Pull Request 请求合并到 `main`，不直接推送到 `main`。PR 的目标分支（base）为 `main`，来源分支（head）为 `codex/windows-dev`；项目创建者或有权限的维护者审核后合并。未经用户明确要求，不自动合并 PR。
 
 每次 PR 聚焦一项修改，说明具体改动、测试结果和实际验证范围；已有未提交改动只在属于本次任务时纳入提交。PR 合并后，在工作区干净时将最新 `origin/main` 合并回 `codex/windows-dev`，再开始下一项修改。macOS 和共享改动可使用各自的功能分支，例如 `codex/macos-<功能名>` 或 `codex/shared-<功能名>`；共享改动建议由另一平台维护者复核。
 
@@ -81,7 +81,7 @@ bash native-macos/tools/check.sh
 
 ## 当前实机验证重点
 
-Mac 0.12.9 已由项目发起人在 Codex 中确认逐字输入后的“钙钛矿”和“钙钛镍”靠前整词候选。Windows 原生功能已通过原生构建与自动检查，实机试用由 Wright 推进。
+Mac 0.12.9 已由项目发起人在 Codex 中确认逐字输入后的“钙钛矿”和“钙钛镍”靠前整词候选。Windows 0.1.16 在普通 PowerShell（无应用包身份）中重新安装后，Wright 已在 Chrome、钉钉、grokbot、ChatGPT 和 Cursor 中验收输入与候选窗显示；Windows 搜索栏仍使用微软拼音，不在当前能力范围。详见 [Windows 验证记录](native-windows/QA.md)。
 
 两端采用同一组用例核对：中文与英文候选提交、中文夹英文的回车行为、逐字组词候选、重启后记忆保留、英文词性与本地学习记录。Windows 0.1.9 另需核对浅色／深色／跟随系统、16／18／20／22 候选字号、中文／英文标点与数字网址保护，以及输入源中的“果”图标。Windows 还应核对首次安装、浏览器／微信／钉钉输入、缩放、升级与旧版恢复。反馈包括版本、系统、应用、操作步骤、预期和实际结果，不附聊天正文或个人词库。
 

@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::time::Duration;
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -84,6 +84,46 @@ pub struct Frame {
 
 static GENERATION: AtomicU64 = AtomicU64::new(1);
 
+/// Static failure metadata only. Never contains a request, reply or vocabulary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "stage", rename_all = "snake_case")]
+pub enum EngineFailure {
+    Module { code: u32 },
+    NativeLoad { code: u32 },
+    CoreInit { code: u32 },
+    CoreReply { code: u32 },
+    Spawn { code: Option<i32> },
+    StartupPipe,
+    FirstReplyTimeout,
+    ReplyTimeout,
+    PipeClosed { exit_code: Option<i32> },
+    InvalidReply,
+    Rejected,
+    Unavailable,
+}
+impl EngineFailure {
+    pub fn description(self) -> String {
+        match self {
+            Self::Module { code } => format!("引擎路径定位失败（0x{code:08X}）"),
+            Self::NativeLoad { code } => format!("引擎库加载失败（0x{code:08X}）"),
+            Self::CoreInit { code } => format!("引擎初始化失败（代码 {code}）"),
+            Self::CoreReply { code } => format!("引擎查询失败（代码 {code}）"),
+            Self::Spawn { code: Some(code) } => format!("引擎启动失败（系统错误 {code}）"),
+            Self::Spawn { code: None } => "引擎启动失败".into(),
+            Self::StartupPipe => "引擎管道创建失败".into(),
+            Self::FirstReplyTimeout => "引擎首次响应超时".into(),
+            Self::ReplyTimeout => "引擎响应超时".into(),
+            Self::PipeClosed {
+                exit_code: Some(code),
+            } => format!("引擎已退出（代码 {code}）"),
+            Self::PipeClosed { exit_code: None } => "引擎连接已关闭".into(),
+            Self::InvalidReply => "引擎响应格式无效".into(),
+            Self::Rejected => "引擎请求被拒绝".into(),
+            Self::Unavailable => "引擎暂不可用".into(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Confirmation {
     pub context: String,
@@ -107,13 +147,16 @@ impl Confirmation {
 }
 
 pub struct Bridge {
-    child: Child,
-    input: ChildStdin,
+    child: Option<Child>,
+    input: Option<ChildStdin>,
+    #[cfg(windows)]
+    embedded: Option<crate::native_core::NativeCore>,
     replies: Option<Receiver<Result<String, String>>>,
     reader: Option<std::thread::JoinHandle<()>>,
     pub generation: u64,
     live: bool,
     startup_pending: bool,
+    pub failure: Option<EngineFailure>,
 }
 impl Bridge {
     pub fn start(executable: &Path, resources: &Path) -> Result<Self, String> {
@@ -124,6 +167,13 @@ impl Bridge {
         resources: &Path,
         memory: Option<&Path>,
     ) -> Result<Self, String> {
+        Self::start_diagnosed(executable, resources, memory).map_err(EngineFailure::description)
+    }
+    pub fn start_diagnosed(
+        executable: &Path,
+        resources: &Path,
+        memory: Option<&Path>,
+    ) -> Result<Self, EngineFailure> {
         let mut command = Command::new(executable);
         command
             .arg(resources)
@@ -138,9 +188,11 @@ impl Bridge {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000); // No console in the host editor.
         }
-        let mut child = command.spawn().map_err(|e| e.to_string())?;
-        let input = child.stdin.take().ok_or("No engine input pipe")?;
-        let output = child.stdout.take().ok_or("No engine output pipe")?;
+        let mut child = command.spawn().map_err(|e| EngineFailure::Spawn {
+            code: e.raw_os_error(),
+        })?;
+        let input = child.stdin.take().ok_or(EngineFailure::StartupPipe)?;
+        let output = child.stdout.take().ok_or(EngineFailure::StartupPipe)?;
         let (sender, replies) = mpsc::sync_channel(1);
         let reader = std::thread::spawn(move || {
             let mut reader = BufReader::new(output);
@@ -164,13 +216,36 @@ impl Bridge {
             }
         });
         Ok(Self {
-            child,
-            input,
+            child: Some(child),
+            input: Some(input),
+            #[cfg(windows)]
+            embedded: None,
             replies: Some(replies),
             reader: Some(reader),
             generation: GENERATION.fetch_add(1, Ordering::Relaxed),
             live: true,
             startup_pending: true,
+            failure: None,
+        })
+    }
+
+    #[cfg(windows)]
+    pub fn start_embedded(
+        core_dll: &Path,
+        resources: &Path,
+        memory: Option<&Path>,
+    ) -> Result<Self, EngineFailure> {
+        let core = crate::native_core::NativeCore::load(core_dll, resources, memory)?;
+        Ok(Self {
+            child: None,
+            input: None,
+            embedded: Some(core),
+            replies: None,
+            reader: None,
+            generation: GENERATION.fetch_add(1, Ordering::Relaxed),
+            live: true,
+            startup_pending: false,
+            failure: None,
         })
     }
 
@@ -207,49 +282,94 @@ impl Bridge {
         Ok(true)
     }
     fn exchange(&mut self, request: Value) -> Result<Value, String> {
+        #[cfg(windows)]
+        if let Some(core) = self.embedded.as_mut() {
+            return core.request(&request).map_err(|failure| {
+                self.failure = Some(failure);
+                failure.description()
+            });
+        }
         // Every first reply, including cancel after Backspace/Return, waits for
         // loading the pinned tables. Warm calls keep their shorter deadline.
         let timeout_ms = if self.startup_pending { 1500 } else { 500 };
-        serde_json::to_writer(&mut self.input, &request).map_err(|e| e.to_string())?;
-        self.input
+        let input = self.input.as_mut().ok_or("Engine connection closed")?;
+        serde_json::to_writer(&mut *input, &request).map_err(|e| e.to_string())?;
+        input
             .write_all(b"\n")
-            .and_then(|_| self.input.flush())
+            .and_then(|_| input.flush())
             .map_err(|e| e.to_string())?;
         let reply = self
             .replies
             .as_ref()
             .ok_or("Engine connection closed")?
             .recv_timeout(Duration::from_millis(timeout_ms))
-            .map_err(|_| format!("Engine did not respond within {timeout_ms} ms"))??;
+            .map_err(|error| match error {
+                RecvTimeoutError::Timeout => {
+                    format!("Engine did not respond within {timeout_ms} ms")
+                }
+                RecvTimeoutError::Disconnected => "Engine pipe closed".into(),
+            })??;
         self.startup_pending = false;
         serde_json::from_str(&reply).map_err(|_| "Invalid engine frame".into())
     }
     fn poison(&mut self) {
         self.live = false;
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        self.input.take();
         self.replies.take();
         if let Some(reader) = self.reader.take() {
             let _ = reader.join();
         }
+        #[cfg(windows)]
+        self.embedded.take();
     }
     pub fn call(&mut self, request: Value) -> Result<Frame, String> {
         if !self.live {
             return Err("Engine connection closed".into());
         }
+        self.failure = None;
         let value = match self.exchange(request) {
             Ok(value) => value,
             Err(error) => {
+                self.failure = self.failure.or(Some(
+                    if error.starts_with("Engine did not respond within") {
+                        if self.startup_pending {
+                            EngineFailure::FirstReplyTimeout
+                        } else {
+                            EngineFailure::ReplyTimeout
+                        }
+                    } else if matches!(
+                        error.as_str(),
+                        "Oversized or incomplete engine frame"
+                            | "Invalid engine encoding"
+                            | "Invalid engine frame"
+                    ) {
+                        EngineFailure::InvalidReply
+                    } else {
+                        EngineFailure::PipeClosed {
+                            exit_code: self
+                                .child
+                                .as_mut()
+                                .and_then(|child| child.try_wait().ok().flatten())
+                                .and_then(|status| status.code()),
+                        }
+                    },
+                ));
                 self.poison();
                 return Err(error);
             }
         };
         if let Some(error) = value.get("error").and_then(Value::as_str) {
+            self.failure = Some(EngineFailure::Rejected);
             return Err(error.into());
         }
         let mut frame: Frame = match serde_json::from_value(value) {
             Ok(frame) => frame,
             Err(_) => {
+                self.failure = Some(EngineFailure::InvalidReply);
                 self.poison();
                 return Err("Invalid engine frame".into());
             }
@@ -257,9 +377,11 @@ impl Bridge {
         frame.generation = self.generation;
         if frame.candidates.len() > 64 || frame.input.len() > 240 || frame.learning_token == Some(0)
         {
+            self.failure = Some(EngineFailure::InvalidReply);
             self.poison();
             return Err("Invalid engine limits".into());
         }
+        self.failure = None;
         Ok(frame)
     }
 }

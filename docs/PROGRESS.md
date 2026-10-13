@@ -1,5 +1,94 @@
 # 灵果 · 开发进展
 
+## PR 7 候选窗修复与共享引擎复核 2026-10-13
+
+修复 Windows 展开译法时底部提示的布局／绘制坐标不一致，正文裁剪、鼠标命中及选中译法滚入视口排除固定底部区域。保留原有底部文字检查，新增不同 DPI／宽度／滚动位置的回归，修复前失败、修复后通过。
+
+这份 PR 的共享引擎已在独立 Mac 目录通过完整原生构建／检查、C ABI 与 CLI 回归及网页原型代码／HTTP 契约检查。Windows 格式、目标类型／lint 及 Mac 可执行的状态／引擎用例通过；Windows 原生检查与截图以 [PR #7](https://github.com/jizw0704-source/lingomate/pull/7)当次结果为准。未改动数据来源、锁文件、Mac 安装版或发布包；新 Windows 显示效果和既有偶发 MTA 激活问题仍按 [Windows QA](../native-windows/QA.md)的范围跟进。
+
+## Windows 跨应用验收通过与候选窗显示修复 · 2026-10-13
+
+在普通终端（无应用包身份）重新安装 0.1.16 后，用户确认 Chrome、钉钉、grokbot 和 ChatGPT／Codex 都能出候选并正常上屏。由此确认，在 Codex 应用包内安装是此前跨应用失败的根因。Windows 搜索栏仍使用微软拼音，属于未声明的沉浸式宿主范围。
+
+随后修复了候选窗模糊和逐键变大小：
+
+- 恢复 ClearType 字体；
+- 候选窗改在自己的每显示器 DPI v2 上下文中创建，并换算宿主坐标，避免只做系统 DPI 感知的宿主（如钉钉）在 150% 屏上把候选窗位图拉伸；
+- 按键时保留已显示的候选，直到新结果返回，只有 150 ms 后仍无结果才显示加载提示；
+- 绘制改为离屏缓冲。
+
+新包 `0.1.16-64BC6D58515B` 已安装。用户在 Chrome、钉钉（包括 4K 150% 屏）、ChatGPT 和 Cursor 中确认字体清晰、候选窗不再变大小。其中两个应用需要额外处理：ChatGPT 要清除 Codex 应用包私有注册表里的旧登记，Cursor 要完全重启。
+
+检查结果和限制详见 [Windows QA](../native-windows/QA.md)。几项需要注意：
+
+- 本机安全软件会改写 WordNet 缓存，`check.ps1` 的数据复核在本机无法完成；
+- 资源管理器在重新登录前仍驻留旧 DLL；
+- 版本号未变；
+- 改动未提交、推送或发布；
+- 没有新增 Mac 验证，Obsidian 路径未配置。
+
+## Windows 重启后实测仍未接入 · 2026-10-13
+
+用户已正常重启并复测 0.1.16：ChatGPT 有拼音／候选，Chrome、钉钉、grokbot 仍只有字母和无候选窗；Windows 搜索栏显示可切灵果但实际使用微软输入法。重启缓存假设不足以解释问题，未提交／推送修复代码。
+
+随后在包外终端确认根因：此前安装在 Codex 桌面应用（MSIX 包，进程名 `ChatGPT.exe`）的终端中执行，文件和 HKCU 登记被重定向到该包的私有位置，只有该应用能载入灵果；真实 HKLM 指向包外不存在的路径。安装脚本现拒绝在有包身份的进程中运行，PowerShell 7／5.1 各 137 项检查通过；尚需在普通 PowerShell 重新安装并由用户验收 Chrome、钉钉、grokbot。详见 [Windows QA](../native-windows/QA.md)。
+
+固定阶段诊断与模块回读确认 ChatGPT 加载精确 .16 DLL 并成功中文激活，已观察 Chrome、钉钉及 SearchHost 则未加载灵果 DLL。已排除这三个主进程的权限层级、AppContainer 与签名／图像／扩展点策略差异；自有 Win32 EDIT 自动 IMM→TSF bridge 也能加载 .16。继续检查实际应用的系统 profile 选择与激活链；自动探针不替代用户的失败结果。证据见 [Windows QA](../native-windows/QA.md)和[根因检查](WINDOWS-ROOT-CAUSE-AUDIT.md)。
+
+## Windows COMLESS 登记修复与诊断 · 0.1.16 · 2026-10-12
+
+本机 Windows 的 COMLESS 加载直接查询 HKLM，原实现只写 HKCU，导致已选中 profile 却没有 foreground service／DLL。同一 0.1.15 DLL 的普通加载通过、COMLESS 缺键失败、仅补自有 HKLM 键后通过，已确认这个系统加载缺口。0.1.16 同时维护 HKCU／HKLM64，可信安装通过同账号 UAC 处理机器登记，旧版恢复与失败回退保留自有映射及用户启用状态；另用 FIFO `BreakContext` 修复 URL／邮箱 literal 状态在上下文打断后继续直出英文的问题。详见 [根因检查](WINDOWS-ROOT-CAUSE-AUDIT.md)。
+
+MSVC 构建、格式／Clippy、84 项 Rust（共享 8／Windows 76）、48 个自有 TSF 行为阶段／192 轮鼠标循环、PowerShell 7／5.1 各 134 项隔离安装检查、固定数据核验和 Inno 编译通过。普通权限 `install.ps1` 已完成同账号 UAC 实机安装。新真实系统探针在普通／COMLESS 两种模式均加载 0.1.16，核对 foreground 自有 CLSID、空合成 ACP 文档的真实焦点并恢复原线程 profile；证据为 `evidence/windows-local-2026-10-12/root-cause-0.1.16-system-profile-focused.log`。系统加载与焦点通过不等于物理键盘验收。
+
+可选技术诊断在代码中默认关闭，本机已为本轮排查开启；仅保留固定六字段 `Stage`、`HRESULT`、`ActivationFlags`、`ThreadFlags`、`English`、`ThreadFocus`，不记录按键、拼音或宿主正文。用户在先前补机器登记后仍反馈钉钉无候选、状态“拼”且只出字母，Chrome／grokbot 的跨应用问题也未验收解决；当前 ctfmon／TextInputHost 仍为 10 月 10 日启动的会话。需要用户保存工作后正常重启，再复测上述应用；重启用于排除缓存，不是确定修复。
+
+当前本机安装目录为 `0.1.16-52F90B953BB3`，旧版目录保留，包摘要见 [安装包记录](PACKAGING.md)。改动仍在 `codex/windows-dev`，未提交、推送或发布，远端 Windows 0.1.10 草稿及更新清单保持原状；没有自动关闭宿主或重启。没有新增 Mac 构建／设备验证，Obsidian 路径未配置。
+
+## Windows 宿主兼容补齐 · 0.1.15 · 2026-10-12
+
+用户随后对 0.1.15 手测确认：钉钉仍使用微软输入法；grokbot（独立 Windows 软件）和谷歌浏览器只输出字母，无拼音候选。因此 0.1.15 未通过跨应用验收。真实 ThreadMgr／flags=0 的隔离系统加载探针已确认 Windows 可加载此 DLL、Foreground CLSID 匹配并成功恢复原线程 profile；它未模拟物理键盘，不代表上述应用正常。正在进一步区分应用未载入与激活后英文／焦点／literal 状态门禁。
+
+用户确认 0.1.14 在 ChatGPT 中正常，但钉钉和 grokbot 实际输入仍是微软输入法。钉钉 9.0.1 的 x64 进程在重开后未驻留灵果 DLL；切换器与托盘提示不是实际接入输入线程的证据。只读诊断还发现：灵果虽已能被 EnumEnabledLayoutOrTip 枚举，当前用户 zh-Hans-CN 的 InputMethodTips 原先只列微软拼音；不能据此把所有失败断言为同一根因。
+
+本轮对照固定源码：[微软 SampleIME](https://github.com/microsoft/Windows-classic-samples/blob/434f6002bdf9cf9829406c3ff2b33387982d6168/Samples/IME/cpp/SampleIME/SampleIME.cpp)、[Weasel](https://github.com/rime/weasel/blob/4aea1978a351e2ce41af20c8fb88a01ce9802de8/WeaselTSF/WeaselTSF.cpp)、[Mozc](https://github.com/google/mozc/blob/18e76511af9371a9a4409b1d13c3e30884b53e9c/src/win32/tip/tip_text_service.cc)。补齐激活时 GetFocus／GetTop、ITfThreadFocusSink、线程 OPENCLOSE／CONVERSION 双向同步和 GUID_LBI_INPUTMODE 语言栏；仅修改 NATIVE 位，保留其他模式位。队列满时保留 Finish → EnglishMode 边界，期间不接新键；候选窗创建期间递归激活被有界拒绝。跟随系统主题改为只读注册表，不再初始化宿主 WinRT。注册增加已实现的 INPUTMODECOMPARTMENT；未声明沉浸、UIElement 或显示属性支持。
+
+可信安装通过 System32 input.dll 的 BOOL InstallLayoutOrTip 完成单条自有用户项安装，安装 flags=0、卸载 flags=1；不设置默认源或清空其他输入法。升级和恢复保留原 enabled／disabled 状态，同包重试保留原 receipt，失败恢复旧登记／启用状态；卸载先撤销自有用户项再移除登记，安装 EXE 给卸载器保留可信模块副本。
+
+MSVC 构建、格式、all-targets Clippy、75 项 Rust（共享 8／Windows 67）、STA／MTA／COMLESS 共 48 个行为场景与 192 轮鼠标循环、PowerShell 7／5.1 各 101 项模拟安装更新检查通过。新增检查包含已有聚焦上下文激活、线程局部 CBT 递归激活、中英 compartment／语言栏按钮、同文档失焦结束及恢复、双队列饱和模式边界，以及系统主题读取不改变 STA／MTA／未初始化 apartment。普通安装 EXE 编译通过，未以其编译成功代替权限／卸载实机验收。
+
+已用同账号可信 helper 登记 `%LOCALAPPDATA%\LingoMate\Windows\0.1.15-3B4294E1F2F0`，13 项清单及 COM 工厂回读通过，启用状态保持 true；用户 InputMethodTips 现包含微软拼音和灵果。清单 SHA-256 `3B4294E1F2F05DDD9F20A6A05AF3A0578434B8EB7908C7B29D6C77859CB521E7`，TSF DLL SHA-256 `9FD4134D553325B78F65AEC1F089A8E1E3D4FB8C51D011C236AB90D11EF3A992`；0.1.14 原目录保留。钉钉／grokbot／谷歌浏览器已经手测失败；ChatGPT 0.1.15 回归仍待完整退出重开后验收；本轮没有选择系统输入源、停止宿主、重启 ctfmon／电脑、提交、推送或发布。Mac 候选／菜单参考仍是 0.12.9／build 31，未修改 Mac 客户端或数据；共享核心跨平台复核和 Mac 设备检查边界保留。Obsidian 路径未配置，未同步外部笔记库。
+
+## Windows UI 完整译法滚动 · 0.1.14 · 2026-10-12
+
+当前本机登记版本为 0.1.14，在 0.1.13 候选／菜单对齐基础上，将更多译法改为完整滚动列表，保留绝对译法索引；绘制、tooltip 和点击只处理当前可见区域，不再按六条分组改变面板尺寸。100,000 条合成译法的几何回归确认访问范围受视口限制。Mac 参考仍为 0.12.9／build 31，最新主分支 04535f7 的交接文档已同步，Mac 客户端和数据源未修改。
+
+最终 MSVC 构建、格式、all-targets Clippy、69 项 Rust（共享 8／Windows 61）、三模式 192 轮鼠标循环／27 个行为阶段、PowerShell 7／5.1 各 56 项更新包检查通过。浅／深色、POS 同行／关闭、长中文、空释义／例句、完整译法和有界滚动渲染通过。源码对照和合成检查不替代 Mac 实机或 ChatGPT／钉钉的实际切源、输入和物理鼠标验证。
+
+已同账号可信登记 `%LOCALAPPDATA%\LingoMate\Windows\0.1.14-BBD895C6F73E`，13 项文件校验通过；清单 SHA-256 为 `BBD895C6F73EC5657A67C013830941CBE6BEE5074126BD4C6F26109D57CAC966`，DLL SHA-256 为 `03632A587225E5170FE7E0737E0C28940CEE8B326FAE21B2E6F1A768DBDBA245`。0.1.13／0.1.12 原目录保留；没有自动停止宿主、选择输入源、重启、提交或发布。所有本轮改动仍在 codex/windows-dev 未提交工作区，等待用户真实应用验收。当前用户需完整退出并重开应用加载新 DLL；普通 Setup EXE 和 Mac 构建／设备验证边界保留。Obsidian 路径未配置。
+
+## Windows 候选窗与菜单对齐 Mac · 0.1.13 · 2026-10-12
+
+按用户选择，本轮仅对齐候选窗与菜单，参考 Mac 0.12.9／build 31。已同步最新主分支 `04535f7` 的平台交接文档；该次远端更新没有修改 Mac 客户端 UI。Windows 采用同组中性色／绿色英文、12px 留白、圆角、左侧拼音和右侧分页／译法／设置，短词配对横排、长中文换行、词性同行、完整本地提示；更新入口移至“⚙ 设置 → 检查版本更新…”。保留 Windows 系统字体回退和原生菜单。独立设置窗口、账号／整句翻译与完整无障碍没有纳入本次范围。
+
+0.1.12 的鼠标离开修复保留；导航等待期间保持候选几何，按下／释放绑定同一显示版本，高面板限制在工作区并支持滚轮浏览。展开译法的空释义／例句绘制访问异常已由真实 GDI 合成测试复现并修复。MSVC 构建、格式、all-targets Clippy、68 项 Rust、三线程模式 192 轮鼠标循环／27 个行为阶段及两种 PowerShell 各 56 项包检查通过。
+
+已登记本机 `0.1.13-FBF7848BC586`，保留 0.1.12 目录；尚未提交、推送或发布。用户必须完整退出并重开已有宿主才能加载新 DLL。ChatGPT／钉钉的实际切源、鼠标、键盘、跨应用和多屏 DPI 验收仍待用户执行；源码对照与合成绘图不等于 Mac 或 Windows 实体设备验收。Obsidian 路径未配置，本轮只更新仓库文档。
+
+## Windows 0.1.12 鼠标卡死修复 · 2026-10-12
+
+0.1.11 的实际鼠标试用使 ChatGPT 卡死，已撤销登记。0.1.12 修复鼠标离开通知循环、重复重绘及轮询重入，已构建并登记到本机；59 项 Rust、三模式共 192 轮候选鼠标循环／27 个场景阶段及两种 PowerShell 各 56 项包检查通过。真实 ChatGPT／钉钉仍待用户复测，代码未提交或推送，旧草稿和更新清单保留。Windows 当前 UI 尚未完整对齐远端 Mac 0.12.9／build 31，下一步对照候选布局与设置入口。
+
+## Windows 宿主激活与本地核心重构 · 2026-10-12
+
+用户复测确认，候选提示修复及重装后，ChatGPT／Codex 中仍显示“引擎暂不可用”，钉钉切换器显示灵果但实际仍是微软输入法。进程诊断区分两个阶段：聊天应用加载灵果 DLL 后，旧 stdio 连接报告 `pipe_closed`；钉钉重新打开后没有加载灵果 DLL。相关进程均为 x64 普通用户，现有安全限制检查没有支持“同一个沙箱问题”的结论；具体激活原因仍需进一步验收。
+
+已同步远端 `c8d85ee` 的文档与 Windows 0.1.10 草稿说明；该草稿仍是旧架构，不包含本轮重构。本轮单独使用 0.1.11 开发版本，已完成本机打包和登记，尚未提交或发布。Windows 正常输入路径改为同目录 `lingomate_engine.dll` 和后台 FIFO 工作线程，键盘回调不等待核心初始化或查询。保留共享 CLI 与既有协议、数据来源、输入代次和编辑成功后的确认规则；故障只显示固定的类型说明。TSF 补充扩展激活接口，类别限定已实现的桌面键盘、COMLESS 和系统托盘兼容；不声明未实现的沉浸应用、TSF UIElement 或显示属性。共享核心提取仍需 Mac 平台检查和复核。
+
+新包要求核心 DLL 在内的完整 13 项清单，旧 12 项 stdio 包与最早 8 项包保留校验回退能力，混合／缺项包拒绝。隔离包检查分别在两种 PowerShell 运行并使用模拟登记，不代表系统安装通过；最终构建、格式／Clippy、57 项 Rust 测试、两种 PowerShell 各 56 项包检查及三模式共 21 个隔离 TSF 阶段通过；真实应用结果另行记录。
+
+按用户要求，本机旧灵果已注销并执行官方卸载器，残留版本文件清理仍待核对，0.1.11 已在本机登记；ChatGPT／Codex 与钉钉真实输入尚未验收。未来 Windows 只在 `codex/windows-dev` 开发，不另建 Windows 功能分支；PR head 为该分支、base 为 `main`，不直推或未经明确要求自动合并。旧安装包、草稿和更新清单保留，本机未提供 Obsidian 镜像路径，本轮未同步外部笔记库。详见 [Windows 验证记录](../native-windows/QA.md#宿主激活与引擎重构--2026-10-12)。
+
 ## Mac 字号与设置代码整理 · 2026-10-12
 
 将 Mac 0.12.9 / build 31 随包源码中的 10 个 Swift 覆盖文件整理到独立 PR 分支，包括四档字号与持久化、外观页设置、消息校验／状态回读、保留拼音的候选重绘、比例字号和同版本紧凑候选渲染支持。整理后的 50 个 Swift 构建输入均与随包清单摘要一致；版本标识仍为 0.12.9 / build 31，本轮不生成或安装新包。

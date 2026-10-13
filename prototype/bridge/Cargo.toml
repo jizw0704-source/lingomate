@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
+[lib]
+name = "lingomate_engine"
+crate-type = ["rlib", "cdylib"]
+
 [dependencies]
 qingjian-core = { path = "../../upstream/qingjian/crates/qingjian-core" }
 qingjian-dictionary = { path = "../../upstream/qingjian/crates/qingjian-dictionary" }

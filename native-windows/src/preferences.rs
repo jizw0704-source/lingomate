@@ -10,8 +10,8 @@ impl Theme {
     pub const ALL: [Self; 3] = [Self::Light, Self::Dark, Self::System];
     pub fn title(self) -> &'static str {
         match self {
-            Self::Light => "浅色",
-            Self::Dark => "深色",
+            Self::Light => "白色",
+            Self::Dark => "黑色",
             Self::System => "跟随系统",
         }
     }

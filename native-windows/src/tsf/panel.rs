@@ -1,42 +1,124 @@
 use super::{Guard, Key, MODULE, State, down, updates};
 use crate::{
     appearance::{self, px},
-    candidate_layout::Layout,
+    candidate_layout::{BoxRect, Layout},
 };
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Gdi::*;
+use windows::Win32::UI::Controls::*;
+use windows::Win32::UI::HiDpi::{
+    DPI_AWARENESS_CONTEXT, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForMonitor,
+    GetWindowDpiAwarenessContext, MDT_EFFECTIVE_DPI, SetThreadDpiAwarenessContext,
+};
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows::core::{Result, w};
+use windows::core::{HSTRING, Result, w};
+const LOADING_TIMER: usize = 3;
+// A normal query replies well within this; only a slow engine shows the loading state.
+const LOADING_DELAY: Duration = Duration::from_millis(150);
 pub(super) struct Panel {
     window: HWND,
+    class_name: HSTRING,
     owner: *mut Weak<State>,
     caret: Cell<POINT>,
     pressed: Cell<Option<(i32, i32)>>,
+    pressed_revision: Cell<u64>,
     limit: Cell<Option<i32>>,
     hovered: Cell<Option<(i32, i32)>>,
+    tracking: Cell<bool>,
+    palette: Cell<appearance::Palette>,
+    bounds: Cell<Option<[i32; 4]>>,
+    visible: Cell<bool>,
+    loading: Cell<Option<Instant>>,
+    scroll: Cell<i32>,
+    selection: Cell<Option<(u64, usize, usize, bool)>>,
+    tooltip: Option<HWND>,
+    tips: RefCell<Vec<(BoxRect, HSTRING)>>,
     _guard: Guard,
 }
-fn work_area(x: i32, y: i32) -> RECT {
+/// Thread DPI context for one candidate-window operation. TSF calls arrive in
+/// the host's context, which may be DPI-unaware or only system-DPI-aware.
+struct DpiScope(DPI_AWARENESS_CONTEXT);
+impl DpiScope {
+    fn enter(context: DPI_AWARENESS_CONTEXT) -> Self {
+        Self(unsafe { SetThreadDpiAwarenessContext(context) })
+    }
+    fn window(window: HWND) -> Self {
+        Self::enter(unsafe { GetWindowDpiAwarenessContext(window) })
+    }
+}
+impl Drop for DpiScope {
+    fn drop(&mut self) {
+        // Only null reports a failed switch; is_invalid() also rejects the valid unaware context.
+        if !self.0.0.is_null() {
+            unsafe { SetThreadDpiAwarenessContext(self.0) };
+        }
+    }
+}
+fn monitor_info(monitor: HMONITOR) -> Option<MONITORINFO> {
     let mut info = MONITORINFO {
         cbSize: std::mem::size_of::<MONITORINFO>() as u32,
         ..Default::default()
     };
+    unsafe { GetMonitorInfoW(monitor, &mut info) }
+        .as_bool()
+        .then_some(info)
+}
+fn work_area(x: i32, y: i32) -> RECT {
     let monitor = unsafe { MonitorFromPoint(POINT { x, y }, MONITOR_DEFAULTTONEAREST) };
-    if unsafe { GetMonitorInfoW(monitor, &mut info) }.as_bool() {
-        info.rcWork
-    } else {
+    monitor_info(monitor).map_or(
         RECT {
             left: 0,
             top: 0,
             right: 1920,
             bottom: 1080,
+        },
+        |info| info.rcWork,
+    )
+}
+fn monitor_dpi(point: POINT) -> i32 {
+    let monitor = unsafe { MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST) };
+    let (mut x, mut y) = (96, 96);
+    if unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut x, &mut y) }.is_err() {
+        x = 96;
+    }
+    x.max(96) as i32
+}
+fn map_point(point: POINT, from: RECT, to: RECT) -> POINT {
+    let axis = |value: i32, from_start: i32, from_end: i32, to_start: i32, to_end: i32| {
+        let span = i64::from(from_end - from_start);
+        if span <= 0 {
+            return value;
         }
+        to_start + (i64::from(value - from_start) * i64::from(to_end - to_start) / span) as i32
+    };
+    POINT {
+        x: axis(point.x, from.left, from.right, to.left, to.right),
+        y: axis(point.y, from.top, from.bottom, to.top, to.bottom),
     }
 }
+/// Converts a host text-extent point from the calling thread's DPI view into
+/// the candidate window's view through the monitor that contains it.
+fn window_point(window: HWND, point: POINT) -> POINT {
+    let monitor = unsafe { MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST) };
+    let Some(from) = monitor_info(monitor) else {
+        return point;
+    };
+    let _scope = DpiScope::window(window);
+    monitor_info(monitor).map_or(point, |to| map_point(point, from.rcMonitor, to.rcMonitor))
+}
+fn caret(state: &State) -> POINT {
+    state
+        .panel
+        .borrow()
+        .as_ref()
+        .map_or(POINT { x: 40, y: 40 }, |p| p.caret.get())
+}
 fn layout(window: HWND, state: &State) -> Layout {
+    let _scope = DpiScope::window(window);
     let input = state.input.borrow();
     let empty = input.error || input.frame.candidates.is_empty();
     let count = input
@@ -50,40 +132,65 @@ fn layout(window: HWND, state: &State) -> Layout {
             .frame
             .candidates
             .get(input.selected)
-            .map_or(0, |c| c.translations.len().min(6))
+            .map_or(0, |c| c.translations.len())
     } else {
         0
     };
-    let point = state
-        .panel
-        .borrow()
-        .as_ref()
-        .map_or(POINT { x: 40, y: 40 }, |p| p.caret.get());
+    let point = caret(state);
+    let dpi = monitor_dpi(point);
     let work = work_area(point.x, point.y);
-    Layout::new(
-        if empty { 0 } else { count },
+    let lengths: Vec<_> = input
+        .frame
+        .candidates
+        .iter()
+        .skip(input.page() * 5)
+        .take(if empty { 0 } else { count })
+        .map(|c| c.text.chars().count())
+        .collect();
+    let layout = Layout::with_lengths(
+        &lengths,
         extra,
         state.display.get().font,
-        appearance::dpi(window),
+        dpi,
         state
             .panel
             .borrow()
             .as_ref()
             .and_then(|p| p.limit.get())
             .unwrap_or(work.right - work.left - 8),
+    );
+    layout.with_viewport(
+        work.bottom - work.top - px(16, dpi),
+        state
+            .panel
+            .borrow()
+            .as_ref()
+            .map_or(0, |panel| panel.scroll.get()),
     )
 }
 impl Panel {
-    pub fn settings(&self) {
-        if let Some(state) = unsafe { &*self.owner }.upgrade() {
-            settings(self.window, &state);
-        }
+    pub fn window(&self) -> HWND {
+        self.window
     }
     pub fn new(state: Weak<State>) -> Result<Self> {
         let instance = HINSTANCE(MODULE.load(Ordering::SeqCst));
+        // A pinned previous DLL can still be resident after an upgrade. Its
+        // window procedure must never interpret this module's Weak<State>.
+        let class_name = HSTRING::from(format!(
+            "LingoMate.Candidates.{}.{:X}",
+            env!("CARGO_PKG_VERSION"),
+            instance.0 as usize
+        ));
+        let theme = state
+            .upgrade()
+            .map_or(crate::preferences::Theme::Light, |state| {
+                state.display.get().theme
+            });
+        let palette = appearance::palette(theme);
         let class = WNDCLASSW {
+            style: CS_DROPSHADOW,
             hInstance: instance,
-            lpszClassName: w!("LingoMate.Candidates.v1"),
+            lpszClassName: windows::core::PCWSTR(class_name.as_ptr()),
             lpfnWndProc: Some(procedure),
             hCursor: unsafe { LoadCursorW(None, IDC_ARROW)? },
             ..Default::default()
@@ -91,12 +198,15 @@ impl Panel {
         unsafe {
             RegisterClassW(&class);
         }
+        // Without its own per-monitor context, DWM bitmap-stretches the panel
+        // inside DPI-unaware or system-aware hosts on scaled monitors.
+        let creation = DpiScope::enter(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         let window = unsafe {
             CreateWindowExW(
                 WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
                 class.lpszClassName,
                 w!("灵果候选"),
-                WS_POPUP | WS_BORDER,
+                WS_POPUP,
                 40,
                 40,
                 640,
@@ -107,19 +217,60 @@ impl Panel {
                 None,
             )?
         };
+        let live = state.upgrade().is_some_and(|state| !state.preview);
         let owner = Box::into_raw(Box::new(state));
         unsafe {
             SetWindowLongPtrW(window, GWLP_USERDATA, owner as isize);
+            if live {
+                SetTimer(Some(window), 2, 20, None);
+            }
         }
+        let tooltip = unsafe {
+            let controls = INITCOMMONCONTROLSEX {
+                dwSize: std::mem::size_of::<INITCOMMONCONTROLSEX>() as u32,
+                dwICC: ICC_WIN95_CLASSES,
+            };
+            let _ = InitCommonControlsEx(&controls);
+            CreateWindowExW(
+                WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
+                TOOLTIPS_CLASSW,
+                None,
+                WS_POPUP | WINDOW_STYLE(TTS_ALWAYSTIP | TTS_NOPREFIX | TTS_NOANIMATE | TTS_NOFADE),
+                0,
+                0,
+                0,
+                0,
+                Some(window),
+                None,
+                Some(instance),
+                None,
+            )
+            .ok()
+        };
+        drop(creation);
         Ok(Self {
             window,
+            class_name,
             owner,
             caret: Cell::new(POINT { x: 40, y: 40 }),
             pressed: Cell::new(None),
+            pressed_revision: Cell::new(0),
             limit: Cell::new(None),
             hovered: Cell::new(None),
+            tracking: Cell::new(false),
+            palette: Cell::new(palette),
+            bounds: Cell::new(None),
+            visible: Cell::new(false),
+            loading: Cell::new(None),
+            scroll: Cell::new(0),
+            selection: Cell::new(None),
+            tooltip,
+            tips: RefCell::new(Vec::new()),
             _guard: Guard::new(),
         })
+    }
+    pub fn set_palette(&self, palette: appearance::Palette) {
+        self.palette.set(palette);
     }
     pub fn update(&self) {
         let Some(state) = unsafe { &*self.owner }.upgrade() else {
@@ -130,55 +281,226 @@ impl Panel {
             self.hide();
             return;
         }
+        // Until the loading state is due, a pending query without a displayable
+        // frame keeps the current panel, or keeps it hidden.
+        if self.track_loading(&state) == Some(false) {
+            return;
+        }
+        let _scope = DpiScope::window(self.window);
+        let key = {
+            let input = state.input.borrow();
+            (
+                input.frame.generation,
+                input.selected,
+                input.sense,
+                input.expanded,
+            )
+        };
+        let previous = self.selection.replace(Some(key));
+        if previous != Some(key) {
+            if previous.is_none_or(|old| old.0 != key.0) || !key.3 {
+                self.scroll.set(0);
+            }
+            let l = layout(self.window, &state);
+            if key.3 && l.extra > 0 {
+                let r = l.sense_rect(key.2);
+                let bottom = l.content_bottom();
+                let adjustment = if r.y < l.body_rect().y {
+                    r.y - l.body_rect().y
+                } else {
+                    (r.y + r.height - bottom).max(0)
+                };
+                self.scroll
+                    .set((l.scroll_offset() + adjustment).clamp(0, l.scroll_max()));
+            }
+        }
         let l = layout(self.window, &state);
+        self.scroll.set(l.scroll_offset());
+        self.set_tips(tooltip_texts(&state, l));
         let point = self.caret.get();
+        let dpi = monitor_dpi(point);
         let work = work_area(point.x, point.y);
         let x = point
             .x
             .clamp(work.left, (work.right - l.width() - 2).max(work.left));
-        let below = point.y + 4;
+        let below = point.y + px(8, dpi);
         let y = if below + l.height() + 2 <= work.bottom {
             below
         } else {
-            point.y - l.height() - 4
+            point.y - l.height() - px(8, dpi)
         }
         .clamp(work.top, (work.bottom - l.height() - 2).max(work.top));
+        // Recorded before moving: a DPI change during the move re-enters update().
+        let bounds = [x, y, l.width(), l.height()];
+        let moved = self.bounds.replace(Some(bounds)) != Some(bounds);
+        let shown = !self.visible.replace(true);
         unsafe {
-            let _ = SetWindowPos(
-                self.window,
-                Some(HWND_TOPMOST),
-                x,
-                y,
-                l.width() + 2,
-                l.height() + 2,
-                SWP_NOACTIVATE,
-            );
+            if moved {
+                let _ = SetWindowPos(
+                    self.window,
+                    Some(HWND_TOPMOST),
+                    x,
+                    y,
+                    l.width(),
+                    l.height(),
+                    SWP_NOACTIVATE,
+                );
+                // The owned region is replaced only when geometry changes.
+                let radius = px(32, dpi);
+                let region =
+                    CreateRoundRectRgn(0, 0, l.width() + 1, l.height() + 1, radius, radius);
+                if SetWindowRgn(self.window, Some(region), true) == 0 {
+                    let _ = DeleteObject(region.into());
+                }
+            }
             let _ = InvalidateRect(Some(self.window), None, false);
-            let _ = ShowWindow(self.window, SW_SHOWNOACTIVATE);
+            if shown {
+                let _ = ShowWindow(self.window, SW_SHOWNOACTIVATE);
+            }
+            if moved || shown {
+                // DWM must never compose new geometry before its first paint.
+                let _ = UpdateWindow(self.window);
+            }
         }
     }
     pub fn position(&self, x: i32, y: i32) {
-        self.caret.set(POINT { x, y });
+        self.caret.set(window_point(self.window, POINT { x, y }));
         self.update();
     }
+    /// While a query with no displayable frame is pending, returns whether its
+    /// loading state is due. Fast replies replace the old frame directly.
+    fn track_loading(&self, state: &State) -> Option<bool> {
+        let waiting = {
+            let input = state.input.borrow();
+            state.busy.get() && !input.error && input.frame.candidates.is_empty()
+        };
+        if !waiting {
+            self.stop_loading();
+            return None;
+        }
+        let now = Instant::now();
+        let due = self.loading.get().unwrap_or_else(|| {
+            unsafe {
+                SetTimer(
+                    Some(self.window),
+                    LOADING_TIMER,
+                    LOADING_DELAY.as_millis() as u32,
+                    None,
+                );
+            }
+            now + LOADING_DELAY
+        });
+        self.loading.set(Some(due));
+        if now < due {
+            return Some(false);
+        }
+        let _ = unsafe { KillTimer(Some(self.window), LOADING_TIMER) };
+        Some(true)
+    }
+    fn loading_due(&self) -> bool {
+        self.loading.get().is_some_and(|due| Instant::now() >= due)
+    }
+    fn stop_loading(&self) {
+        if self.loading.take().is_some() {
+            let _ = unsafe { KillTimer(Some(self.window), LOADING_TIMER) };
+        }
+    }
     pub fn hide(&self) {
+        self.stop_loading();
+        self.scroll.set(0);
+        self.selection.set(None);
+        if let Some(tooltip) = self.tooltip {
+            unsafe {
+                SendMessageW(tooltip, TTM_POP, None, None);
+            }
+        }
         self.pressed.set(None);
+        self.hovered.set(None);
+        if self.tracking.replace(false) {
+            let mut track = windows::Win32::UI::Input::KeyboardAndMouse::TRACKMOUSEEVENT {
+                cbSize: std::mem::size_of::<
+                    windows::Win32::UI::Input::KeyboardAndMouse::TRACKMOUSEEVENT,
+                >() as u32,
+                dwFlags: windows::Win32::UI::Input::KeyboardAndMouse::TME_CANCEL
+                    | windows::Win32::UI::Input::KeyboardAndMouse::TME_LEAVE,
+                hwndTrack: self.window,
+                ..Default::default()
+            };
+            let _ =
+                unsafe { windows::Win32::UI::Input::KeyboardAndMouse::TrackMouseEvent(&mut track) };
+        }
         if unsafe { windows::Win32::UI::Input::KeyboardAndMouse::GetCapture() } == self.window {
             let _ = unsafe { windows::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture() };
         }
         unsafe {
-            let _ = ShowWindow(self.window, SW_HIDE);
+            if self.visible.replace(false) {
+                let _ = ShowWindow(self.window, SW_HIDE);
+            }
+        }
+    }
+    fn set_tips(&self, items: Vec<(BoxRect, HSTRING)>) {
+        let Some(window) = self.tooltip else {
+            return;
+        };
+        if *self.tips.borrow() == items {
+            return;
+        }
+        let mut tips = self.tips.borrow_mut();
+        unsafe {
+            SendMessageW(window, TTM_POP, None, None);
+            for id in 1..=tips.len() {
+                let tool = TTTOOLINFOW {
+                    cbSize: std::mem::size_of::<TTTOOLINFOW>() as u32,
+                    hwnd: self.window,
+                    uId: id,
+                    ..Default::default()
+                };
+                SendMessageW(
+                    window,
+                    TTM_DELTOOLW,
+                    None,
+                    Some(LPARAM((&tool as *const TTTOOLINFOW) as isize)),
+                );
+            }
+            *tips = items;
+            for (i, (r, content)) in tips.iter().enumerate() {
+                let tool = TTTOOLINFOW {
+                    cbSize: std::mem::size_of::<TTTOOLINFOW>() as u32,
+                    hwnd: self.window,
+                    uId: i + 1,
+                    rect: rect(*r),
+                    lpszText: windows::core::PWSTR(content.as_ptr().cast_mut()),
+                    ..Default::default()
+                };
+                SendMessageW(
+                    window,
+                    TTM_ADDTOOLW,
+                    None,
+                    Some(LPARAM((&tool as *const TTTOOLINFOW) as isize)),
+                );
+            }
+            SendMessageW(
+                window,
+                TTM_SETMAXTIPWIDTH,
+                None,
+                Some(LPARAM(px(480, appearance::dpi(self.window)) as isize)),
+            );
         }
     }
 }
 impl Drop for Panel {
     fn drop(&mut self) {
         unsafe {
+            if let Some(tooltip) = self.tooltip {
+                let _ = DestroyWindow(tooltip);
+            }
+            let _ = KillTimer(Some(self.window), 2);
+            let _ = KillTimer(Some(self.window), LOADING_TIMER);
             SetWindowLongPtrW(self.window, GWLP_USERDATA, 0);
             let _ = DestroyWindow(self.window);
             drop(Box::from_raw(self.owner));
             let _ = UnregisterClassW(
-                w!("LingoMate.Candidates.v1"),
+                &self.class_name,
                 Some(HINSTANCE(MODULE.load(Ordering::SeqCst))),
             );
         }
@@ -206,13 +528,63 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
         unsafe { &*pointer }.upgrade()
     };
     if let Some(state) = state {
+        // Explicit relay avoids subclassing the candidate window or installing
+        // callbacks in the host. Literal tip buffers live until each tool is removed.
+        if matches!(
+            message,
+            WM_MOUSEMOVE
+                | WM_LBUTTONDOWN
+                | WM_LBUTTONUP
+                | WM_RBUTTONDOWN
+                | WM_RBUTTONUP
+                | WM_MBUTTONDOWN
+                | WM_MBUTTONUP
+        ) {
+            let tooltip = state
+                .panel
+                .borrow()
+                .as_ref()
+                .and_then(|panel| panel.tooltip);
+            if let Some(tooltip) = tooltip {
+                let mut point = POINT {
+                    x: (lparam.0 as u16) as i16 as i32,
+                    y: ((lparam.0 >> 16) as u16) as i16 as i32,
+                };
+                unsafe {
+                    let _ = ClientToScreen(window, &mut point);
+                    let event = MSG {
+                        hwnd: window,
+                        message,
+                        wParam: wparam,
+                        lParam: lparam,
+                        time: GetMessageTime() as u32,
+                        pt: point,
+                    };
+                    SendMessageW(
+                        tooltip,
+                        TTM_RELAYEVENT,
+                        None,
+                        Some(LPARAM((&event as *const MSG) as isize)),
+                    );
+                }
+            }
+        }
+        if message == WM_TIMER && wparam.0 == 2 {
+            if state.poll() {
+                State::reap();
+            }
+            return LRESULT(0);
+        }
+        if message == WM_TIMER && wparam.0 == LOADING_TIMER {
+            state.refresh();
+            return LRESULT(0);
+        }
         if matches!(
             message,
             WM_SETTINGCHANGE | WM_SYSCOLORCHANGE | WM_THEMECHANGED | WM_DPICHANGED
         ) {
-            if let Some(panel) = state.panel.borrow().as_ref() {
-                panel.update();
-            }
+            state.refresh_palette();
+            state.refresh();
             return LRESULT(0);
         }
         if message == WM_PAINT {
@@ -227,29 +599,67 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
             return LRESULT(1);
         }
         if message == WM_MOUSEMOVE || message == windows::Win32::UI::Controls::WM_MOUSELEAVE {
+            let l = layout(window, &state);
             if let Some(panel) = state.panel.borrow().as_ref() {
-                panel
-                    .hovered
-                    .set(if message == windows::Win32::UI::Controls::WM_MOUSELEAVE {
-                        None
-                    } else {
-                        Some((
-                            (lparam.0 as u16) as i16 as i32,
-                            ((lparam.0 >> 16) as u16) as i16 as i32,
-                        ))
-                    });
-                let mut track = windows::Win32::UI::Input::KeyboardAndMouse::TRACKMOUSEEVENT {
-                    cbSize: std::mem::size_of::<
-                        windows::Win32::UI::Input::KeyboardAndMouse::TRACKMOUSEEVENT,
-                    >() as u32,
-                    dwFlags: windows::Win32::UI::Input::KeyboardAndMouse::TME_LEAVE,
-                    hwndTrack: window,
-                    dwHoverTime: 0,
+                let point = if message == windows::Win32::UI::Controls::WM_MOUSELEAVE {
+                    if let Some(tooltip) = panel.tooltip {
+                        unsafe {
+                            SendMessageW(tooltip, TTM_POP, None, None);
+                        }
+                    }
+                    panel.tracking.set(false);
+                    None
+                } else {
+                    Some((
+                        (lparam.0 as u16) as i16 as i32,
+                        ((lparam.0 >> 16) as u16) as i16 as i32,
+                    ))
                 };
-                let _ = unsafe {
-                    windows::Win32::UI::Input::KeyboardAndMouse::TrackMouseEvent(&mut track)
-                };
-                let _ = unsafe { InvalidateRect(Some(window), None, false) };
+                let old = panel.hovered.replace(point);
+                if message == WM_MOUSEMOVE && !panel.tracking.get() {
+                    let mut track = windows::Win32::UI::Input::KeyboardAndMouse::TRACKMOUSEEVENT {
+                        cbSize: std::mem::size_of::<
+                            windows::Win32::UI::Input::KeyboardAndMouse::TRACKMOUSEEVENT,
+                        >() as u32,
+                        dwFlags: windows::Win32::UI::Input::KeyboardAndMouse::TME_LEAVE,
+                        hwndTrack: window,
+                        dwHoverTime: 0,
+                    };
+                    if unsafe {
+                        windows::Win32::UI::Input::KeyboardAndMouse::TrackMouseEvent(&mut track)
+                    }
+                    .is_ok()
+                    {
+                        panel.tracking.set(true);
+                    }
+                }
+                if (
+                    old.and_then(|(x, y)| l.hit(x, y)),
+                    old.and_then(|(x, y)| header_hit(l, x, y)),
+                    old.and_then(|(x, y)| l.sense_hit(x, y)),
+                ) != (
+                    point.and_then(|(x, y)| l.hit(x, y)),
+                    point.and_then(|(x, y)| header_hit(l, x, y)),
+                    point.and_then(|(x, y)| l.sense_hit(x, y)),
+                ) {
+                    let _ = unsafe { InvalidateRect(Some(window), None, false) };
+                }
+            }
+            return LRESULT(0);
+        }
+        if message == WM_MOUSEWHEEL {
+            let l = layout(window, &state);
+            if l.scroll_max() > 0 {
+                if let Some(panel) = state.panel.borrow().as_ref() {
+                    let delta = (wparam.0 >> 16) as u16 as i16 as i32;
+                    panel.pressed.set(None);
+                    panel.scroll.set(
+                        (l.scroll_offset() - delta * px(88, appearance::dpi(window)) / 120)
+                            .clamp(0, l.scroll_max()),
+                    );
+                    panel.update();
+                }
+                return LRESULT(0);
             }
             return LRESULT(0);
         }
@@ -265,6 +675,7 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
             }
             let _ = unsafe { InvalidateRect(Some(window), None, false) };
             if let Some(panel) = state.panel.borrow().as_ref() {
+                panel.pressed_revision.set(state.displayed.get());
                 panel.pressed.set(Some((
                     (lparam.0 as u16) as i16 as i32,
                     ((lparam.0 >> 16) as u16) as i16 as i32,
@@ -276,6 +687,11 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
             let x = (lparam.0 as u16) as i16 as i32;
             let y = ((lparam.0 >> 16) as u16) as i16 as i32;
             let pressed = state.panel.borrow().as_ref().and_then(|p| p.pressed.take());
+            let same_revision = state
+                .panel
+                .borrow()
+                .as_ref()
+                .is_some_and(|p| p.pressed_revision.get() == state.displayed.get());
             if unsafe { windows::Win32::UI::Input::KeyboardAndMouse::GetCapture() } == window {
                 let _ = unsafe { windows::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture() };
             }
@@ -287,20 +703,18 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
             if pressed.is_none() {
                 return LRESULT(0);
             }
-            let same = |a: i32, b: i32| a / l.row == b / l.row;
-            if y >= 0
-                && y < l.row
-                && pressed.is_some_and(|(px, py)| py >= 0 && py < l.row && same(px, x))
-            {
-                match x / l.row {
-                    0 => state.key(Key::Previous),
-                    1 => state.key(Key::Next),
-                    2 => state.key(Key::Tab(false)),
-                    3 => {
-                        let _ = updates::launch(false);
+            if (!same_revision || state.busy.get()) && header_hit(l, x, y) != Some(4) {
+                return LRESULT(0);
+            }
+            if let Some(item) = header_hit(l, x, y) {
+                if pressed.and_then(|(px, py)| header_hit(l, px, py)) == Some(item) {
+                    match item {
+                        0 => state.click(Key::Previous),
+                        2 => state.click(Key::Next),
+                        3 => details(window, &state),
+                        4 => settings(window, &state),
+                        _ => {}
                     }
-                    4 => settings(window, &state),
-                    _ => {}
                 }
             } else if let Some((slot, english)) = l.hit(x, y) {
                 if pressed.and_then(|(x, y)| l.hit(x, y)) == Some((slot, english)) {
@@ -308,19 +722,16 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
                     input.selected = input.page() * 5 + slot;
                     input.sense = 0;
                     drop(input);
-                    state.key(Key::Space(english));
+                    state.click(Key::Space(english));
                 }
-            } else if y >= l.senses_y()
-                && y < l.height()
-                && x >= 0
-                && x < l.width()
-                && pressed.is_some_and(|(_, py)| same(py - l.senses_y(), y - l.senses_y()))
+            } else if let Some(row) = l.sense_hit(x, y)
+                && pressed.is_some_and(|(px, py)| l.visible(l.sense_rect(row)).contains(px, py))
             {
                 let mut input = state.input.borrow_mut();
                 if input.expanded {
-                    input.sense = input.sense / 6 * 6 + ((y - l.senses_y()) / l.row) as usize;
+                    input.sense = row;
                     drop(input);
-                    state.key(Key::Space(true));
+                    state.click(Key::Space(true));
                 }
             }
             return LRESULT(0);
@@ -348,24 +759,6 @@ fn font(size: i32) -> HFONT {
         )
     }
 }
-fn text(dc: HDC, content: &str, x: i32, y: i32, width: i32, height: i32, color: COLORREF) {
-    let mut rect = RECT {
-        left: x,
-        top: y,
-        right: x + width,
-        bottom: y + height,
-    };
-    let mut text: Vec<_> = content.encode_utf16().collect();
-    unsafe {
-        SetTextColor(dc, color);
-        DrawTextW(
-            dc,
-            &mut text,
-            &mut rect,
-            DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX,
-        );
-    }
-}
 fn fill(dc: HDC, rect: &RECT, color: COLORREF) {
     unsafe {
         let brush = CreateSolidBrush(color);
@@ -373,86 +766,387 @@ fn fill(dc: HDC, rect: &RECT, color: COLORREF) {
         let _ = DeleteObject(brush.into());
     }
 }
-fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
-    let mut ps = PAINTSTRUCT::default();
-    let dc = print.unwrap_or_else(|| unsafe { BeginPaint(window, &mut ps) });
-    if print.is_some() {
-        let _ = unsafe { GetClientRect(window, &mut ps.rcPaint) };
+struct PaintSession {
+    window: HWND,
+    dc: HDC,
+    paint: PAINTSTRUCT,
+    owned: bool,
+}
+impl PaintSession {
+    fn begin(window: HWND, print: Option<HDC>) -> Self {
+        let mut paint = PAINTSTRUCT::default();
+        let dc = print.unwrap_or_else(|| unsafe { BeginPaint(window, &mut paint) });
+        Self {
+            window,
+            dc,
+            paint,
+            owned: print.is_none(),
+        }
     }
-    let dpi = appearance::dpi(window);
-    let display = state.display.get();
-    let palette = appearance::palette(display.theme);
+}
+impl Drop for PaintSession {
+    fn drop(&mut self) {
+        if self.owned {
+            let _ = unsafe { EndPaint(self.window, &self.paint) };
+        }
+    }
+}
+/// Off-screen frame, so DWM never composes a partially painted panel.
+struct Buffer {
+    dc: HDC,
+    bitmap: HBITMAP,
+    original: HGDIOBJ,
+}
+impl Buffer {
+    fn new(target: HDC, width: i32, height: i32) -> Option<Self> {
+        if width <= 0 || height <= 0 {
+            return None;
+        }
+        unsafe {
+            let dc = CreateCompatibleDC(Some(target));
+            if dc.is_invalid() {
+                return None;
+            }
+            let bitmap = CreateCompatibleBitmap(target, width, height);
+            if bitmap.is_invalid() {
+                let _ = DeleteDC(dc);
+                return None;
+            }
+            let original = SelectObject(dc, bitmap.into());
+            Some(Self {
+                dc,
+                bitmap,
+                original,
+            })
+        }
+    }
+}
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        unsafe {
+            SelectObject(self.dc, self.original);
+            let _ = DeleteObject(self.bitmap.into());
+            let _ = DeleteDC(self.dc);
+        }
+    }
+}
+fn rect(r: BoxRect) -> RECT {
+    RECT {
+        left: r.x,
+        top: r.y,
+        right: r.x + r.width,
+        bottom: r.y + r.height,
+    }
+}
+fn rounded(dc: HDC, r: BoxRect, radius: i32, surface: COLORREF, border: COLORREF) {
+    unsafe {
+        let brush = CreateSolidBrush(surface);
+        let pen = CreatePen(PS_SOLID, 1, border);
+        let old_brush = SelectObject(dc, brush.into());
+        let old_pen = SelectObject(dc, pen.into());
+        let _ = RoundRect(dc, r.x, r.y, r.x + r.width, r.y + r.height, radius, radius);
+        SelectObject(dc, old_pen);
+        SelectObject(dc, old_brush);
+        let _ = DeleteObject(pen.into());
+        let _ = DeleteObject(brush.into());
+    }
+}
+fn insets(r: BoxRect, amount: i32) -> BoxRect {
+    BoxRect {
+        x: r.x + amount,
+        width: (r.width - amount * 2).max(1),
+        ..r
+    }
+}
+fn label(dc: HDC, content: &str, r: BoxRect, color: COLORREF, wrap: bool) {
+    if content.is_empty() || r.width <= 0 || r.height <= 0 {
+        return;
+    }
+    let mut r = rect(r);
+    let mut content: Vec<_> = content.encode_utf16().collect();
+    unsafe {
+        SetTextColor(dc, color);
+        let flags = if wrap {
+            DT_WORDBREAK | DT_EDITCONTROL
+        } else {
+            DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS
+        };
+        DrawTextW(dc, &mut content, &mut r, DT_LEFT | DT_NOPREFIX | flags);
+    }
+}
+fn centered(dc: HDC, content: &str, r: BoxRect, color: COLORREF) {
+    if content.is_empty() || r.width <= 0 || r.height <= 0 {
+        return;
+    }
+    let mut r = rect(r);
+    let mut content: Vec<_> = content.encode_utf16().collect();
+    unsafe {
+        SetTextColor(dc, color);
+        DrawTextW(
+            dc,
+            &mut content,
+            &mut r,
+            DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
+        );
+    }
+}
+struct Fonts {
+    dc: HDC,
+    original: HGDIOBJ,
+    main: HFONT,
+    english: HFONT,
+    header: HFONT,
+    small: HFONT,
+    detail: HFONT,
+    spacing: i32,
+}
+impl Fonts {
+    fn new(dc: HDC, l: Layout, dpi: i32) -> Self {
+        let main = font(l.chinese_font());
+        let original = unsafe { SelectObject(dc, main.into()) };
+        Self {
+            dc,
+            original,
+            main,
+            english: font(l.english_font()),
+            header: font(px(14, dpi)),
+            small: font(px(11, dpi)),
+            detail: font(px(16, dpi)),
+            spacing: px(6, dpi),
+        }
+    }
+    fn select(&self, value: HFONT) {
+        unsafe {
+            SelectObject(self.dc, value.into());
+        }
+    }
+}
+impl Drop for Fonts {
+    fn drop(&mut self) {
+        unsafe {
+            SelectObject(self.dc, self.original);
+            for value in [
+                self.main,
+                self.english,
+                self.header,
+                self.small,
+                self.detail,
+            ] {
+                let _ = DeleteObject(value.into());
+            }
+        }
+    }
+}
+fn translation(
+    dc: HDC,
+    fonts: &Fonts,
+    word: &str,
+    pos: &str,
+    r: BoxRect,
+    palette: appearance::Palette,
+    detail: bool,
+) {
+    if word.is_empty() {
+        return;
+    }
+    let face = if detail { fonts.detail } else { fonts.english };
+    fonts.select(fonts.small);
+    let suffix: Vec<_> = pos.encode_utf16().collect();
+    let mut suffix_size = SIZE::default();
+    if !suffix.is_empty() {
+        unsafe {
+            let _ = GetTextExtentPoint32W(dc, &suffix, &mut suffix_size);
+        }
+    }
+    fonts.select(face);
+    let word_text: Vec<_> = word.encode_utf16().collect();
+    let mut word_size = SIZE::default();
+    unsafe {
+        let _ = GetTextExtentPoint32W(dc, &word_text, &mut word_size);
+    }
+    let reserve = if pos.is_empty() {
+        0
+    } else {
+        suffix_size.cx + fonts.spacing
+    };
+    let word_width = (r.width - reserve).max(1);
+    label(
+        dc,
+        word,
+        BoxRect {
+            width: word_width,
+            ..r
+        },
+        palette.accent,
+        false,
+    );
+    if !pos.is_empty() {
+        fonts.select(fonts.small);
+        let x = r.x + word_size.cx.min(word_width) + fonts.spacing;
+        label(
+            dc,
+            pos,
+            BoxRect {
+                x,
+                width: (r.x + r.width - x).max(1),
+                ..r
+            },
+            palette.secondary,
+            false,
+        );
+    }
+}
+fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
+    let _scope = DpiScope::window(window);
+    let session = PaintSession::begin(window, print);
+    let mut client = RECT::default();
+    let _ = unsafe { GetClientRect(window, &mut client) };
+    let buffer = Buffer::new(session.dc, client.right, client.bottom);
+    let dc = buffer.as_ref().map_or(session.dc, |buffer| buffer.dc);
+    draw(window, state, dc, &client);
+    if buffer.is_some() {
+        let _ = unsafe {
+            BitBlt(
+                session.dc,
+                0,
+                0,
+                client.right,
+                client.bottom,
+                Some(dc),
+                0,
+                0,
+                SRCCOPY,
+            )
+        };
+    }
+}
+fn draw(window: HWND, state: &Rc<State>, dc: HDC, client: &RECT) {
+    let dpi = monitor_dpi(caret(state));
+    let palette = state.panel.borrow().as_ref().map_or_else(
+        || appearance::palette(crate::preferences::Theme::Light),
+        |panel| panel.palette.get(),
+    );
     let l = layout(window, state);
-    let main = font(px(display.font as i32, dpi));
-    let original = unsafe { SelectObject(dc, main.into()) };
-    fill(dc, &ps.rcPaint, palette.background);
+    let fonts = Fonts::new(dc, l, dpi);
+    fill(dc, client, palette.background);
+    rounded(
+        dc,
+        BoxRect {
+            x: 0,
+            y: 0,
+            width: l.width(),
+            height: l.height(),
+        },
+        px(32, dpi),
+        palette.background,
+        palette.divider,
+    );
     unsafe {
         SetBkMode(dc, TRANSPARENT);
-    }
-    let header = font(px(14, dpi));
-    unsafe {
-        SelectObject(dc, header.into());
-    }
-    for (i, label) in ["‹", "›", "译法", "更新", "设置"].iter().enumerate() {
-        text(
-            dc,
-            label,
-            i as i32 * l.row + px(6, dpi),
-            0,
-            l.row - px(6, dpi),
-            l.row,
-            palette.foreground,
-        );
+        SetBkColor(dc, palette.background);
     }
     let hovered = state.panel.borrow().as_ref().and_then(|p| p.hovered.get());
     let pressed = state.panel.borrow().as_ref().and_then(|p| p.pressed.get());
     let input = state.input.borrow();
     let empty = input.error || input.frame.candidates.is_empty();
-    let title = if empty {
-        input.raw.clone()
-    } else {
-        format!(
-            "{}  {}/{}",
-            input.raw,
-            input.page() + 1,
-            input.page_count().max(1)
-        )
-    };
-    text(
+    fonts.select(fonts.header);
+    label(dc, &input.raw, l.title_rect(), palette.foreground, false);
+    fonts.select(fonts.small);
+    centered(
         dc,
-        &title,
-        5 * l.row + px(8, dpi),
-        0,
-        l.width() - 5 * l.row - px(12, dpi),
-        l.row,
+        if input.english { "英文" } else { "中英" },
+        l.mode_rect(),
         palette.secondary,
     );
+    for (i, value) in [
+        "‹".to_owned(),
+        format!("{}/{}", input.page() + 1, input.page_count().max(1)),
+        "›".into(),
+        if input.expanded { "收起" } else { "译法" }.into(),
+        "⚙".into(),
+    ]
+    .iter()
+    .enumerate()
+    {
+        let r = l.header_item(i);
+        let enabled = match i {
+            0 => !empty && input.page() > 0,
+            2 => !empty && input.page() + 1 < input.page_count(),
+            3 => !empty,
+            _ => true,
+        };
+        if i != 1 && enabled && hovered.is_some_and(|(x, y)| r.contains(x, y)) {
+            rounded(
+                dc,
+                r,
+                px(20, dpi),
+                if pressed.is_some_and(|(x, y)| r.contains(x, y)) {
+                    palette.divider
+                } else {
+                    palette.selected
+                },
+                palette.selected,
+            );
+        }
+        fonts.select(if i == 1 { fonts.small } else { fonts.header });
+        centered(
+            dc,
+            value,
+            r,
+            if enabled {
+                palette.foreground
+            } else {
+                palette.secondary
+            },
+        );
+    }
+    let saved_body = unsafe { SaveDC(dc) };
     unsafe {
-        SelectObject(dc, main.into());
-        let _ = DeleteObject(header.into());
+        let _ = IntersectClipRect(dc, 0, l.body_rect().y, l.width(), l.content_bottom());
     }
     if empty {
-        text(
+        fonts.select(fonts.main);
+        let loading = state.busy.get()
+            && state
+                .panel
+                .borrow()
+                .as_ref()
+                .is_some_and(Panel::loading_due);
+        let message = if loading {
+            "正在加载候选…".to_owned()
+        } else if input.error {
+            state
+                .failure
+                .get()
+                .unwrap_or(crate::bridge::EngineFailure::Unavailable)
+                .description()
+        } else {
+            "未找到候选".to_owned()
+        };
+        label(
             dc,
-            if input.error {
-                "引擎暂不可用"
-            } else {
-                "未找到候选"
+            &message,
+            BoxRect {
+                x: l.padding,
+                y: l.body_rect().y,
+                width: l.width() - 2 * l.padding,
+                height: l.row,
             },
-            px(12, dpi),
-            l.row,
-            l.width() - px(24, dpi),
-            l.row,
             palette.foreground,
+            false,
         );
-        text(
+        fonts.select(fonts.english);
+        label(
             dc,
             "回车可提交原样字母",
-            px(12, dpi),
-            l.row * 2,
-            l.width() - px(24, dpi),
-            l.row,
+            BoxRect {
+                x: l.padding,
+                y: l.body_rect().y + l.row,
+                width: l.width() - 2 * l.padding,
+                height: l.row,
+            },
             palette.secondary,
+            false,
         );
     }
     for (slot, candidate) in input
@@ -463,96 +1157,61 @@ fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
         .take(if empty { 0 } else { 5 })
         .enumerate()
     {
-        let (x, y) = l.position(slot);
-        let selected = input.page() * 5 + slot == input.selected;
-        if selected
-            || hovered
-                .and_then(|(x, y)| l.hit(x, y))
-                .is_some_and(|(hover, _)| hover == slot)
-        {
-            fill(
-                dc,
-                &RECT {
-                    left: x,
-                    top: y,
-                    right: x + l.column,
-                    bottom: y + l.row * 2,
-                },
-                palette.selected,
-            );
-        }
-        if selected
-            || pressed
-                .and_then(|(x, y)| l.hit(x, y))
-                .is_some_and(|(clicked, _)| clicked == slot)
-        {
-            let brush = unsafe { CreateSolidBrush(palette.foreground) };
-            unsafe {
-                FrameRect(
+        for english in [false, true] {
+            let r = l.candidate_rect(slot, english);
+            let hot = hovered.and_then(|(x, y)| l.hit(x, y)) == Some((slot, english));
+            let down = pressed.and_then(|(x, y)| l.hit(x, y)) == Some((slot, english));
+            let selected = !english && input.selected == input.page() * 5 + slot;
+            if selected || hot || down {
+                rounded(
                     dc,
-                    &RECT {
-                        left: x + px(1, dpi),
-                        top: y + px(1, dpi),
-                        right: x + l.column - px(1, dpi),
-                        bottom: y + l.row * 2 - px(1, dpi),
+                    r,
+                    px(20, dpi),
+                    if down {
+                        palette.divider
+                    } else {
+                        palette.selected
                     },
-                    brush,
+                    palette.selected,
                 );
-                let _ = DeleteObject(brush.into());
             }
-        }
-        let foreground = if selected {
-            palette.selected_text
-        } else {
-            palette.foreground
-        };
-        text(
-            dc,
-            &format!("{} {}", slot + 1, candidate.text),
-            x + px(8, dpi),
-            y,
-            l.column - px(16, dpi),
-            l.row,
-            foreground,
-        );
-        if let Some(translation) = candidate.translations.first() {
-            let pos = translation.visible_pos(state.show_pos.get());
-            if pos.is_empty() {
-                text(
+            let inner = insets(r, px(8, dpi));
+            if !english {
+                fonts.select(fonts.main);
+                let foreground = if selected {
+                    palette.selected_text
+                } else {
+                    palette.foreground
+                };
+                let title = format!("{} {}", slot + 1, candidate.text);
+                if l.compact && r.height == l.row {
+                    label(dc, &title, inner, foreground, false);
+                } else {
+                    label(
+                        dc,
+                        &title,
+                        BoxRect {
+                            y: inner.y + px(10, dpi),
+                            height: inner.height - px(10, dpi),
+                            ..inner
+                        },
+                        foreground,
+                        true,
+                    );
+                }
+            } else if let Some(sense) = candidate.translations.first() {
+                translation(
                     dc,
-                    &translation.word,
-                    x + px(8, dpi),
-                    y + l.row,
-                    l.column - px(16, dpi),
-                    l.row,
-                    foreground,
+                    &fonts,
+                    &sense.word,
+                    sense.visible_pos(state.show_pos.get()),
+                    inner,
+                    palette,
+                    false,
                 );
             } else {
-                let top = px(display.font as i32 + 3, dpi);
-                text(
-                    dc,
-                    &translation.word,
-                    x + px(8, dpi),
-                    y + l.row,
-                    l.column - px(16, dpi),
-                    top,
-                    foreground,
-                );
-                let small = font(px((display.font as i32 * 2 / 3).max(11), dpi));
-                let old = unsafe { SelectObject(dc, small.into()) };
-                text(
-                    dc,
-                    pos,
-                    x + px(8, dpi),
-                    y + l.row + top,
-                    l.column - px(16, dpi),
-                    l.row - top,
-                    palette.secondary,
-                );
-                unsafe {
-                    SelectObject(dc, old);
-                    let _ = DeleteObject(small.into());
-                }
+                fonts.select(fonts.english);
+                label(dc, "—", inner, palette.secondary, false);
             }
         }
     }
@@ -560,51 +1219,217 @@ fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
         && input.expanded
         && let Some(candidate) = input.frame.candidates.get(input.selected)
     {
+        let title = l.details_title_rect();
+        fill(
+            dc,
+            &RECT {
+                left: l.padding,
+                top: title.y,
+                right: l.width() - l.padding,
+                bottom: title.y + px(1, dpi),
+            },
+            palette.divider,
+        );
+        fonts.select(fonts.detail);
+        label(
+            dc,
+            &format!("{} · 更多译法", candidate.text),
+            insets(title, px(4, dpi)),
+            palette.foreground,
+            false,
+        );
         for (row, sense) in candidate
             .translations
             .iter()
             .enumerate()
-            .skip(input.sense / 6 * 6)
-            .take(6)
+            .skip(l.visible_senses().start)
+            .take(l.visible_senses().len())
         {
-            let y = l.senses_y() + (row % 6) as i32 * l.row;
-            if row == input.sense {
-                fill(
-                    dc,
-                    &RECT {
-                        left: 0,
-                        top: y,
-                        right: l.width(),
-                        bottom: y + l.row,
-                    },
-                    palette.selected,
-                );
+            let r = l.sense_rect(row);
+            if row == input.sense || hovered.is_some_and(|(x, y)| r.contains(x, y)) {
+                rounded(dc, r, px(20, dpi), palette.selected, palette.selected);
             }
-            text(
+            let inner = insets(r, px(8, dpi));
+            let line = px(28, dpi);
+            translation(
                 dc,
-                &format!(
-                    "{}{} · {}",
-                    if row == input.sense { "› " } else { "  " },
-                    sense.display_word(state.show_pos.get()),
-                    sense.note
-                ),
-                px(12, dpi),
-                y,
-                l.width() - px(24, dpi),
-                l.row,
-                if row == input.sense {
-                    palette.selected_text
-                } else {
-                    palette.foreground
+                &fonts,
+                &sense.word,
+                sense.visible_pos(state.show_pos.get()),
+                BoxRect {
+                    height: line,
+                    ..inner
                 },
+                palette,
+                true,
+            );
+            fonts.select(fonts.english);
+            label(
+                dc,
+                &sense.note,
+                BoxRect {
+                    y: inner.y + line,
+                    height: line,
+                    ..inner
+                },
+                palette.secondary,
+                false,
+            );
+            fonts.select(fonts.small);
+            label(
+                dc,
+                &sense.example,
+                BoxRect {
+                    y: inner.y + 2 * line,
+                    height: line,
+                    ..inner
+                },
+                palette.secondary,
+                false,
             );
         }
     }
+    if saved_body != 0 {
+        unsafe {
+            let _ = RestoreDC(dc, saved_body);
+        }
+    }
+    if !empty
+        && input.expanded
+        && let Some(candidate) = input.frame.candidates.get(input.selected)
+    {
+        fonts.select(fonts.small);
+        label(
+            dc,
+            &format!(
+                "Tab 选择译法 · 滚轮浏览 · Shift+空格确认   {}/{}",
+                input.sense + 1,
+                candidate.translations.len()
+            ),
+            l.footer_rect(),
+            palette.secondary,
+            false,
+        );
+    }
+}
+
+fn header_hit(l: Layout, x: i32, y: i32) -> Option<usize> {
+    (0..5).find(|i| *i != 1 && l.header_item(*i).contains(x, y))
+}
+fn tooltip_texts(state: &State, l: Layout) -> Vec<(BoxRect, HSTRING)> {
+    let input = state.input.borrow();
+    let mut items = vec![(l.title_rect(), HSTRING::from(&input.raw))];
+    for (i, title) in ["上一页", "", "下一页", "更多译法 / 收起", "设置"]
+        .iter()
+        .enumerate()
+    {
+        if !title.is_empty() {
+            items.push((l.header_item(i), HSTRING::from(*title)));
+        }
+    }
+    if input.error || input.frame.candidates.is_empty() {
+        return items;
+    }
+    for (slot, candidate) in input
+        .frame
+        .candidates
+        .iter()
+        .skip(input.page() * 5)
+        .take(5)
+        .enumerate()
+    {
+        items.push((
+            l.visible(l.candidate_rect(slot, false)),
+            HSTRING::from(&candidate.text),
+        ));
+        if let Some(sense) = candidate.translations.first() {
+            items.push((
+                l.visible(l.candidate_rect(slot, true)),
+                HSTRING::from(format!(
+                    "{}\n{}\n{}",
+                    sense.display_word(state.show_pos.get()),
+                    sense.note,
+                    sense.example
+                )),
+            ));
+        }
+    }
+    if input.expanded
+        && let Some(candidate) = input.frame.candidates.get(input.selected)
+    {
+        items.push((
+            l.visible(l.details_title_rect()),
+            HSTRING::from(format!("{} · 更多译法", candidate.text)),
+        ));
+        for (row, sense) in candidate
+            .translations
+            .iter()
+            .enumerate()
+            .skip(l.visible_senses().start)
+            .take(l.visible_senses().len())
+        {
+            items.push((
+                l.visible(l.sense_rect(row)),
+                HSTRING::from(format!(
+                    "{}\n{}\n{}",
+                    sense.display_word(state.show_pos.get()),
+                    sense.note,
+                    sense.example
+                )),
+            ));
+        }
+    }
+    items.retain(|(r, _)| r.width > 0 && r.height > 0);
+    items
+}
+fn details(window: HWND, state: &Rc<State>) {
+    if state.busy.get() {
+        return;
+    }
+    if state.input.borrow().expanded {
+        state.click(Key::Escape);
+        return;
+    }
+    let choices: Vec<_> = {
+        let input = state.input.borrow();
+        input
+            .frame
+            .candidates
+            .iter()
+            .enumerate()
+            .skip(input.page() * 5)
+            .take(5)
+            .filter(|(_, c)| !c.translations.is_empty())
+            .map(|(i, c)| (i, format!("{} · 更多译法", c.text)))
+            .collect()
+    };
+    let Ok(menu) = (unsafe { CreatePopupMenu() }) else {
+        return;
+    };
+    let mut point = POINT::default();
     unsafe {
-        SelectObject(dc, original);
-        let _ = DeleteObject(main.into());
-        if print.is_none() {
-            let _ = EndPaint(window, &ps);
+        let _ = GetCursorPos(&mut point);
+        for (index, title) in choices {
+            let _ = AppendMenuW(menu, MF_STRING, index + 1, &HSTRING::from(title));
+        }
+        let selected = TrackPopupMenu(
+            menu,
+            TPM_RETURNCMD | TPM_NONOTIFY,
+            point.x,
+            point.y,
+            None,
+            window,
+            None,
+        )
+        .0;
+        let _ = DestroyMenu(menu);
+        if selected > 0 {
+            let mut input = state.input.borrow_mut();
+            input.selected = selected as usize - 1;
+            input.sense = 0;
+            input.expanded = false;
+            drop(input);
+            state.click(Key::Tab(false));
         }
     }
 }
@@ -612,7 +1437,7 @@ fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
 pub(super) fn settings_shortcut(key: usize) -> bool {
     key == 0x50 && down(0x11) && down(0x10) && !down(0x12) && !down(0x5B) && !down(0x5C)
 }
-fn settings(window: HWND, state: &Rc<State>) {
+pub(super) fn settings(window: HWND, state: &Rc<State>) {
     if state.preview {
         return;
     }
@@ -650,6 +1475,8 @@ fn settings(window: HWND, state: &Rc<State>) {
                 w!("本地记录未保存，请检查存储权限"),
             );
         }
+        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, None);
+        let _ = AppendMenuW(menu, MF_STRING, 6, w!("检查版本更新…"));
         let theme = CreatePopupMenu().ok();
         let font = CreatePopupMenu().ok();
         let marks = CreatePopupMenu().ok();
@@ -669,7 +1496,13 @@ fn settings(window: HWND, state: &Rc<State>) {
                 crate::preferences::Display::SIZES
                     .iter()
                     .enumerate()
-                    .map(|(i, v)| (20 + i, format!("{v}"), *v == display.font))
+                    .map(|(i, v)| {
+                        (
+                            20 + i,
+                            ["小", "标准", "大", "特大"][i].to_owned(),
+                            *v == display.font,
+                        )
+                    })
                     .collect(),
             ),
             (
@@ -714,9 +1547,11 @@ fn settings(window: HWND, state: &Rc<State>) {
         )
         .0;
         let _ = DestroyMenu(menu);
+        if selected == 6 {
+            let _ = updates::launch(false);
+        }
         if selected == 4 {
-            state.cancel_memory();
-            state.input.borrow_mut().remember = !remember;
+            state.remember(!remember);
         }
         if selected == 2
             && super::module_path()
@@ -751,9 +1586,7 @@ fn settings(window: HWND, state: &Rc<State>) {
                 crate::preferences::Display::SIZES[selected as usize - 20],
             ),
             30..=32 => {
-                let mut input = state.input.borrow_mut();
-                input.punctuation_mode = crate::punctuation::Mode::ALL[selected as usize - 30];
-                input.punctuation.reset_context();
+                state.punctuation_mode(crate::punctuation::Mode::ALL[selected as usize - 30]);
                 Ok(())
             }
             _ => Ok(()),
@@ -767,9 +1600,8 @@ fn settings(window: HWND, state: &Rc<State>) {
             );
         }
         state.display.set(crate::preferences::display());
-        if let Some(panel) = state.panel.borrow().as_ref() {
-            panel.update();
-        }
+        state.refresh_palette();
+        state.refresh();
         let _ = InvalidateRect(Some(window), None, false);
     }
 }
@@ -859,10 +1691,27 @@ fn preview_state(theme: crate::preferences::Theme, size: u32) -> Rc<State> {
     use crate::bridge::{Candidate, Translation};
     let state = Rc::new(State {
         input: std::cell::RefCell::new(crate::input::Input::default()),
-        engine: std::cell::RefCell::new(None),
-        retry_after: Cell::new(None),
+        worker: std::cell::RefCell::new(None),
+        outbox: std::cell::RefCell::new(Default::default()),
+        deferred_boundary: std::cell::RefCell::new(None),
+        deferred_mode: Cell::new(None),
+        deferred_context: Cell::new(false),
+        sequence: Cell::new(0),
+        displayed: Cell::new(0),
+        latest: Cell::new(0),
+        pending: std::cell::RefCell::new(Default::default()),
+        edited: std::cell::RefCell::new(Vec::new()),
+        busy: Cell::new(false),
+        polling: Cell::new(false),
+        refreshing_palette: Cell::new(false),
+        composing: Cell::new(false),
+        failure: Cell::new(None),
+        retiring: Cell::new(false),
+        barrier: Cell::new(None),
+        drained: Cell::new(false),
         document: std::cell::RefCell::new(None),
         panel: std::cell::RefCell::new(None),
+        mode: std::cell::RefCell::new(None),
         client: Cell::new(0),
         show_pos: Cell::new(true),
         display: Cell::new(crate::preferences::Display { theme, font: size }),
@@ -908,211 +1757,11 @@ fn render_preview_never_opens_engine_or_commits_words() {
         state.key(key);
     }
     assert_eq!(state.input.borrow().raw, raw);
-    assert!(state.engine.borrow().is_none());
+    assert!(state.worker.borrow().is_none());
     assert!(state.input.borrow().pending_memory.is_none());
     assert!(state.input.borrow().pending_study.is_none());
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::bridge::{Candidate, Translation};
-    use crate::input::Input;
-    use std::ffi::c_void;
-
-    struct Surface {
-        dc: HDC,
-        bitmap: HBITMAP,
-        original: HGDIOBJ,
-        bits: *mut c_void,
-        width: i32,
-        height: i32,
-    }
-    impl Surface {
-        fn new(width: i32, height: i32) -> Self {
-            let dc = unsafe { CreateCompatibleDC(None) };
-            assert!(!dc.is_invalid(), "Preview device context unavailable");
-            let info = BITMAPINFO {
-                bmiHeader: BITMAPINFOHEADER {
-                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-                    biWidth: width,
-                    biHeight: -height,
-                    biPlanes: 1,
-                    biBitCount: 32,
-                    biCompression: BI_RGB.0,
-                    ..Default::default()
-                },
-                ..Default::default()
-            };
-            let mut bits = std::ptr::null_mut();
-            let bitmap =
-                unsafe { CreateDIBSection(Some(dc), &info, DIB_RGB_COLORS, &mut bits, None, 0) }
-                    .expect("Preview bitmap unavailable");
-            let original = unsafe { SelectObject(dc, bitmap.into()) };
-            Self {
-                dc,
-                bitmap,
-                original,
-                bits,
-                width,
-                height,
-            }
-        }
-        fn pixels(&self) -> &[u8] {
-            unsafe {
-                std::slice::from_raw_parts(
-                    self.bits.cast(),
-                    (self.width * self.height * 4) as usize,
-                )
-            }
-        }
-        fn ink_pixels(&self, left: i32, top: i32, right: i32, bottom: i32) -> usize {
-            let pixels = self.pixels();
-            (top..bottom.min(self.height))
-                .flat_map(|y| (left..right.min(self.width)).map(move |x| (x, y)))
-                .filter(|(x, y)| {
-                    let offset = ((y * self.width + x) * 4) as usize;
-                    pixels[offset..offset + 3]
-                        .iter()
-                        .zip(&pixels[..3])
-                        .any(|(value, background)| value.abs_diff(*background) > 32)
-                })
-                .count()
-        }
-        fn save_preview(&self, name: &str) {
-            // Optional artifacts contain only the synthetic inputs below. Normal
-            // test runs create no files and never open an input source or engine.
-            let Some(directory) = std::env::var_os("LINGOMATE_CANDIDATE_PREVIEW_DIR") else {
-                return;
-            };
-            let directory = std::path::PathBuf::from(directory);
-            std::fs::create_dir_all(&directory).unwrap();
-            let pixels = self.pixels();
-            let mut bytes = Vec::with_capacity(54 + pixels.len());
-            bytes.extend_from_slice(b"BM");
-            bytes.extend_from_slice(&(54 + pixels.len() as u32).to_le_bytes());
-            bytes.extend_from_slice(&[0; 4]);
-            bytes.extend_from_slice(&54u32.to_le_bytes());
-            bytes.extend_from_slice(&40u32.to_le_bytes());
-            bytes.extend_from_slice(&self.width.to_le_bytes());
-            bytes.extend_from_slice(&(-self.height).to_le_bytes());
-            bytes.extend_from_slice(&1u16.to_le_bytes());
-            bytes.extend_from_slice(&32u16.to_le_bytes());
-            bytes.extend_from_slice(&0u32.to_le_bytes());
-            bytes.extend_from_slice(&(pixels.len() as u32).to_le_bytes());
-            bytes.extend_from_slice(&[0; 16]);
-            bytes.extend_from_slice(pixels);
-            std::fs::write(directory.join(format!("candidates-{name}.bmp")), bytes).unwrap();
-        }
-    }
-    impl Drop for Surface {
-        fn drop(&mut self) {
-            unsafe {
-                SelectObject(self.dc, self.original);
-                let _ = DeleteObject(self.bitmap.into());
-                let _ = DeleteDC(self.dc);
-            }
-        }
-    }
-
-    #[test]
-    fn hidden_candidate_window_renders_empty_status_and_short_page_headers() {
-        let foreground = unsafe { GetForegroundWindow() };
-        let state = State::with_display_preferences(false);
-        let panel =
-            Panel::new(Rc::downgrade(&state)).expect("Isolated candidate window unavailable");
-        assert!(!unsafe { IsWindowVisible(panel.window) }.as_bool());
-        let style = unsafe { GetWindowLongPtrW(panel.window, GWL_EXSTYLE) } as u32;
-        assert_ne!(style & WS_EX_NOACTIVATE.0, 0);
-        assert_ne!(style & WS_EX_TOOLWINDOW.0, 0);
-        for (name, error, count) in [
-            ("engine-unavailable", true, 0),
-            ("engine-unavailable-stale", true, 3),
-            ("no-match", false, 0),
-            ("one", false, 1),
-            ("two", false, 2),
-            ("three", false, 3),
-            ("four", false, 4),
-            ("five", false, 5),
-        ] {
-            let mut input = Input {
-                raw: "wode".into(),
-                error,
-                ..Default::default()
-            };
-            input.frame.candidates = (0..count)
-                .map(|_| Candidate {
-                    text: "我的".into(),
-                    translations: vec![Translation {
-                        word: "my".into(),
-                        ..Default::default()
-                    }],
-                    ..Default::default()
-                })
-                .collect();
-            let l = crate::candidate_layout::Layout::new(
-                if error { 0 } else { count as usize },
-                0,
-                18,
-                96,
-                1000,
-            );
-            let (width, height) = (l.width(), l.height());
-            *state.input.borrow_mut() = input;
-            unsafe {
-                SetWindowPos(
-                    panel.window,
-                    None,
-                    0,
-                    0,
-                    width,
-                    height,
-                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
-                )
-                .unwrap();
-            }
-            let mut rect = RECT::default();
-            unsafe { GetClientRect(panel.window, &mut rect) }.unwrap();
-            let surface = Surface::new(rect.right, rect.bottom);
-            // Exercise the actual HWND callback and the same native GDI painter
-            // used for WM_PAINT; keep the window hidden throughout the capture.
-            unsafe {
-                SendMessageW(
-                    panel.window,
-                    WM_PRINTCLIENT,
-                    Some(WPARAM(surface.dc.0 as usize)),
-                    Some(LPARAM(PRF_CLIENT as isize)),
-                );
-                assert!(GdiFlush().as_bool());
-            }
-            assert!(
-                surface.ink_pixels(228, 0, rect.right, 40) > 10,
-                "{name}: composition title is outside the visible window"
-            );
-            if error || count == 0 {
-                assert!(
-                    surface.ink_pixels(12, 44, rect.right - 12, 84) > 10,
-                    "{name}: empty candidate state is invisible"
-                );
-                assert!(
-                    surface.ink_pixels(12, 88, rect.right - 12, 128) > 10,
-                    "{name}: raw-letter submission guidance is invisible"
-                );
-                assert_eq!(
-                    surface.ink_pixels(260, 44, rect.right, 128),
-                    0,
-                    "{name}: stale candidates are still visible during engine failure"
-                );
-            } else {
-                for slot in 0..count {
-                    let left = slot * l.column + 8;
-                    assert!(surface.ink_pixels(left, 44, left + l.column - 16, 84) > 10);
-                    assert!(surface.ink_pixels(left, 88, left + l.column - 16, 128) > 10);
-                }
-            }
-            surface.save_preview(name);
-            assert!(!unsafe { IsWindowVisible(panel.window) }.as_bool());
-        }
-        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
-    }
-}
+#[path = "panel_tests.rs"]
+mod tests;

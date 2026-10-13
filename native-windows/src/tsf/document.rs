@@ -12,6 +12,7 @@ type Operation = (
     String,
     Option<crate::learning::Word>,
     Option<crate::bridge::Confirmation>,
+    u64,
 );
 
 pub(super) struct Document {
@@ -20,8 +21,10 @@ pub(super) struct Document {
     composition: RefCell<Option<ITfComposition>>,
     queue: RefCell<VecDeque<Operation>>,
     scheduled: Cell<bool>,
+    applying: Cell<u32>,
     ending: Cell<bool>,
     pub terminated: Cell<bool>,
+    pub epoch: Cell<u64>,
     state: Weak<State>,
 }
 impl Document {
@@ -32,10 +35,15 @@ impl Document {
             composition: RefCell::new(None),
             queue: RefCell::new(VecDeque::new()),
             scheduled: Cell::new(false),
+            applying: Cell::new(0),
             ending: Cell::new(false),
             terminated: Cell::new(false),
+            epoch: Cell::new(0),
             state,
         })
+    }
+    pub fn is_idle(&self) -> bool {
+        !self.scheduled.get() && self.applying.get() == 0 && self.queue.borrow().is_empty()
     }
     pub fn enqueue(
         self: &Rc<Self>,
@@ -44,9 +52,12 @@ impl Document {
         study: Option<crate::learning::Word>,
         memory: Option<crate::bridge::Confirmation>,
     ) -> Result<()> {
+        if self.queue.borrow().len() >= crate::worker::QUEUE_CAPACITY {
+            return Err(windows::Win32::Foundation::E_FAIL.into());
+        }
         self.queue
             .borrow_mut()
-            .push_back((commit, preedit, study, memory));
+            .push_back((commit, preedit, study, memory, self.epoch.get()));
         if self.scheduled.replace(true) {
             return Ok(());
         }
@@ -62,7 +73,17 @@ impl Document {
         .and_then(|status| status.ok());
         if result.is_err() {
             self.scheduled.set(false);
-            self.queue.borrow_mut().clear();
+            let cancelled: Vec<_> = self
+                .queue
+                .borrow_mut()
+                .drain(..)
+                .filter_map(|(_, _, _, memory, _)| memory)
+                .collect();
+            if let Some(state) = self.state.upgrade() {
+                for receipt in cancelled {
+                    state.confirm_memory(&receipt, false, None);
+                }
+            }
         }
         result
     }
@@ -72,19 +93,39 @@ impl Document {
         self.ending.set(false);
         result
     }
-    fn apply(self: &Rc<Self>, cookie: u32, commit: Option<&str>, preedit: &str) -> Result<()> {
+    fn valid(&self, epoch: u64) -> bool {
+        !super::blocked(&self.context) && self.epoch.get() == epoch && !self.terminated.get()
+    }
+    fn check_epoch(&self, epoch: u64) -> Result<()> {
+        if self.valid(epoch) {
+            Ok(())
+        } else {
+            Err(windows::Win32::Foundation::E_ABORT.into())
+        }
+    }
+    fn apply(
+        self: &Rc<Self>,
+        cookie: u32,
+        commit: Option<&str>,
+        preedit: &str,
+        epoch: u64,
+    ) -> Result<()> {
+        self.check_epoch(epoch)?;
         if let Some(text) = commit {
             let text: Vec<_> = text.encode_utf16().collect();
             let composition = self.composition.borrow_mut().take();
             let range = if let Some(composition) = composition {
                 let range = unsafe { composition.GetRange()? };
+                self.check_epoch(epoch)?;
                 unsafe {
                     range.SetText(cookie, 0, &text)?;
+                    self.check_epoch(epoch)?;
                     self.end(&composition, cookie)?;
                 }
                 range
             } else {
                 let insert: ITfInsertAtSelection = self.context.cast()?;
+                self.check_epoch(epoch)?;
                 unsafe {
                     insert.InsertTextAtSelection(
                         cookie,
@@ -93,14 +134,18 @@ impl Document {
                     )?
                 }
             };
+            self.check_epoch(epoch)?;
             move_caret(&self.context, cookie, &range)?;
         }
+        self.check_epoch(epoch)?;
         if preedit.is_empty() {
             let composition = self.composition.borrow_mut().take();
             if let Some(composition) = composition {
                 let range = unsafe { composition.GetRange()? };
+                self.check_epoch(epoch)?;
                 unsafe {
                     range.SetText(cookie, 0, &[])?;
+                    self.check_epoch(epoch)?;
                     self.end(&composition, cookie)?;
                 }
             }
@@ -109,29 +154,41 @@ impl Document {
         if self.composition.borrow().is_none() {
             let insert: ITfInsertAtSelection = self.context.cast()?;
             let range = unsafe { insert.InsertTextAtSelection(cookie, TF_IAS_QUERYONLY, &[])? };
+            self.check_epoch(epoch)?;
             let manager: ITfContextComposition = self.context.cast()?;
             let sink: ITfCompositionSink = Sink {
                 _guard: Guard::new(),
                 document: Rc::downgrade(self),
             }
             .into();
+            self.check_epoch(epoch)?;
             let composition = unsafe { manager.StartComposition(cookie, &range, &sink)? };
+            self.check_epoch(epoch)?;
             *self.composition.borrow_mut() = Some(composition);
         }
         let composition = self.composition.borrow().clone().unwrap();
         let range = unsafe { composition.GetRange()? };
+        self.check_epoch(epoch)?;
         unsafe {
             range.SetText(cookie, 0, &preedit.encode_utf16().collect::<Vec<_>>())?;
         }
+        self.check_epoch(epoch)?;
         move_caret(&self.context, cookie, &range)?;
         if let Ok(view) = unsafe { self.context.GetActiveView() } {
             let mut rect = RECT::default();
             let mut clipped = false.into();
             if unsafe { view.GetTextExt(cookie, &range, &mut rect, &mut clipped) }.is_ok()
                 && let Some(state) = self.state.upgrade()
-                && let Some(panel) = state.panel.borrow().as_ref()
             {
-                panel.position(rect.left, rect.bottom);
+                let current = !state.retiring.get()
+                    && state
+                        .document
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|doc| Rc::ptr_eq(doc, self));
+                if current && let Some(panel) = state.panel.borrow().as_ref() {
+                    panel.position(rect.left, rect.bottom);
+                }
             }
         }
         Ok(())
@@ -158,40 +215,70 @@ struct Edit {
     document: Rc<Document>,
     _guard: Guard,
 }
+struct Editing(Rc<Document>);
+impl Drop for Editing {
+    fn drop(&mut self) {
+        self.0.applying.set(self.0.applying.get() - 1);
+    }
+}
 impl ITfEditSession_Impl for Edit_Impl {
     fn DoEditSession(&self, cookie: u32) -> Result<()> {
         guarded(|| {
+            self.document.applying.set(self.document.applying.get() + 1);
+            let _editing = Editing(self.document.clone());
             let operations: Vec<_> = self.document.queue.borrow_mut().drain(..).collect();
             self.document.scheduled.set(false);
-            for (commit, preedit, study, memory) in operations {
-                let result = self.document.apply(cookie, commit.as_deref(), &preedit);
+            let mut failure = None;
+            for (commit, preedit, study, memory, epoch) in operations {
+                if failure.is_some() || !self.document.valid(epoch) {
+                    if let Some(state) = self.document.state.upgrade()
+                        && let Some(receipt) = memory
+                    {
+                        state.confirm_memory(&receipt, false, None);
+                    }
+                    continue;
+                }
+                let result = self
+                    .document
+                    .apply(cookie, commit.as_deref(), &preedit, epoch);
+                if result.is_err() {
+                    self.document
+                        .epoch
+                        .set(self.document.epoch.get().wrapping_add(1));
+                    self.document.terminated.set(true);
+                }
+                let eligible = self.document.valid(epoch);
                 if let Some(state) = self.document.state.upgrade() {
-                    let eligible =
-                        !self.document.terminated.get() && !super::blocked(&self.document.context);
-                    if eligible {
-                        if let Some(receipt) = &memory {
-                            state.confirm_memory(receipt, result.is_ok(), commit.as_deref());
-                        }
-                        if result.is_err()
-                            && state
-                                .document
-                                .borrow()
-                                .as_ref()
-                                .is_some_and(|doc| Rc::ptr_eq(doc, &self.document))
-                        {
-                            state.cancel_memory();
-                            state.input.borrow_mut().punctuation.reset_context();
-                        }
+                    if eligible && let Some(receipt) = &memory {
+                        state.confirm_memory(receipt, result.is_ok(), commit.as_deref());
+                    }
+                    let current = state
+                        .document
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|doc| Rc::ptr_eq(doc, &self.document));
+                    if result.is_err() && current {
+                        state.cancel_composition();
+                    }
+                    if !eligible && let Some(receipt) = &memory {
+                        state.confirm_memory(receipt, false, None);
                     }
                 }
+                if let Err(error) = result {
+                    failure = Some(error);
+                    continue;
+                }
+                if !eligible {
+                    continue;
+                }
                 crate::learning::after_output(
-                    result,
+                    Ok::<(), windows::core::Error>(()),
                     commit.as_deref(),
                     study,
                     crate::learning::confirmed,
                 )?;
             }
-            Ok(())
+            failure.map_or(Ok(()), Err)
         })
     }
 }
@@ -212,11 +299,26 @@ impl ITfCompositionSink_Impl for Sink_Impl {
                     return Ok(());
                 }
                 document.composition.borrow_mut().take();
-                document.queue.borrow_mut().clear();
+                let cancelled: Vec<_> = document
+                    .queue
+                    .borrow_mut()
+                    .drain(..)
+                    .filter_map(|(_, _, _, memory, _)| memory)
+                    .collect();
                 document.terminated.set(true);
+                document.epoch.set(document.epoch.get().wrapping_add(1));
                 if let Some(state) = document.state.upgrade() {
-                    state.cancel_memory();
-                    state.input.borrow_mut().punctuation.reset_context();
+                    for receipt in cancelled {
+                        state.confirm_memory(&receipt, false, None);
+                    }
+                    let current = state
+                        .document
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|doc| Rc::ptr_eq(doc, &document));
+                    if current {
+                        state.cancel_composition();
+                    }
                 }
             }
             Ok(())
