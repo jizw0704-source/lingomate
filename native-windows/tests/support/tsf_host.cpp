@@ -649,7 +649,13 @@ public:
             pump(10);
             candidates = owned_candidates();
             if (!candidates || document.store->text != L"wode") continue;
-            require(GetClientRect(candidates, &client_rect) != FALSE, "Read own candidate client rectangle");
+            // The candidate window keeps its own per-monitor DPI context. Measure it
+            // in that context so its client size matches GetDpiForWindow.
+            const auto fixture_context = SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(candidates));
+            require(fixture_context != nullptr, "Enter own candidate DPI context");
+            const bool measured = GetClientRect(candidates, &client_rect) != FALSE;
+            SetThreadDpiAwarenessContext(fixture_context);
+            require(measured, "Read own candidate client rectangle");
             dpi = std::max(96u, GetDpiForWindow(candidates));
             row = static_cast<int>((44 * dpi + 48) / 96);
             padding = static_cast<int>((12 * dpi + 48) / 96);

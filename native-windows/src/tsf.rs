@@ -502,9 +502,10 @@ impl State {
                 Key::Escape | Key::Return => input.reset(),
                 _ => {}
             }
-            // Navigation keeps the displayed geometry while the FIFO worker
-            // acknowledges it. Clicks remain disabled until that reply arrives.
-            if !navigation {
+            // The displayed frame stays until the FIFO worker replies, so typing
+            // never flashes an empty, resized panel. Clicks remain disabled until
+            // that reply arrives; a failed frame is never shown again.
+            if !navigation && input.error {
                 input.frame = Default::default();
             }
             input.error = false;
@@ -1359,7 +1360,7 @@ mod dispatch_tests {
     }
 
     #[test]
-    fn pending_navigation_keeps_the_displayed_frame_and_collapse_keeps_pinyin() {
+    fn pending_keys_keep_the_displayed_frame_and_collapse_keeps_pinyin() {
         let (release, gate) = mpsc::channel();
         let state = State::with_display_preferences(false);
         *state.worker.borrow_mut() = Some(Worker::start_with(move || {
@@ -1384,6 +1385,13 @@ mod dispatch_tests {
         assert_eq!(state.input.borrow().raw, "wode");
         assert!(!state.input.borrow().expanded);
         assert_eq!(state.input.borrow().frame.candidates.len(), 1);
+        assert!(state.submit_key(Key::Letter('a'), None, None));
+        assert_eq!(state.input.borrow().raw, "wodea");
+        assert_eq!(state.input.borrow().frame.generation, 42);
+        state.input.borrow_mut().error = true;
+        assert!(state.submit_key(Key::Letter('b'), None, None));
+        assert!(!state.input.borrow().error);
+        assert!(state.input.borrow().frame.candidates.is_empty());
         release.send(()).unwrap();
         drain(&state);
     }

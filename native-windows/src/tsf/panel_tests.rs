@@ -2,6 +2,7 @@ use super::*;
 use crate::bridge::{Candidate, Translation};
 use crate::input::Input;
 use std::ffi::c_void;
+use windows::Win32::UI::HiDpi::{AreDpiAwarenessContextsEqual, GetThreadDpiAwarenessContext};
 
 #[test]
 fn mouse_leave_does_not_rearm_itself_or_flood_the_host_queue() {
@@ -108,6 +109,11 @@ impl Surface {
                 .zip(expected)
                 .all(|(actual, wanted)| actual.abs_diff(wanted) <= 40)
         })
+    }
+    /// Bounds of glyphs in a `role_palette` capture whose role darkens
+    /// `channel` (DIB byte order: blue, green, red).
+    fn role_bounds(&self, r: BoxRect, channel: usize) -> Option<BoxRect> {
+        self.pixel_bounds(r, |pixel| pixel[channel] != u8::MAX)
     }
     fn pixel_bounds(&self, r: BoxRect, matches: impl Fn(&[u8]) -> bool) -> Option<BoxRect> {
         let mut bounds: Option<(i32, i32, i32, i32)> = None;
@@ -216,6 +222,9 @@ fn hidden_candidate_window_renders_empty_status_and_short_page_headers() {
                 .collect();
             *state.input.borrow_mut() = input;
             state.busy.set(busy);
+            let panel = state.panel.borrow();
+            panel.as_ref().unwrap().loading.set(busy.then(Instant::now));
+            drop(panel);
             let (l, surface) = capture(&state);
             assert!(
                 surface.ink(l.title_rect()) > 10,
@@ -285,13 +294,52 @@ fn hidden_candidate_window_renders_empty_status_and_short_page_headers() {
 fn hidden_preview(theme: crate::preferences::Theme) -> Rc<State> {
     // This constructor has no preference, vocabulary or installation reads.
     let state = preview_state(theme, 18);
+    let host = unsafe { GetThreadDpiAwarenessContext() };
     let panel = Panel::new(Rc::downgrade(&state)).expect("Isolated candidate window unavailable");
     let style = unsafe { GetWindowLongPtrW(panel.window, GWL_EXSTYLE) } as u32;
     assert_ne!(style & WS_EX_NOACTIVATE.0, 0);
     assert_ne!(style & WS_EX_TOOLWINDOW.0, 0);
+    unsafe {
+        assert!(
+            AreDpiAwarenessContextsEqual(
+                GetWindowDpiAwarenessContext(panel.window),
+                DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+            )
+            .as_bool(),
+            "candidate window would be bitmap-stretched in hosts without per-monitor DPI"
+        );
+        assert!(
+            AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), host).as_bool(),
+            "the host thread DPI context leaked"
+        );
+    }
     *state.panel.borrow_mut() = Some(panel);
     assert_hidden(&state);
     state
+}
+
+#[test]
+fn host_points_map_between_monitor_dpi_views() {
+    // A 150% monitor seen by a system-DPI-aware host and by the panel itself.
+    let host = RECT {
+        left: -653,
+        top: -1440,
+        right: 1907,
+        bottom: 0,
+    };
+    let panel = RECT {
+        left: -979,
+        top: -2160,
+        right: 2861,
+        bottom: 0,
+    };
+    let point = |x, y| POINT { x, y };
+    assert_eq!(
+        map_point(point(-653, -1440), host, panel),
+        point(-979, -2160)
+    );
+    assert_eq!(map_point(point(627, -720), host, panel), point(941, -1080));
+    assert_eq!(map_point(point(100, -200), panel, panel), point(100, -200));
 }
 
 fn assert_hidden(state: &State) {
@@ -305,6 +353,8 @@ fn assert_hidden(state: &State) {
 
 fn capture(state: &Rc<State>) -> (Layout, Surface) {
     let window = state.panel.borrow().as_ref().unwrap().window;
+    let host = unsafe { GetThreadDpiAwarenessContext() };
+    let scope = DpiScope::window(window);
     let l = layout(window, state);
     unsafe {
         SetWindowPos(
@@ -320,6 +370,7 @@ fn capture(state: &Rc<State>) -> (Layout, Surface) {
     }
     let mut client = RECT::default();
     unsafe { GetClientRect(window, &mut client) }.unwrap();
+    drop(scope);
     assert_eq!((client.right, client.bottom), (l.width(), l.height()));
     let surface = Surface::new(client.right, client.bottom);
     // Exercise the actual HWND callback and WM_PAINT's GDI painter. A hidden
@@ -332,9 +383,45 @@ fn capture(state: &Rc<State>) -> (Layout, Surface) {
             Some(LPARAM(PRF_CLIENT as isize)),
         );
         assert!(GdiFlush().as_bool());
+        assert!(AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), host).as_bool());
     }
     assert_hidden(state);
     (l, surface)
+}
+
+// Theme colors cannot be matched pixel by pixel: ClearType tints glyph edges
+// and thin strokes never reach the text color. On a white role surface each
+// text role darkens a single channel, and every smoothing mode blends channels
+// independently, so any changed channel identifies its role exactly.
+const ACCENT_ROLE: usize = 2;
+const SECONDARY_ROLE: usize = 0;
+
+fn role_palette() -> appearance::Palette {
+    let white = COLORREF(0xFF_FF_FF);
+    let text = COLORREF(0xFF_00_FF);
+    appearance::Palette {
+        background: white,
+        foreground: text,
+        secondary: COLORREF(0x00_FF_FF),
+        selected: white,
+        selected_text: text,
+        accent: COLORREF(0xFF_FF_00),
+        divider: white,
+        dark: false,
+    }
+}
+
+fn capture_roles(state: &Rc<State>) -> Surface {
+    let theme = state
+        .panel
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .palette
+        .replace(role_palette());
+    let (_, surface) = capture(state);
+    state.panel.borrow().as_ref().unwrap().set_palette(theme);
+    surface
 }
 
 #[test]
@@ -424,23 +511,20 @@ fn part_of_speech_is_muted_on_the_same_english_line_and_can_be_hidden() {
         let (l, shown) = capture(&state);
         shown.save_preview(&format!("{name}-pos-shown"));
         let english = l.candidate_rect(0, true);
-        let palette = state.panel.borrow().as_ref().unwrap().palette.get();
-        if palette.accent != palette.secondary {
-            let word = shown
-                .color_bounds(english, palette.accent)
-                .expect("English word has no accent-colored glyphs");
-            let pos = shown
-                .color_bounds(english, palette.secondary)
-                .expect("enabled part of speech is invisible");
-            assert!(pos.x >= word.x + word.width);
-            assert!(pos.y < word.y + word.height && pos.y + pos.height > word.y);
-        }
+        let roles = capture_roles(&state);
+        let word = roles
+            .role_bounds(english, ACCENT_ROLE)
+            .expect("English word has no accent-colored glyphs");
+        let pos = roles
+            .role_bounds(english, SECONDARY_ROLE)
+            .expect("enabled part of speech is invisible");
+        assert!(pos.x >= word.x + word.width);
+        assert!(pos.y < word.y + word.height && pos.y + pos.height > word.y);
         state.show_pos.set(false);
         let (_, hidden) = capture(&state);
-        if palette.accent != palette.secondary {
-            assert!(hidden.color_bounds(english, palette.secondary).is_none());
-        }
-        assert!(hidden.color_bounds(english, palette.accent).is_some());
+        let roles = capture_roles(&state);
+        assert!(roles.role_bounds(english, SECONDARY_ROLE).is_none());
+        assert!(roles.role_bounds(english, ACCENT_ROLE).is_some());
         assert!(shown.differences(&hidden, english) > 2);
         assert_eq!(shown.differences(&hidden, l.title_rect()), 0);
         assert_eq!(shown.differences(&hidden, l.candidate_rect(0, false)), 0);
@@ -474,14 +558,12 @@ fn untranslated_candidate_keeps_a_visible_muted_placeholder() {
         input.frame.candidates[0].translations.clear();
     }
     let (l, surface) = capture(&state);
-    let palette = state.panel.borrow().as_ref().unwrap().palette.get();
     let english = l.candidate_rect(0, true);
     surface.save_preview("dark-no-english");
     assert!(surface.ink(l.candidate_rect(0, false)) > 10);
-    assert!(surface.color_bounds(english, palette.secondary).is_some());
-    if palette.accent != palette.secondary {
-        assert!(surface.color_bounds(english, palette.accent).is_none());
-    }
+    let roles = capture_roles(&state);
+    assert!(roles.role_bounds(english, SECONDARY_ROLE).is_some());
+    assert!(roles.role_bounds(english, ACCENT_ROLE).is_none());
     assert!(!tooltip_texts(&state, l).iter().any(|(r, _)| *r == english));
     surface.save_preview("dark-no-english");
     assert_eq!(unsafe { GetForegroundWindow() }, foreground);

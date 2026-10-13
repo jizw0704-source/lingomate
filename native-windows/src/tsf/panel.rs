@@ -6,11 +6,19 @@ use crate::{
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::UI::Controls::*;
+use windows::Win32::UI::HiDpi::{
+    DPI_AWARENESS_CONTEXT, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForMonitor,
+    GetWindowDpiAwarenessContext, MDT_EFFECTIVE_DPI, SetThreadDpiAwarenessContext,
+};
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{HSTRING, Result, w};
+const LOADING_TIMER: usize = 3;
+// A normal query replies well within this; only a slow engine shows the loading state.
+const LOADING_DELAY: Duration = Duration::from_millis(150);
 pub(super) struct Panel {
     window: HWND,
     class_name: HSTRING,
@@ -24,30 +32,93 @@ pub(super) struct Panel {
     palette: Cell<appearance::Palette>,
     bounds: Cell<Option<[i32; 4]>>,
     visible: Cell<bool>,
+    loading: Cell<Option<Instant>>,
     scroll: Cell<i32>,
     selection: Cell<Option<(u64, usize, usize, bool)>>,
     tooltip: Option<HWND>,
     tips: RefCell<Vec<(BoxRect, HSTRING)>>,
     _guard: Guard,
 }
-fn work_area(x: i32, y: i32) -> RECT {
+/// Thread DPI context for one candidate-window operation. TSF calls arrive in
+/// the host's context, which may be DPI-unaware or only system-DPI-aware.
+struct DpiScope(DPI_AWARENESS_CONTEXT);
+impl DpiScope {
+    fn enter(context: DPI_AWARENESS_CONTEXT) -> Self {
+        Self(unsafe { SetThreadDpiAwarenessContext(context) })
+    }
+    fn window(window: HWND) -> Self {
+        Self::enter(unsafe { GetWindowDpiAwarenessContext(window) })
+    }
+}
+impl Drop for DpiScope {
+    fn drop(&mut self) {
+        // Only null reports a failed switch; is_invalid() also rejects the valid unaware context.
+        if !self.0.0.is_null() {
+            unsafe { SetThreadDpiAwarenessContext(self.0) };
+        }
+    }
+}
+fn monitor_info(monitor: HMONITOR) -> Option<MONITORINFO> {
     let mut info = MONITORINFO {
         cbSize: std::mem::size_of::<MONITORINFO>() as u32,
         ..Default::default()
     };
+    unsafe { GetMonitorInfoW(monitor, &mut info) }
+        .as_bool()
+        .then_some(info)
+}
+fn work_area(x: i32, y: i32) -> RECT {
     let monitor = unsafe { MonitorFromPoint(POINT { x, y }, MONITOR_DEFAULTTONEAREST) };
-    if unsafe { GetMonitorInfoW(monitor, &mut info) }.as_bool() {
-        info.rcWork
-    } else {
+    monitor_info(monitor).map_or(
         RECT {
             left: 0,
             top: 0,
             right: 1920,
             bottom: 1080,
+        },
+        |info| info.rcWork,
+    )
+}
+fn monitor_dpi(point: POINT) -> i32 {
+    let monitor = unsafe { MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST) };
+    let (mut x, mut y) = (96, 96);
+    if unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut x, &mut y) }.is_err() {
+        x = 96;
+    }
+    x.max(96) as i32
+}
+fn map_point(point: POINT, from: RECT, to: RECT) -> POINT {
+    let axis = |value: i32, from_start: i32, from_end: i32, to_start: i32, to_end: i32| {
+        let span = i64::from(from_end - from_start);
+        if span <= 0 {
+            return value;
         }
+        to_start + (i64::from(value - from_start) * i64::from(to_end - to_start) / span) as i32
+    };
+    POINT {
+        x: axis(point.x, from.left, from.right, to.left, to.right),
+        y: axis(point.y, from.top, from.bottom, to.top, to.bottom),
     }
 }
+/// Converts a host text-extent point from the calling thread's DPI view into
+/// the candidate window's view through the monitor that contains it.
+fn window_point(window: HWND, point: POINT) -> POINT {
+    let monitor = unsafe { MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST) };
+    let Some(from) = monitor_info(monitor) else {
+        return point;
+    };
+    let _scope = DpiScope::window(window);
+    monitor_info(monitor).map_or(point, |to| map_point(point, from.rcMonitor, to.rcMonitor))
+}
+fn caret(state: &State) -> POINT {
+    state
+        .panel
+        .borrow()
+        .as_ref()
+        .map_or(POINT { x: 40, y: 40 }, |p| p.caret.get())
+}
 fn layout(window: HWND, state: &State) -> Layout {
+    let _scope = DpiScope::window(window);
     let input = state.input.borrow();
     let empty = input.error || input.frame.candidates.is_empty();
     let count = input
@@ -65,11 +136,8 @@ fn layout(window: HWND, state: &State) -> Layout {
     } else {
         0
     };
-    let point = state
-        .panel
-        .borrow()
-        .as_ref()
-        .map_or(POINT { x: 40, y: 40 }, |p| p.caret.get());
+    let point = caret(state);
+    let dpi = monitor_dpi(point);
     let work = work_area(point.x, point.y);
     let lengths: Vec<_> = input
         .frame
@@ -83,7 +151,7 @@ fn layout(window: HWND, state: &State) -> Layout {
         &lengths,
         extra,
         state.display.get().font,
-        appearance::dpi(window),
+        dpi,
         state
             .panel
             .borrow()
@@ -92,7 +160,7 @@ fn layout(window: HWND, state: &State) -> Layout {
             .unwrap_or(work.right - work.left - 8),
     );
     layout.with_viewport(
-        work.bottom - work.top - px(16, appearance::dpi(window)),
+        work.bottom - work.top - px(16, dpi),
         state
             .panel
             .borrow()
@@ -130,6 +198,9 @@ impl Panel {
         unsafe {
             RegisterClassW(&class);
         }
+        // Without its own per-monitor context, DWM bitmap-stretches the panel
+        // inside DPI-unaware or system-aware hosts on scaled monitors.
+        let creation = DpiScope::enter(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         let window = unsafe {
             CreateWindowExW(
                 WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
@@ -176,6 +247,7 @@ impl Panel {
             )
             .ok()
         };
+        drop(creation);
         Ok(Self {
             window,
             class_name,
@@ -189,6 +261,7 @@ impl Panel {
             palette: Cell::new(palette),
             bounds: Cell::new(None),
             visible: Cell::new(false),
+            loading: Cell::new(None),
             scroll: Cell::new(0),
             selection: Cell::new(None),
             tooltip,
@@ -208,6 +281,12 @@ impl Panel {
             self.hide();
             return;
         }
+        // Until the loading state is due, a pending query without a displayable
+        // frame keeps the current panel, or keeps it hidden.
+        if self.track_loading(&state) == Some(false) {
+            return;
+        }
+        let _scope = DpiScope::window(self.window);
         let key = {
             let input = state.input.borrow();
             (
@@ -239,20 +318,24 @@ impl Panel {
         self.scroll.set(l.scroll_offset());
         self.set_tips(tooltip_texts(&state, l));
         let point = self.caret.get();
+        let dpi = monitor_dpi(point);
         let work = work_area(point.x, point.y);
         let x = point
             .x
             .clamp(work.left, (work.right - l.width() - 2).max(work.left));
-        let below = point.y + px(8, appearance::dpi(self.window));
+        let below = point.y + px(8, dpi);
         let y = if below + l.height() + 2 <= work.bottom {
             below
         } else {
-            point.y - l.height() - px(8, appearance::dpi(self.window))
+            point.y - l.height() - px(8, dpi)
         }
         .clamp(work.top, (work.bottom - l.height() - 2).max(work.top));
+        // Recorded before moving: a DPI change during the move re-enters update().
+        let bounds = [x, y, l.width(), l.height()];
+        let moved = self.bounds.replace(Some(bounds)) != Some(bounds);
+        let shown = !self.visible.replace(true);
         unsafe {
-            let bounds = [x, y, l.width(), l.height()];
-            if self.bounds.get() != Some(bounds) {
+            if moved {
                 let _ = SetWindowPos(
                     self.window,
                     Some(HWND_TOPMOST),
@@ -262,9 +345,8 @@ impl Panel {
                     l.height(),
                     SWP_NOACTIVATE,
                 );
-                self.bounds.set(Some(bounds));
                 // The owned region is replaced only when geometry changes.
-                let radius = px(32, appearance::dpi(self.window));
+                let radius = px(32, dpi);
                 let region =
                     CreateRoundRectRgn(0, 0, l.width() + 1, l.height() + 1, radius, radius);
                 if SetWindowRgn(self.window, Some(region), true) == 0 {
@@ -272,16 +354,59 @@ impl Panel {
                 }
             }
             let _ = InvalidateRect(Some(self.window), None, false);
-            if !self.visible.replace(true) {
+            if shown {
                 let _ = ShowWindow(self.window, SW_SHOWNOACTIVATE);
+            }
+            if moved || shown {
+                // DWM must never compose new geometry before its first paint.
+                let _ = UpdateWindow(self.window);
             }
         }
     }
     pub fn position(&self, x: i32, y: i32) {
-        self.caret.set(POINT { x, y });
+        self.caret.set(window_point(self.window, POINT { x, y }));
         self.update();
     }
+    /// While a query with no displayable frame is pending, returns whether its
+    /// loading state is due. Fast replies replace the old frame directly.
+    fn track_loading(&self, state: &State) -> Option<bool> {
+        let waiting = {
+            let input = state.input.borrow();
+            state.busy.get() && !input.error && input.frame.candidates.is_empty()
+        };
+        if !waiting {
+            self.stop_loading();
+            return None;
+        }
+        let now = Instant::now();
+        let due = self.loading.get().unwrap_or_else(|| {
+            unsafe {
+                SetTimer(
+                    Some(self.window),
+                    LOADING_TIMER,
+                    LOADING_DELAY.as_millis() as u32,
+                    None,
+                );
+            }
+            now + LOADING_DELAY
+        });
+        self.loading.set(Some(due));
+        if now < due {
+            return Some(false);
+        }
+        let _ = unsafe { KillTimer(Some(self.window), LOADING_TIMER) };
+        Some(true)
+    }
+    fn loading_due(&self) -> bool {
+        self.loading.get().is_some_and(|due| Instant::now() >= due)
+    }
+    fn stop_loading(&self) {
+        if self.loading.take().is_some() {
+            let _ = unsafe { KillTimer(Some(self.window), LOADING_TIMER) };
+        }
+    }
     pub fn hide(&self) {
+        self.stop_loading();
         self.scroll.set(0);
         self.selection.set(None);
         if let Some(tooltip) = self.tooltip {
@@ -370,6 +495,7 @@ impl Drop for Panel {
                 let _ = DestroyWindow(tooltip);
             }
             let _ = KillTimer(Some(self.window), 2);
+            let _ = KillTimer(Some(self.window), LOADING_TIMER);
             SetWindowLongPtrW(self.window, GWLP_USERDATA, 0);
             let _ = DestroyWindow(self.window);
             drop(Box::from_raw(self.owner));
@@ -447,6 +573,10 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
             if state.poll() {
                 State::reap();
             }
+            return LRESULT(0);
+        }
+        if message == WM_TIMER && wparam.0 == LOADING_TIMER {
+            state.refresh();
             return LRESULT(0);
         }
         if matches!(
@@ -623,7 +753,7 @@ fn font(size: i32) -> HFONT {
             DEFAULT_CHARSET,
             OUT_DEFAULT_PRECIS,
             CLIP_DEFAULT_PRECIS,
-            ANTIALIASED_QUALITY,
+            CLEARTYPE_QUALITY,
             DEFAULT_PITCH.0 as u32,
             w!("Microsoft YaHei UI"),
         )
@@ -646,9 +776,6 @@ impl PaintSession {
     fn begin(window: HWND, print: Option<HDC>) -> Self {
         let mut paint = PAINTSTRUCT::default();
         let dc = print.unwrap_or_else(|| unsafe { BeginPaint(window, &mut paint) });
-        if print.is_some() {
-            let _ = unsafe { GetClientRect(window, &mut paint.rcPaint) };
-        }
         Self {
             window,
             dc,
@@ -661,6 +788,45 @@ impl Drop for PaintSession {
     fn drop(&mut self) {
         if self.owned {
             let _ = unsafe { EndPaint(self.window, &self.paint) };
+        }
+    }
+}
+/// Off-screen frame, so DWM never composes a partially painted panel.
+struct Buffer {
+    dc: HDC,
+    bitmap: HBITMAP,
+    original: HGDIOBJ,
+}
+impl Buffer {
+    fn new(target: HDC, width: i32, height: i32) -> Option<Self> {
+        if width <= 0 || height <= 0 {
+            return None;
+        }
+        unsafe {
+            let dc = CreateCompatibleDC(Some(target));
+            if dc.is_invalid() {
+                return None;
+            }
+            let bitmap = CreateCompatibleBitmap(target, width, height);
+            if bitmap.is_invalid() {
+                let _ = DeleteDC(dc);
+                return None;
+            }
+            let original = SelectObject(dc, bitmap.into());
+            Some(Self {
+                dc,
+                bitmap,
+                original,
+            })
+        }
+    }
+}
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        unsafe {
+            SelectObject(self.dc, self.original);
+            let _ = DeleteObject(self.bitmap.into());
+            let _ = DeleteDC(self.dc);
         }
     }
 }
@@ -831,16 +997,38 @@ fn translation(
     }
 }
 fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
+    let _scope = DpiScope::window(window);
     let session = PaintSession::begin(window, print);
-    let dc = session.dc;
-    let dpi = appearance::dpi(window);
+    let mut client = RECT::default();
+    let _ = unsafe { GetClientRect(window, &mut client) };
+    let buffer = Buffer::new(session.dc, client.right, client.bottom);
+    let dc = buffer.as_ref().map_or(session.dc, |buffer| buffer.dc);
+    draw(window, state, dc, &client);
+    if buffer.is_some() {
+        let _ = unsafe {
+            BitBlt(
+                session.dc,
+                0,
+                0,
+                client.right,
+                client.bottom,
+                Some(dc),
+                0,
+                0,
+                SRCCOPY,
+            )
+        };
+    }
+}
+fn draw(window: HWND, state: &Rc<State>, dc: HDC, client: &RECT) {
+    let dpi = monitor_dpi(caret(state));
     let palette = state.panel.borrow().as_ref().map_or_else(
         || appearance::palette(crate::preferences::Theme::Light),
         |panel| panel.palette.get(),
     );
     let l = layout(window, state);
     let fonts = Fonts::new(dc, l, dpi);
-    fill(dc, &session.paint.rcPaint, palette.background);
+    fill(dc, client, palette.background);
     rounded(
         dc,
         BoxRect {
@@ -918,7 +1106,13 @@ fn paint(window: HWND, state: &Rc<State>, print: Option<HDC>) {
     }
     if empty {
         fonts.select(fonts.main);
-        let message = if state.busy.get() {
+        let loading = state.busy.get()
+            && state
+                .panel
+                .borrow()
+                .as_ref()
+                .is_some_and(Panel::loading_due);
+        let message = if loading {
             "正在加载候选…".to_owned()
         } else if input.error {
             state
