@@ -6,6 +6,6 @@ if (-not (Test-Path -LiteralPath $ClassKey)) { Write-Output 'Lingomate is not re
 $Dll = (Get-Item -LiteralPath $ClassKey).GetValue('')
 $Allowed = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'LingoMate/Windows')) + [IO.Path]::DirectorySeparatorChar
 if (-not [IO.Path]::GetFullPath($Dll).StartsWith($Allowed, [StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetFileName($Dll) -ne 'lingomate_tsf.dll') { throw 'Unexpected registration path; refusing removal.' }
-$Process = Start-Process -FilePath (Join-Path $env:WINDIR 'System32/regsvr32.exe') -ArgumentList @('/s', '/u', ('"' + $Dll + '"')) -Wait -PassThru
-if ($Process.ExitCode -ne 0) { throw 'Unregistration failed; files were preserved.' }
+Import-Module (Join-Path $PSScriptRoot 'update-core.psm1') -Force
+Uninstall-LingoMateRegistration $Dll (Get-LingoMateInstallRoot)
 Write-Output 'Lingomate unregistered. Version files remain available for rollback.'

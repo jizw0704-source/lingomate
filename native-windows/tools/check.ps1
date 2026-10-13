@@ -22,6 +22,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Rust format check failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Rust lint failed.' }
 $env:LINGOMATE_TEST_RESOURCES = Join-Path $Root 'native-windows/package/windows-x64'
 $env:LINGOMATE_TEST_BRIDGE = Join-Path $env:LINGOMATE_TEST_RESOURCES 'bilingual-ime-bridge.exe'
+$env:LINGOMATE_TEST_CORE = Join-Path $env:LINGOMATE_TEST_RESOURCES 'lingomate_engine.dll'
 & python (Join-Path $Root 'prototype/tests/engine_test.py')
 if ($LASTEXITCODE -ne 0) { throw 'Pinned data candidate quality regression failed.' }
 foreach ($Test in @('ranking_test.py', 'memory_test.py')) {
@@ -33,8 +34,11 @@ $BridgeManifest = Join-Path $Root 'prototype/bridge/Cargo.toml'
 if ($LASTEXITCODE -ne 0) { throw 'Bridge format check failed.' }
 & cargo +1.96.0 clippy --manifest-path $BridgeManifest --locked --all-targets -- -D warnings
 if ($LASTEXITCODE -ne 0) { throw 'Bridge lint failed.' }
+& cargo +1.96.0 test --manifest-path $BridgeManifest --locked
+if ($LASTEXITCODE -ne 0) { throw 'Shared CLI/core compatibility tests failed.' }
 & cargo +1.96.0 test --manifest-path $Manifest --locked
 if ($LASTEXITCODE -ne 0) { throw 'Real-engine integration tests failed.' }
 & python (Join-Path $PSScriptRoot 'test_dll.py') (Join-Path $Root 'native-windows/package/windows-x64/lingomate_tsf.dll')
 if ($LASTEXITCODE -ne 0) { throw 'Native DLL factory test failed.' }
+& (Join-Path $PSScriptRoot 'test_tsf_host.ps1')
 if (-not $SkipUpdates) { & (Join-Path $PSScriptRoot 'check-updates.ps1') }
