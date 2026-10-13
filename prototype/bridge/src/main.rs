@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{self, BufRead, Write};
 use std::path::Path;
+mod expressions;
 mod memory;
 mod part_of_speech;
 mod ranking;
@@ -67,6 +68,7 @@ struct Adapter {
     pending: HashMap<String, VecDeque<Pending>>,
     chains: HashMap<String, Chain>,
     sequences: HashMap<String, sequence::Sequence>,
+    expressions: expressions::Expressions,
     retired: HashSet<String>,
     token: u64,
 }
@@ -97,6 +99,7 @@ impl Adapter {
             pending: HashMap::new(),
             chains: HashMap::new(),
             sequences: HashMap::new(),
+            expressions: expressions::Expressions::default(),
             retired: HashSet::new(),
             token: 0,
         })
@@ -134,7 +137,30 @@ impl Adapter {
                 items.push(remembered);
             }
         }
+        // Keep ordinary words at the front and reserve at most three slots for
+        // explicitly enabled fixed-expression completions.
+        items.retain(|c| !self.expressions.is_completion(input, c));
         self.ranking.order(input, &mut items, &self.memory);
+        let completions: Vec<_> = self
+            .expressions
+            .candidates(input, &self.memory)
+            .into_iter()
+            .filter(|c| {
+                !items
+                    .iter()
+                    .any(|existing| existing.text == c.text && existing.syllables == c.syllables)
+            })
+            .collect();
+        if !completions.is_empty() {
+            items.retain(|c| {
+                c.text
+                    .chars()
+                    .any(|ch| ('\u{3400}'..='\u{9fff}').contains(&ch))
+            });
+            items.truncate(64 - completions.len());
+            let position = items.len().min(2);
+            items.splice(position..position, completions);
+        }
         let mut list = qingjian_core::candidate::CandidateList { items };
         self.engine.annotate(&mut list);
         list.items
@@ -401,14 +427,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("research root argument required")?;
     let mut adapter = Adapter::load(Path::new(&root))?;
     let mut arguments = std::env::args().skip(2);
-    if let Some(flag) = arguments.next() {
-        if flag != "--memory" {
-            return Err("unsupported bridge option".into());
-        }
-        let path = arguments.next().ok_or("memory path required")?;
-        adapter.memory = memory::Memory::open(Some(path.into()));
-        if arguments.next().is_some() {
-            return Err("unexpected bridge option".into());
+    let mut memory_configured = false;
+    let mut expressions_configured = false;
+    while let Some(flag) = arguments.next() {
+        match flag.as_str() {
+            "--memory" if !memory_configured => {
+                let path = arguments.next().ok_or("memory path required")?;
+                adapter.memory = memory::Memory::open(Some(path.into()));
+                memory_configured = true;
+            }
+            "--fixed-expressions" if !expressions_configured => {
+                adapter.expressions = expressions::Expressions::load(Path::new(&root))?;
+                expressions_configured = true;
+            }
+            _ => return Err("unsupported or duplicate bridge option".into()),
         }
     }
     eprintln!(

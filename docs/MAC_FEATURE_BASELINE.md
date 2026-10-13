@@ -20,6 +20,12 @@
 
 ## 输入与候选功能
 
+### 新增开发功能：固定表达联想
+
+Mac 开发代码显式启用共享桥接 `--fixed-expressions`，打包 `fixed-expressions.json` 和 `EXPRESSIONS-NOTICE.md`。当前未包含于此前安装包，Windows 和网页仍保持默认未启用，不因共享代码更新自动改变行为。Windows 接入时需要同时生成并分发这两份资源、保留归属许可并显式传入该选项，之后做 TSF 真实键盘与确认回执验收。
+
+对照用例：输入 `chiputao` 后仍有普通候选，并可选“吃葡萄不吐葡萄皮”；选中后整句上屏、拼音清空，成功确认后才保存前缀及完整读音，重启后可再次召回。取消、暂停记忆、伪造读音和错误译法不得保存；`kaifazhe` 选“开发”后仍保留 `zhe`。单音节、缩写、未完成音节与额外尾随拼音不触发该整句补全，空格仍按普通首选中文处理。完整来源和验证范围见 [Mac QA](../native-macos/QA.md#固定表达联想-2026-10-13)。
+
 **新增开发代码（尚未进入此前安装包）：英文片段首字母大写。** 默认开启，中文模式回车确认英文及选择英文译词时，将当前片段首字母大写，后续英文词保持原样。已有大小写、技术字面量保留，英文直输不变；设置中可关闭并持久化。Windows 对照用例：`wo`＋空格 → `hello`＋回车 → 空格 → `world`＋回车得到“我Hello world”；随后确认中文再输入 `hello`＋回车应输出 `Hello`；关闭后应保留 `hello`，`AI`／`iPhone` 保持原样。只记录 Mac 独立代码与隔离检查完成，Windows 接入和双端实机测试待验证。源码为 `EnglishFragments.swift`、`InputController.swift`、`SettingsInput.swift` 与 `SettingsWindow.swift`；范围见 [新增验收记录](../native-macos/QA.md#英文片段首字母大写-2026-10-13)。以下表格保留已安装 0.12.9 的基线行为。
 
 | 功能 | Mac 行为及 Windows 对照要求 |

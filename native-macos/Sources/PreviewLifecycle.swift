@@ -4,7 +4,8 @@ import AppKit
 final class PreviewLifecycle: NSObject {
   static let flags: Set<String> = [
     "--preview", "--preview-sentence", "--preview-paging", "--preview-learning",
-    "--preview-punctuation", "--preview-mixed", "--preview-typing", "--account-preview",
+    "--preview-punctuation", "--preview-mixed", "--preview-typing", "--preview-expressions",
+    "--account-preview",
     "--ai-settings-preview", "--settings-preview", "--local-learning-preview", "--update-preview",
   ]
   private static var active: PreviewLifecycle?

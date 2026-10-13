@@ -17,6 +17,7 @@ enum Preview {
   static let punctuationPreview = CommandLine.arguments.contains("--preview-punctuation")
   static let typingPreview = CommandLine.arguments.contains("--preview-typing")
   static let mixedPreview = CommandLine.arguments.contains("--preview-mixed")
+  static let expressionsPreview = CommandLine.arguments.contains("--preview-expressions")
   static var shiftTap = ShiftTap()
   static var eventMonitor: Any?
   static let narrowPreview = CommandLine.arguments.contains("--preview-narrow")
@@ -81,12 +82,15 @@ enum Preview {
         return handleMixedEvent(event) ? nil : event
       }
     }
+    if expressionsPreview {
+      label.stringValue = "固定表达联想：chiputao → 吃葡萄不吐葡萄皮。候选需点击确认；本窗口仅使用隔离引擎。"
+    }
     if fixture != nil { label.stringValue = "界面状态样例，内容为测试数据；不代表真实翻译结果。" }
     label.font = NativeTheme.font(13)
     label.textColor = NativeTheme.muted
     label.frame = NSRect(x: 24, y: 115, width: 610, height: 40)
     let output = NSTextField(string: "尚未选择")
-    if mixedPreview { output.stringValue = "" }
+    if mixedPreview || expressionsPreview { output.stringValue = "" }
     output.isEditable = false
     output.font = NativeTheme.font(16)
     output.textColor = NativeTheme.ink
@@ -106,6 +110,8 @@ enum Preview {
     panel = CandidatePanel()
     if mixedPreview {
       state.clear()
+    } else if expressionsPreview {
+      state.input = "chiputao"
     } else if CommandLine.arguments.contains("--preview-paging") || learningDirectory != nil {
       state.input = "shi"
     } else {
@@ -130,7 +136,7 @@ enum Preview {
       AISettingsWindow.start(preview: true)
     }
     panel?.onChinese = { index in
-      if mixedPreview {
+      if mixedPreview || expressionsPreview {
         commitMixed(index: index, sense: nil)
         return
       }
@@ -144,7 +150,7 @@ enum Preview {
       draw()
     }
     panel?.onEnglish = { index, sense in
-      if mixedPreview {
+      if mixedPreview || expressionsPreview {
         commitMixed(index: index, sense: sense)
         return
       }
@@ -193,7 +199,7 @@ enum Preview {
     draw()
   }
   static func translateSentence() {
-    if mixedPreview {
+    if mixedPreview || expressionsPreview {
       sentenceTranslator.cancel()
       state.sentence = .none
       return
