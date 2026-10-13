@@ -29,7 +29,30 @@ function Assert-LingoMateConfig($Config) {
     Get-LingoMateVersion $Config.version | Out-Null
     return $Config
 }
-function Get-LingoMateInstallRoot {
+function Test-LingoMatePackagedProcess {
+    if (-not ('LingoMate.ProcessPackage' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace LingoMate {
+    public static class ProcessPackage {
+        private const int NoPackage = 15700;
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        private static extern int GetCurrentPackageFullName(ref uint length, IntPtr name);
+        public static bool HasIdentity() {
+            uint length = 0;
+            return GetCurrentPackageFullName(ref length, IntPtr.Zero) != NoPackage;
+        }
+    }
+}
+'@
+    }
+    return [LingoMate.ProcessPackage]::HasIdentity()
+}
+function Get-LingoMateInstallRoot([scriptblock]$Packaged = { Test-LingoMatePackagedProcess }) {
+    # MSIX desktop apps redirect new LOCALAPPDATA files and HKCU writes of their
+    # child processes into the package, where no other application can load them.
+    if (& $Packaged) { throw '当前进程运行在 MSIX 应用包内，灵果文件和用户登记会被重定向到该应用的私有位置，其他应用无法加载。请在普通 PowerShell 窗口中安装，或从其他应用打开灵果更新。' }
     return (Join-Path $env:LOCALAPPDATA 'LingoMate/Windows')
 }
 function Get-LingoMateRegisteredDirectory {

@@ -48,6 +48,9 @@ try {
     foreach ($Bad in @('http://github.com/jizw0704-source/lingomate/releases/download/x/a.zip', 'https://evil.example/a', 'https://github.com/other/repo/releases/download/x/a.zip', 'https://github.com.evil.example/a', 'https://github.com:444/jizw0704-source/lingomate/releases/download/x/a.zip')) { Reject { Assert-LingoMateUrl $Bad } 'untrusted URL rejected' }
     Reject { Assert-LingoMateUrl 'https://evil.example/a' -Redirect } 'untrusted redirect rejected'
     Check ((Assert-LingoMateUrl 'https://release-assets.githubusercontent.com/test' -Redirect).Scheme -eq 'https') 'approved CDN redirect'
+    Check ((Test-LingoMatePackagedProcess) -is [bool]) 'package identity query is available'
+    Reject { Get-LingoMateInstallRoot { $true } } 'MSIX package context cannot derive the shared install root'
+    Check ((Get-LingoMateInstallRoot { $false }) -eq (Join-Path $env:LOCALAPPDATA 'LingoMate/Windows')) 'unpackaged process uses the real LOCALAPPDATA install root'
     $Empty = [pscustomobject]@{schema=1; platform="windows"; arch="x64"; channel="preview"; minimum_windows_build=22000; status="unpublished"}
     Check ($null -eq (Assert-LingoMateUpdate $Empty "0.1.1")) "unpublished feed is an empty state"
     $Package = Join-Path $Temporary 'package'
