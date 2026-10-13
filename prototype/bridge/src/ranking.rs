@@ -1,7 +1,7 @@
 //! Corpus weights and bounded local preference; never host text or remote scoring.
 use crate::memory::{Memory, normalize};
 use qingjian_core::candidate::Candidate;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 pub struct Ranking {
@@ -46,8 +46,34 @@ impl Ranking {
     }
 
     pub fn order(&self, input: &str, items: &mut [Candidate], memory: &Memory) {
+        self.order_with_frequency(input, items, memory, false);
+    }
+
+    pub fn order_focused(&self, input: &str, items: &mut [Candidate], memory: &Memory) {
+        self.order_with_frequency(input, items, memory, true);
+    }
+
+    fn order_with_frequency(
+        &self,
+        input: &str,
+        items: &mut [Candidate],
+        memory: &Memory,
+        frequency: bool,
+    ) {
         let key = normalize(input);
-        let preferences = memory.preferences(input);
+        let mut preferences = memory.preferences(input);
+        if frequency {
+            // Confirmed prefix preferences only reorder their own pronunciation
+            // group. The focused selector still places complete words first.
+            let readings: HashSet<_> = items
+                .iter()
+                .map(|c| c.syllables.concat())
+                .filter(|reading| reading != &key && key.starts_with(reading))
+                .collect();
+            for reading in readings {
+                preferences.extend(memory.preferences(&reading));
+            }
+        }
         // A real whole-word match must precede synthetic unigram concatenations.
         // Preserve the engine's ordering for abbreviation, prefix and correction paths.
         items.sort_by_key(|c| {
@@ -64,7 +90,7 @@ impl Ranking {
                 2
             }
         });
-        if preferences.is_empty() {
+        if preferences.is_empty() && !frequency {
             return;
         }
         let mut groups: HashMap<Vec<String>, Vec<usize>> = HashMap::new();
@@ -82,7 +108,7 @@ impl Ranking {
         // Only compete within identical pronunciation/consumption groups. Group slots
         // stay in place, so personal short words never displace complete sentences.
         for indices in groups.values() {
-            if !indices.iter().any(|i| selected[*i].is_some()) {
+            if !frequency && !indices.iter().any(|i| selected[*i].is_some()) {
                 continue;
             }
             let maximum = indices.iter().map(|i| bases[*i]).fold(0.0_f64, f64::max);
