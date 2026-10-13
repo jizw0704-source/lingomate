@@ -7,10 +7,10 @@
 | 功能 | 参考提交 | 本次整合 |
 | --- | --- | --- |
 | 候选筛选与排序 | 主分支 `a03b3843963f51ca920b21b58360f1f0d78b0baa`，PR #11 | 保留 0.12.10 行为，参与下列两项功能的兼容检查 |
-| 英文片段首字母大写 | 本地 `d10dba2` | 默认开启；设置可关闭并保存 |
-| 固定表达联想 | 本地 `02b59df` | 新目录及确认后记忆；整合时移入最新共享 Adapter |
+| 英文片段首字母大写 | [d10dba2](https://github.com/jizw0704-source/lingomate/commit/d10dba20b8a25a630ca64046deb92bb98275dea1) | 默认开启；设置可关闭并保存 |
+| 固定表达联想 | [02b59df](https://github.com/jizw0704-source/lingomate/commit/02b59dfd2b69c92019b3b045f311a8a0431faa86) | 新目录及确认后记忆；整合时移入最新共享 Adapter |
 
-完整开发历史在 `codex/macos-fixed-expressions`，尚未推送。本地提交只能在同一仓库读取；Wright 从 GitHub 拉取前，应先按 [协作流程](../CONTRIBUTING.md#mac-新功能同步到-windows)提交、审核并合并 Mac PR，再建立每项 Windows 同步任务。本文件可作为任务正文依据，不能用未上传的本地提交链接替代可访问的参考。
+GitHub 参考分支为 [codex/macos-fixed-expressions](https://github.com/jizw0704-source/lingomate/tree/codex/macos-fixed-expressions)，整合实现固定于 [6923797](https://github.com/jizw0704-source/lingomate/commit/69237971da9454f561a629909f1b86e7e5c06e3e)。Mac 参考 PR 以该功能分支为来源、`main` 为目标；审核合并前，Wright 可获取该分支或查看固定提交，不能假定仅拉取 `main` 已包含两项新功能。合并后按 [协作流程](../CONTRIBUTING.md#mac-新功能同步到-windows)同步主分支，再建立每项 Windows 同步任务。本文件可作为任务正文依据。
 
 ## 英文片段首字母大写
 
