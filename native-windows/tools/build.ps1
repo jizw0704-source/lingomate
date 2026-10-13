@@ -7,7 +7,14 @@ $Commit = & git -C $Upstream rev-parse HEAD
 if ($LASTEXITCODE -ne 0 -or $Commit -ne 'c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e') { throw 'Run setup.ps1 with the pinned source first.' }
 $Changes = & git -C $Upstream status --porcelain
 if ($LASTEXITCODE -ne 0 -or $Changes) { throw 'Upstream changes are preserved; build stopped.' }
-& python (Join-Path $Root 'tools/prepare_lexicon.py')
+# Retain already verified output: Windows hosts or sync software can hold a
+# generated table open. Never replace matching pinned data merely to rebuild UI.
+$Prepared = $false
+if (Test-Path -LiteralPath (Join-Path $Root 'data/generated/dict.tsv')) {
+    & python (Join-Path $Root 'tools/prepare_lexicon.py') --check
+    $Prepared = $LASTEXITCODE -eq 0
+}
+if (-not $Prepared) { & python (Join-Path $Root 'tools/prepare_lexicon.py') }
 if ($LASTEXITCODE -ne 0) { throw 'Verified release data preparation failed.' }
 $Target = 'x86_64-pc-windows-msvc'
 & cargo +1.96.0 build --manifest-path (Join-Path $Root 'prototype/bridge/Cargo.toml') --target-dir (Join-Path $Upstream 'target') --release --locked --target $Target
@@ -19,6 +26,7 @@ if (Test-Path $Package) { Remove-Item -LiteralPath $Package -Recurse -Force }
 New-Item -ItemType Directory -Path $Package | Out-Null
 $Files = @{
     'lingomate_tsf.dll' = (Join-Path $Native "target/$Target/release/lingomate_tsf.dll")
+    'lingomate_engine.dll' = (Join-Path $Upstream "target/$Target/release/lingomate_engine.dll")
     'bilingual-ime-bridge.exe' = (Join-Path $Upstream "target/$Target/release/bilingual-ime-bridge.exe")
     'dict.tsv' = (Join-Path $Root 'data/generated/dict.tsv')
     'glossary-en.tsv' = (Join-Path $Root 'data/generated/glossary-en.tsv')

@@ -28,8 +28,10 @@ class ExpressionTests(unittest.TestCase):
         self.stop()
         self.directory.cleanup()
 
-    def start(self, enabled=True):
+    def start(self, enabled=True, focused=False):
         args = [BRIDGE, RESOURCES, "--memory", str(self.memory)]
+        if focused:
+            args.append("--mac-candidates")
         if enabled:
             args.append("--fixed-expressions")
         self.process = subprocess.Popen(
@@ -171,6 +173,32 @@ class ExpressionTests(unittest.TestCase):
         frame = self.commit("kaifazhe", "开发")
         self.assertEqual(frame["committed"], "开发")
         self.assertEqual(frame["input"], "zhe")
+
+    def test_mac_focused_candidates_and_expressions_coexist(self):
+        self.stop()
+        self.start(enabled=False, focused=True)
+        ordinary = self.request("chiputao")["candidates"]
+        study = self.request("xuexi")["candidates"]
+        self.stop()
+        self.start(focused=True)
+        candidates = self.request("chiputao")["candidates"]
+        self.assertEqual(candidates[:2], ordinary[:2])
+        self.assertIn(PHRASE, [c["text"] for c in candidates])
+        self.assertLessEqual(len(candidates), 64)
+        self.assertEqual(self.request("xuexi")["candidates"], study)
+        frame = self.commit("chi'pu'tao", PHRASE)
+        self.assertEqual(frame["committed"], PHRASE)
+        self.assertEqual(frame["input"], "")
+        self.assertFalse(self.memory.exists())
+        self.confirm(frame)
+        self.stop()
+        self.start(focused=True)
+        learned = next(
+            c for c in self.request("chiputao")["candidates"] if c["text"] == PHRASE
+        )
+        self.assertTrue(learned["personal"])
+        partial = self.commit("kaifazhe", "开发")
+        self.assertEqual(partial["input"], "zhe")
 
 
 if __name__ == "__main__":

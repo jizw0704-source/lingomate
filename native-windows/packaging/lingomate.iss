@@ -44,6 +44,7 @@ Source: "{#PackageDir}\*"; DestDir: "{tmp}\LingoMate-package"; Flags: ignorevers
 Source: "..\tools\install.ps1"; DestDir: "{tmp}\LingoMate-tools"; Flags: ignoreversion deleteafterinstall
 Source: "..\tools\update-core.psm1"; DestDir: "{tmp}\LingoMate-tools"; Flags: ignoreversion deleteafterinstall
 Source: "..\tools\uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\tools\update-core.psm1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "安装与试用说明.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 

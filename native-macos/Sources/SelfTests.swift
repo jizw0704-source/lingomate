@@ -37,6 +37,7 @@ enum SelfTests {
     state.clear()
     precondition(state.input.isEmpty && state.frame == nil)
     checkPaging()
+    checkFocusedCandidates(engine)
     let many = try! engine.request(EngineRequest(action: "query", input: "shi"))
     precondition(many.candidates.count > 9)
     state.input = "shi"
@@ -51,6 +52,32 @@ enum SelfTests {
     precondition(laterCommit.committed == later.text && laterCommit.input.isEmpty)
     print("PASS 原生会话状态、候选分页边界、当前页数字映射、后页提交、第三译法及部分提交")
     engine.terminate()
+  }
+
+  private static func checkFocusedCandidates(_ engine: EngineClient) {
+    for (input, whole, part) in [
+      ("xuexi", "学习", "学"), ("zhongguo", "中国", "中"), ("kaifazhe", "开发者", "开发"),
+    ] {
+      let frame = try! engine.request(EngineRequest(action: "query", input: input))
+      precondition(frame.candidates.count < 64 && frame.candidates.first?.text == whole)
+      precondition(frame.candidates.contains { $0.text == part })
+      var state = SessionState()
+      state.input = input
+      state.frame = frame
+      precondition(state.pageCount == (frame.candidates.count + 4) / 5)
+      for _ in 1..<state.pageCount { precondition(state.changePage(1)) }
+      precondition(!state.changePage(1))
+      let slot = state.visibleIndices.count - 1
+      let index = state.indexOnPage(slot)!
+      precondition(index == frame.candidates.count - 1)
+      let candidate = frame.candidates[index]
+      let committed = try! engine.request(
+        EngineRequest(
+          action: "commit", input: input,
+          candidate: candidate.text, syllables: candidate.syllables))
+      precondition(committed.committed == candidate.text)
+    }
+    print("PASS Mac筛选后实际页数、末页编号与真实候选提交，完整词及单字/分段保留")
   }
 
   private static func checkMixedInput(_ engine: EngineClient) {
