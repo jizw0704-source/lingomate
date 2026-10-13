@@ -304,7 +304,7 @@ impl Panel {
             let l = layout(self.window, &state);
             if key.3 && l.extra > 0 {
                 let r = l.sense_rect(key.2);
-                let bottom = l.height() - l.padding;
+                let bottom = l.content_bottom();
                 let adjustment = if r.y < l.body_rect().y {
                     r.y - l.body_rect().y
                 } else {
@@ -1102,7 +1102,7 @@ fn draw(window: HWND, state: &Rc<State>, dc: HDC, client: &RECT) {
     }
     let saved_body = unsafe { SaveDC(dc) };
     unsafe {
-        let _ = IntersectClipRect(dc, 0, l.body_rect().y, l.width(), l.height() - l.padding);
+        let _ = IntersectClipRect(dc, 0, l.body_rect().y, l.width(), l.content_bottom());
     }
     if empty {
         fonts.select(fonts.main);
@@ -1288,6 +1288,16 @@ fn draw(window: HWND, state: &Rc<State>, dc: HDC, client: &RECT) {
                 false,
             );
         }
+    }
+    if saved_body != 0 {
+        unsafe {
+            let _ = RestoreDC(dc, saved_body);
+        }
+    }
+    if !empty
+        && input.expanded
+        && let Some(candidate) = input.frame.candidates.get(input.selected)
+    {
         fonts.select(fonts.small);
         label(
             dc,
@@ -1296,20 +1306,10 @@ fn draw(window: HWND, state: &Rc<State>, dc: HDC, client: &RECT) {
                 input.sense + 1,
                 candidate.translations.len()
             ),
-            BoxRect {
-                x: l.padding,
-                y: l.height() - l.padding - px(24, dpi),
-                width: l.width() - 2 * l.padding,
-                height: px(24, dpi),
-            },
+            l.footer_rect(),
             palette.secondary,
             false,
         );
-    }
-    if saved_body != 0 {
-        unsafe {
-            let _ = RestoreDC(dc, saved_body);
-        }
     }
 }
 

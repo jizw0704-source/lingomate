@@ -241,7 +241,12 @@ impl Layout {
         if self.extra == 0 {
             self.body_bottom + self.padding + self.scroll
         } else {
-            self.footer_rect().y + self.footer_height + self.padding + self.scroll
+            self.senses_y()
+                + self.extra as i32 * self.sense_height
+                + self.gap
+                + self.footer_height
+                + self.padding
+                + self.scroll
         }
     }
     pub fn with_viewport(mut self, available_height: i32, offset: i32) -> Self {
@@ -259,9 +264,17 @@ impl Layout {
     pub fn scroll_max(self) -> i32 {
         (self.full_height() - self.height()).max(0)
     }
+    pub fn content_bottom(self) -> i32 {
+        let bottom = self.height() - self.padding;
+        if self.extra == 0 {
+            bottom
+        } else {
+            (self.footer_rect().y - self.gap).max(self.body_top)
+        }
+    }
     pub fn visible(self, r: BoxRect) -> BoxRect {
         let top = r.y.max(self.body_top);
-        let bottom = (r.y + r.height).min(self.height() - self.padding);
+        let bottom = (r.y + r.height).min(self.content_bottom());
         BoxRect {
             y: top,
             height: (bottom - top).max(0),
@@ -311,7 +324,7 @@ impl Layout {
         (rect.x, rect.y)
     }
     pub fn hit(self, x: i32, y: i32) -> Option<(usize, bool)> {
-        if y < self.body_top || y >= self.height() - self.padding {
+        if y < self.body_top || y >= self.content_bottom() {
             return None;
         }
         for slot in 0..self.count {
@@ -348,13 +361,13 @@ impl Layout {
     }
     pub fn visible_senses(self) -> std::ops::Range<usize> {
         let top = (self.body_top - self.senses_y()).max(0);
-        let bottom = (self.height() - self.padding - self.senses_y()).max(0);
+        let bottom = (self.content_bottom() - self.senses_y()).max(0);
         let start = (top / self.sense_height) as usize;
         let end = ((bottom + self.sense_height - 1) / self.sense_height) as usize;
         start.min(self.extra)..end.min(self.extra)
     }
     pub fn sense_hit(self, x: i32, y: i32) -> Option<usize> {
-        if y < self.body_top || y >= self.height() - self.padding || y < self.senses_y() {
+        if y < self.body_top || y >= self.content_bottom() || y < self.senses_y() {
             return None;
         }
         let row = ((y - self.senses_y()) / self.sense_height) as usize;
@@ -363,7 +376,7 @@ impl Layout {
     pub fn footer_rect(self) -> BoxRect {
         BoxRect {
             x: self.padding,
-            y: self.senses_y() + self.extra as i32 * self.sense_height + self.gap,
+            y: self.height() - self.padding - self.footer_height,
             width: self.width - self.padding * 2,
             height: self.footer_height,
         }
@@ -458,6 +471,37 @@ mod tests {
             }
             let last = full.with_viewport(400 * dpi / 96, i32::MAX);
             assert_eq!(last.visible_senses().end, 100_000);
+        }
+    }
+    #[test]
+    fn expanded_footer_stays_visible_and_never_selects_scrolled_content() {
+        for dpi in [96, 144, 192] {
+            for width in [320, 560] {
+                let full =
+                    Layout::with_lengths(&[9, 32, 240, 12, 80], 8, 18, dpi, width * dpi / 96);
+                let first = full.with_viewport(240 * dpi / 96, 0);
+                let footer = first.footer_rect();
+                assert_eq!(footer.y + footer.height, first.height() - first.padding);
+                for offset in [0, first.scroll_max() / 2, i32::MAX] {
+                    let l = full.with_viewport(240 * dpi / 96, offset);
+                    assert_eq!(l.footer_rect(), footer);
+                    assert_eq!(l.full_height(), full.full_height());
+                    for y in footer.y..footer.y + footer.height {
+                        assert_eq!(l.hit(footer.x + 2, y), None);
+                        assert_eq!(l.sense_hit(footer.x + 2, y), None);
+                    }
+                    for row in l.visible_senses() {
+                        let r = l.visible(l.sense_rect(row));
+                        assert!(r.height > 0);
+                        assert!(r.y + r.height <= footer.y - l.gap);
+                        assert_eq!(l.sense_hit(r.x + 2, r.y + r.height / 2), Some(row));
+                    }
+                }
+                let last = full.with_viewport(240 * dpi / 96, i32::MAX);
+                let final_sense = last.visible(last.sense_rect(7));
+                assert_eq!(final_sense.height, full.sense_rect(7).height);
+                assert_eq!(last.visible_senses().end, 8);
+            }
         }
     }
 }

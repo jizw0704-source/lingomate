@@ -599,6 +599,11 @@ fn expanded_senses_render_notes_examples_footer_and_complete_paged_tooltips() {
     assert_eq!(l.extra, 8);
     assert!(full.ink(l.details_title_rect()) > 10);
     assert!(full.ink(l.footer_rect()) > 10);
+    assert_eq!(
+        l.footer_rect().y + l.footer_rect().height,
+        l.height() - l.padding
+    );
+    assert_eq!(l.sense_hit(l.padding + 2, l.footer_rect().y + 2), None);
     let palette = state.panel.borrow().as_ref().unwrap().palette.get();
     for row in l.visible_senses() {
         assert!(
@@ -678,6 +683,9 @@ fn scrolled_candidate_geometry_clips_targets_below_the_fixed_header() {
                 full.with_viewport(viewport_height, first.scroll_max() / 2),
                 last,
             ] {
+                assert_eq!(l.footer_rect(), first.footer_rect());
+                assert_eq!(l.hit(l.padding + 2, l.footer_rect().y + 2), None);
+                assert_eq!(l.sense_hit(l.padding + 2, l.footer_rect().y + 2), None);
                 assert_eq!(l.title_rect(), full.title_rect());
                 assert_eq!(l.mode_rect(), full.mode_rect());
                 for action in 0..5 {
@@ -697,7 +705,7 @@ fn scrolled_candidate_geometry_clips_targets_below_the_fixed_header() {
                         let visible = l.visible(shifted);
                         if visible.height > 0 {
                             assert!(visible.y >= l.body_rect().y);
-                            assert!(visible.y + visible.height <= l.height() - l.padding);
+                            assert!(visible.y + visible.height <= l.content_bottom());
                             assert_eq!(
                                 l.hit(
                                     visible.x + visible.width / 2,
@@ -712,7 +720,7 @@ fn scrolled_candidate_geometry_clips_targets_below_the_fixed_header() {
                     let visible = l.visible(l.sense_rect(row));
                     if visible.height > 0 {
                         assert!(visible.y >= l.body_rect().y);
-                        assert!(visible.y + visible.height <= l.height() - l.padding);
+                        assert!(visible.y + visible.height <= l.content_bottom());
                         assert_eq!(
                             l.hit(
                                 visible.x + visible.width / 2,
