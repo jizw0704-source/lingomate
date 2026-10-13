@@ -97,8 +97,9 @@ final class SettingsController: NSObject, NSWindowDelegate {
       self.mount(self.account.contentView)
     }
     input.onChange = { [weak self] in
-      guard let self, self.section == .input else { return }
-      self.showInput()
+      guard let self else { return }
+      if self.section == .input { self.showInput() }
+      if self.section == .appearance { self.showAppearance() }
     }
     select(.account)
     input.refresh()
@@ -243,6 +244,31 @@ final class SettingsController: NSObject, NSWindowDelegate {
         add(button, to: stack)
       }
       if preview { add(NativeTheme.label("界面样例：外观只在此预览中切换。", secondary: true), to: stack) }
+      add(NativeTheme.label("候选栏字体", size: 16, weight: .medium), to: stack)
+      let size = input.snapshot?.fontSize ?? CandidatePreferences.current.fontSize
+      let fontButtons = CandidateFontSize.allCases.map { value in
+        let selected = size == value
+        let button = ActionButton((selected ? "✓ " : "") + value.title) { [weak self] in
+          self?.input.request(.fontSize(value))
+        }
+        button.font = NativeTheme.font(13)
+        button.horizontalPadding = 8
+        button.style = selected ? .subtle : .plain
+        button.state = selected ? .on : .off
+        button.isEnabled = input.snapshot != nil && !input.waiting
+        button.setAccessibilityLabel("候选栏字体：" + value.title)
+        button.toolTip = "汉字 \(value.rawValue) pt，英文与词性按比例调整"
+        return button
+      }
+      let fontOptions = row(fontButtons)
+      fontOptions.distribution = .fillEqually
+      fontOptions.spacing = 4
+      add(fontOptions, to: stack)
+      add(NativeTheme.label("小 16 · 标准 18 · 大 20 · 特大 22 pt", size: 12, secondary: true), to: stack)
+      add(
+        NativeTheme.label(
+          input.snapshot == nil || input.waiting ? input.message : "英文与词性按比例调整，字号选择会保存。", size: 12,
+          secondary: true), to: stack)
       let update = ActionButton("检查版本更新…") { MacUpdates.launch() }
       update.isEnabled = !preview
       add(update, to: stack)

@@ -33,6 +33,8 @@ final class CandidatePanel: NSPanel {
     setAccessibilityLabel("灵果候选")
   }
 
+  private func textSize(_ base: CGFloat) -> CGFloat { CandidatePreferences.current.scaled(base) }
+
   private func row(_ views: [NSView]) -> NSStackView {
     let stack = NSStackView(views: views)
     stack.orientation = .horizontal
@@ -102,19 +104,19 @@ final class CandidatePanel: NSPanel {
     }
     let wantedWidth = inline ? inlineWidth(state, bilingual: bilingual) : maximumWidth
     let width = min(maximumWidth, wantedWidth, bounds.width - 16)
-    let bodyWidth = width - 24
+    let bodyWidth = width - 16
     let narrow = width < 500
     let content = surface()
-    let stack = column([], spacing: 4)
+    let stack = column([], spacing: 0)
     stack.translatesAutoresizingMaskIntoConstraints = false
     content.addSubview(stack)
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
-      stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
-      stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
-      stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
+      stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 8),
+      stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -8),
+      stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
+      stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -8),
     ])
-    let pinyin = NativeTheme.label(state.markedInput, size: 14, weight: .medium)
+    let pinyin = NativeTheme.label(state.markedInput, size: textSize(14), weight: .medium)
     pinyin.maximumNumberOfLines = 1
     pinyin.lineBreakMode = .byTruncatingTail
     pinyin.toolTip = pinyin.stringValue
@@ -122,11 +124,19 @@ final class CandidatePanel: NSPanel {
     let settings = ActionButton("⚙", label: "打开设置：登录、学习、翻译、输入与外观") { [weak self] in
       self?.onSettings?()
     }
+    settings.symbolName = "gearshape"
+    settings.symbolSize = 20
     settings.widthAnchor.constraint(equalToConstant: 44).isActive = true
     settings.toolTip = "设置 · 中文/英文切换 · 双语 · 标点 · 外观 · 学习"
-    let details = ActionButton(state.expanded ? "收起" : "译法", label: "选择候选并展开其他译法，Tab") {}
+    let details = ActionButton(
+      state.expanded ? "收起" : "译法",
+      label: state.expanded ? "收起其他译法，Tab" : "选择候选并展开其他译法，Tab"
+    ) {}
     details.widthAnchor.constraint(equalToConstant: 44).isActive = true
-    details.font = NativeTheme.font(12)
+    details.symbolName = state.expanded ? "chevron.up" : "chevron.down"
+    details.symbolSize = 16
+    details.toolTip = state.expanded ? "收起其他译法 · Tab" : "展开其他译法 · Tab"
+    details.font = NativeTheme.font(textSize(12))
     details.horizontalPadding = 8
     details.isEnabled =
       bilingual
@@ -161,21 +171,29 @@ final class CandidatePanel: NSPanel {
     }
     for button in [previous, next] {
       button.widthAnchor.constraint(equalToConstant: 44).isActive = true
-      button.font = NativeTheme.font(20)
+      button.font = NativeTheme.font(textSize(20))
     }
+    previous.symbolName = "chevron.left"
+    next.symbolName = "chevron.right"
+    previous.symbolSize = 13
+    next.symbolSize = 13
     previous.isEnabled = state.page > 0
     next.isEnabled = state.page + 1 < state.pageCount
     let page = NativeTheme.label(
       state.pageCount > 0 ? "\(state.page + 1)/\(state.pageCount)" : "0/0",
-      size: 11, secondary: true)
+      size: textSize(11), secondary: true)
     page.setContentCompressionResistancePriority(.required, for: .horizontal)
     page.toolTip = "共 \(state.frame?.candidates.count ?? 0) 个候选 · −/= 翻页"
-    let mode = NativeTheme.label(bilingual ? "中英" : "中文", size: 11, secondary: true)
+    let mode = NativeTheme.label(bilingual ? "中英" : "中文", size: textSize(11), secondary: true)
     mode.toolTip = "空格 中文 · 回车 原样字母 · Shift＋空格 译文 · Shift 英文直输 · \(punctuationLabel)"
-    let header = row([pinyin, NSView(), mode, previous, page, next, details, settings])
+    let tools: [NSView] =
+      state.pageCount > 1
+      ? [previous, page, next, details, settings] : [details, settings]
+    let header = row([pinyin, NSView()] + tools)
+    header.toolTip = mode.toolTip
     header.spacing = 0
     add(header, to: stack)
-    add(divider(), to: stack)
+    if !inline { add(divider(), to: stack) }
     if inline {
       addInlineCandidates(state, bilingual: bilingual, to: stack, width: bodyWidth)
       if let candidate = state.candidate {
@@ -191,15 +209,15 @@ final class CandidatePanel: NSPanel {
         guard let candidate = state.frame?.candidates[index] else { continue }
         let number = NativeTheme.label(
           "\(index == state.active ? "›" : "")\(index - state.visibleIndices.lowerBound + 1)",
-          size: 13, secondary: index != state.active, weight: .medium)
+          size: textSize(13), secondary: index != state.active, weight: .medium)
         number.widthAnchor.constraint(equalToConstant: 24).isActive = true
         let fullChinese = !bilingual || narrow || candidate.translations.isEmpty
         let chineseWidth = fullChinese ? bodyWidth - 32 : 128
         let chinese = fittedButton(
-          candidate.text, width: chineseWidth, size: 16,
+          candidate.text, width: chineseWidth, size: textSize(16),
           label: "输出中文 \(candidate.text)"
         ) { [weak self] in self?.onChinese?(index) }
-        chinese.font = NativeTheme.font(16, weight: .medium)
+        chinese.font = NativeTheme.font(textSize(16), weight: .medium)
         let chineseGroup = row([chinese])
         let chineseRow = row([number, chineseGroup])
         var candidateRow: NSView
@@ -214,8 +232,10 @@ final class CandidatePanel: NSPanel {
               [weak self] in
               self?.onEnglish?(index, senseIndex)
             }
+            english.font = NativeTheme.font(textSize(14))
             english.style = .accent
             english.secondarySuffix = sense.visiblePOS
+            english.secondaryFontSize = textSize(11)
             english.alignment = .left
             english.widthAnchor.constraint(equalToConstant: senseWidth).isActive = true
             english.cell?.lineBreakMode = .byTruncatingTail
@@ -225,7 +245,7 @@ final class CandidatePanel: NSPanel {
           let more = ActionButton("更多", label: "展开 \(candidate.text) 的译法与用法") { [weak self] in
             self?.onExpand?(index)
           }
-          more.font = NativeTheme.font(12)
+          more.font = NativeTheme.font(textSize(12))
           more.contentTintColor = NativeTheme.muted
           more.widthAnchor.constraint(equalToConstant: 52).isActive = true
           englishViews.append(more)
@@ -245,7 +265,8 @@ final class CandidatePanel: NSPanel {
           indent.widthAnchor.constraint(equalToConstant: 24).isActive = true
           candidateRow = column(
             [
-              chineseRow, row([indent, NativeTheme.label(status, size: 12, secondary: true)]),
+              chineseRow,
+              row([indent, NativeTheme.label(status, size: textSize(12), secondary: true)]),
             ], spacing: 0)
         } else {
           candidateRow = chineseRow
@@ -298,12 +319,14 @@ final class CandidatePanel: NSPanel {
       guard let candidate = state.frame?.candidates[index] else { return nil }
       let title = "\(index - state.visibleIndices.lowerBound + 1) \(candidate.text)"
       let chinese =
-        (title as NSString).size(withAttributes: [.font: NativeTheme.font(15)]).width + 24
+        (title as NSString).size(withAttributes: [.font: NativeTheme.font(textSize(18))]).width + 16
       let english =
         bilingual
         ? ((candidate.translations.first?.displayWord ?? "") as NSString)
-          .size(withAttributes: [.font: NativeTheme.font(13)]).width + 24 : 0
-      return min(140, max(44, chinese, english))
+          .size(withAttributes: [.font: NativeTheme.font(textSize(13))]).width + 24 : 0
+      return min(
+        140 * CGFloat(CandidatePreferences.current.fontSize.rawValue) / 18,
+        max(44, chinese, english))
     }
     return max(400, ceil(widths.reduce(0, +)) + CGFloat(max(0, widths.count - 1)) * 4 + 24)
   }
@@ -327,11 +350,16 @@ final class CandidatePanel: NSPanel {
       let slot = index - state.visibleIndices.lowerBound + 1
       let chinese = fittedButton(
         "\(slot) \(candidate.text)",
-        width: columnWidth, size: 15,
+        width: columnWidth, size: textSize(18),
         label: "输出中文 \(candidate.text)"
       ) { [weak self] in self?.onChinese?(index) }
       chinese.toolTip = candidate.text
-      if index == state.active { chinese.style = .subtle }
+      chinese.horizontalPadding = 8
+      chinese.slotPrefix = "\(slot) "
+      chinese.slotFontSize = textSize(11)
+      chinese.compactCapsule = true
+      chinese.contentOffsetY = hasEnglish ? 8 : 0
+      if index == state.active { chinese.style = .selected }
       let cell = column([chinese], spacing: 0)
       cell.widthAnchor.constraint(equalToConstant: columnWidth).isActive = true
       if hasEnglish {
@@ -340,15 +368,18 @@ final class CandidatePanel: NSPanel {
             [weak self] in
             self?.onEnglish?(index, 0)
           }
-          english.font = NativeTheme.font(13)
+          english.font = NativeTheme.font(textSize(12))
+          english.horizontalPadding = 8
+          english.contentOffsetY = -9
           english.style = .accent
           english.secondarySuffix = sense.visiblePOS
+          english.secondaryFontSize = textSize(11)
           english.alignment = .left
           english.widthAnchor.constraint(equalToConstant: columnWidth).isActive = true
-          english.toolTip = "\(sense.displayWord) · 更多译法请点顶部‘译法’或按 Tab"
+          english.toolTip = "\(sense.displayWord) · 更多译法请点顶部展开按钮或按 Tab"
           cell.addArrangedSubview(english)
         } else {
-          let missing = NativeTheme.label("—", size: 12, secondary: true)
+          let missing = NativeTheme.label("—", size: textSize(12), secondary: true)
           missing.heightAnchor.constraint(equalToConstant: 44).isActive = true
           missing.toolTip = "此候选暂无词语译法；中文仍可选择"
           cell.addArrangedSubview(missing)
@@ -370,7 +401,7 @@ final class CandidatePanel: NSPanel {
     }
     add(
       row([
-        NativeTheme.label("整句译文", size: 16, weight: .medium), NSView(),
+        NativeTheme.label("整句译文", size: textSize(16), weight: .medium), NSView(),
         ActionButton(translationLabel, label: "打开翻译设置，选择本机或 AI 在线翻译") { [weak self] in
           self?.onAISettings?()
         },
@@ -388,7 +419,7 @@ final class CandidatePanel: NSPanel {
     case .aiFailed(let error): status = error.localizedDescription
     case .none: status = ""
     }
-    add(NativeTheme.label(status, size: 15, secondary: !ready), to: stack)
+    add(NativeTheme.label(status, size: textSize(15), secondary: !ready), to: stack)
     let english = ActionButton("选英文", label: "输出整句英文，Shift＋空格") { [weak self] in
       self?.onEnglish?(state.active, 0)
     }
@@ -420,13 +451,14 @@ final class CandidatePanel: NSPanel {
     let close = ActionButton("收起", label: "收起译法，Esc") { [weak self] in self?.onCollapse?() }
     add(
       row([
-        NativeTheme.label("\(candidate.text) · 更多译法", size: 16, weight: .medium), NSView(), close,
+        NativeTheme.label("\(candidate.text) · 更多译法", size: textSize(16), weight: .medium),
+        NSView(), close,
       ]), to: stack)
     for (senseIndex, sense) in candidate.translations.enumerated() {
       let prefix = senseIndex == state.sense ? "› " : ""
       let title = "\(prefix)\(sense.displayWord)"
       let select = fittedButton(
-        title, width: width, size: 16,
+        title, width: width, size: textSize(16),
         label:
           "输出英文 \(sense.word)，第 \(senseIndex + 1) 种译法\(senseIndex == state.sense ? "，当前选中" : "")"
       ) { [weak self] in self?.onEnglish?(state.active, senseIndex) }
@@ -442,7 +474,7 @@ final class CandidatePanel: NSPanel {
       NativeTheme.label(
         candidate.hasDetails
           ? "用法为原型示例 · Tab 换译法 · Shift＋空格 选英文"
-          : "本地词表释义，尚未提供完整用法。", size: 11, secondary: true), to: stack)
+          : "本地词表释义，尚未提供完整用法。", size: textSize(11), secondary: true), to: stack)
   }
 
   private func screenBounds(_ anchor: NSRect) -> NSRect {
@@ -456,7 +488,7 @@ final class CandidatePanel: NSPanel {
   ) {
     content.setFrameSize(NSSize(width: width, height: 400))
     content.layoutSubtreeIfNeeded()
-    let height = ceil(stack.fittingSize.height) + 24
+    let height = ceil(stack.fittingSize.height) + 16
     let actualHeight = min(height, maximumHeight ?? bounds.height - 16)
     content.setFrameSize(NSSize(width: width, height: height))
     let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: width, height: actualHeight))
@@ -485,7 +517,8 @@ final class CandidatePanel: NSPanel {
 
   func showTypingMode(_ mode: TypingMode, anchor: NSRect) {
     let content = surface()
-    let symbol = NativeTheme.label(mode == .english ? "EN" : "中", size: 20, weight: .medium)
+    let symbol = NativeTheme.label(
+      mode == .english ? "EN" : "中", size: 20, weight: .medium)
     symbol.widthAnchor.constraint(equalToConstant: 32).isActive = true
     let title = column([
       NativeTheme.label(mode.title, size: 16, weight: .medium),
