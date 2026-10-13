@@ -9,14 +9,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("research root argument required")?;
     let mut adapter = Adapter::load(Path::new(&root))?;
     let mut arguments = std::env::args().skip(2);
-    if let Some(flag) = arguments.next() {
-        if flag != "--memory" {
-            return Err("unsupported bridge option".into());
-        }
-        let path = arguments.next().ok_or("memory path required")?;
-        adapter.set_memory_path(Some(path.into()));
-        if arguments.next().is_some() {
-            return Err("unexpected bridge option".into());
+    let mut memory = false;
+    let mut focused = false;
+    while let Some(flag) = arguments.next() {
+        match flag.as_str() {
+            "--memory" if !memory => {
+                let path = arguments.next().ok_or("memory path required")?;
+                adapter.set_memory_path(Some(path.into()));
+                memory = true;
+            }
+            "--mac-candidates" if !focused => {
+                adapter.focus_candidates();
+                focused = true;
+            }
+            _ => return Err("unsupported or duplicate bridge option".into()),
         }
     }
     eprintln!(

@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 pub mod ffi;
+mod focused_candidates;
 mod memory;
 mod part_of_speech;
 mod ranking;
@@ -70,6 +71,7 @@ pub struct Adapter {
     sequences: HashMap<String, sequence::Sequence>,
     retired: HashSet<String>,
     token: u64,
+    focused_candidates: bool,
 }
 
 impl Adapter {
@@ -100,6 +102,7 @@ impl Adapter {
             sequences: HashMap::new(),
             retired: HashSet::new(),
             token: 0,
+            focused_candidates: false,
         })
     }
 
@@ -110,6 +113,11 @@ impl Adapter {
 
     pub fn detail_count(&self) -> usize {
         self.details.len()
+    }
+
+    /// Opt-in for the Mac CLI; legacy CLI and the Windows C ABI keep their policy.
+    pub fn focus_candidates(&mut self) {
+        self.focused_candidates = true;
     }
 
     /// Process exactly one existing protocol request without recording its bytes.
@@ -141,10 +149,10 @@ impl Adapter {
 
     fn candidates(&self) -> Vec<Candidate> {
         let input = self.engine.composition().text();
-        let mut items = self
-            .engine
-            .query()
-            .map_or_else(|_| Vec::new(), |q| q.candidates.items);
+        let query = self.engine.query().ok();
+        let mut items = query
+            .as_ref()
+            .map_or_else(Vec::new, |q| q.candidates.items.clone());
         let mut seen: HashSet<_> = items
             .iter()
             .map(|c| (c.text.clone(), c.syllables.clone()))
@@ -154,7 +162,12 @@ impl Adapter {
                 items.push(remembered);
             }
         }
-        self.ranking.order(input, &mut items, &self.memory);
+        if self.focused_candidates {
+            self.ranking.order_focused(input, &mut items, &self.memory);
+            items = focused_candidates::select(input, query.as_ref(), items);
+        } else {
+            self.ranking.order(input, &mut items, &self.memory);
+        }
         let mut list = qingjian_core::candidate::CandidateList { items };
         self.engine.annotate(&mut list);
         list.items
