@@ -1,5 +1,28 @@
 # 灵果 · 原生输入法检查记录
 
+## 个人词库管理 2026-10-14
+
+开发构建为 Mac **0.12.12 / build 34**，基于 PR #12 源码 `231df5a`。本轮未安装或重载正式服务，当前个人词库、输入设置及其他工作区保留；以下测试只使用临时词条和隔离界面。
+
+- 完整 Mac 构建与检查通过：Swift 格式／类型／警告、Rust 格式／Clippy／测试、来源许可／资源再生成、签名及既有输入、翻译、学习、更新与预览清理回归。未新增词库、模型或生产依赖，锁文件未变。
+- 新增 8 项真实桥接管理回归：按词与实际读音合并全拼／简拼而不重复累计次数、运行中优先／取消优先、优先组互换与完整句候选保护、删除全部别名及重新记忆、多音读音隔离、未知组合删除、陈旧／错误请求拒绝、损坏／未知版本／符号链接保留、并发修改合并及忙锁限时失败。管理进程不加载输入引擎；请求文本在标准输入而非命令行参数中。
+- 原生隔离测试覆盖 560／440 pt、浅色／深色，搜索汉字／大小写拼音／分音／简拼、选择、优先／取消、页面切换保留搜索、删除后运行中的输入桥接重读、空列表与损坏反馈、44 pt 按钮。
+- 原生窗口实际操作验证：拼音搜索、鼠标选择、优先及取消、删除确认、Esc 取消后保留词条、确认删除后列表减少、键盘选择词条及操作快捷键。浅色宽窗口与深色窄窗口已截图核对；关闭／退出仅结束预览进程，不清理正式服务。词库页按需创建，正在执行的管理子进程先回收，再清理示例目录；完整检查结束后确认没有遗留词库示例目录。
+- 共享桥接 Windows x64 目标编译检查通过，现有 45 项可在 Mac 执行的 Windows 测试通过；没有修改 Windows 原生界面或既有 C ABI／中文词库版本 1。Windows 设置接入和 Windows 11 键盘验收尚未完成。
+
+Pheno v1.4 范围为原生词库页面：复用中性颜色、系统字体回退、44 pt 控件、可见焦点、无动画和不透明表面。独立界面操作不等同于宿主 IMK 实机验收；VoiceOver、系统增强对比及真实个人文件持久化未验证。正式安装后仍需在 Codex／微信／钉钉核对新增词的搜索、删除后重新查询、同音优先／取消和服务重载后的保留。
+
+复现命令：
+
+```sh
+bash native-macos/tools/build.sh
+bash native-macos/tools/check.sh
+runtime/python/bin/python prototype/tests/vocabulary_test.py
+native-macos/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --personal-vocabulary-test
+native-macos/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --personal-vocabulary-preview
+native-macos/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion --personal-vocabulary-preview --preview-narrow --theme dark
+```
+
 ## Mac 0.12.11 整合检查 2026-10-13
 
 安装后实体键盘反馈：用户在 Codex 空白输入框以实体键盘确认：`chiputao` 选择“吃葡萄不吐葡萄皮”可一次输出整句；`wo`＋空格 → `hello`＋回车得到“我Hello”，未发送消息。确认范围限这两项本机用例；分音输入、英文译词提交、偏好重启、真实词条持久化、其他应用及长期稳定性继续分别验收。本次只更新验收资料，未重新安装、重载、改变设置或读取真实输入内容。

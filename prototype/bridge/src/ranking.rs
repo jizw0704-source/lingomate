@@ -123,10 +123,10 @@ impl Ranking {
             };
             let mut choices: Vec<_> = indices
                 .iter()
-                .map(|i| (items[*i].clone(), score(*i)))
+                .map(|i| (items[*i].clone(), memory.prioritized(&items[*i]), score(*i)))
                 .collect();
-            choices.sort_by(|a, b| b.1.total_cmp(&a.1));
-            for (i, (candidate, _)) in indices.iter().zip(choices) {
+            choices.sort_by(|a, b| b.1.cmp(&a.1).then(b.2.total_cmp(&a.2)));
+            for (i, (candidate, _, _)) in indices.iter().zip(choices) {
                 items[*i] = candidate;
             }
         }

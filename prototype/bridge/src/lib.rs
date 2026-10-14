@@ -14,6 +14,7 @@ mod memory;
 mod part_of_speech;
 mod ranking;
 mod sequence;
+pub mod vocabulary;
 
 struct Pending {
     token: u64,

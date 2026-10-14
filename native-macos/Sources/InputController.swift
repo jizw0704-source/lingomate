@@ -546,6 +546,10 @@ final class BilingualInputController: IMKInputController {
         title: "AI 翻译设置…", action: #selector(openAISettings(_:)), keyEquivalent: "")
       ai.target = self
       menu.addItem(ai)
+      let vocabulary = NSMenuItem(
+        title: "个人词库…", action: #selector(openPersonalVocabulary(_:)), keyEquivalent: "")
+      vocabulary.target = self
+      menu.addItem(vocabulary)
       let localLearning = NSMenuItem(
         title: "本地学习记录…", action: #selector(openLocalLearning(_:)), keyEquivalent: "")
       localLearning.target = self
@@ -584,6 +588,12 @@ final class BilingualInputController: IMKInputController {
     }
   }
 
+  @objc private func openPersonalVocabulary(_ sender: Any?) {
+    mainSync {
+      rawCommit()
+      SettingsWindow.launch(section: .vocabulary)
+    }
+  }
   @objc private func openLocalLearning(_ sender: Any?) {
     mainSync {
       rawCommit()
