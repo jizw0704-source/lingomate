@@ -20,7 +20,7 @@ function Fixture([string]$Directory, [string]$Version, [switch]$Legacy, [switch]
     New-Item -ItemType Directory -Path $Directory | Out-Null
     $Files = @('lingomate_tsf.dll', 'bilingual-ime-bridge.exe', 'dict.tsv', 'glossary-en.tsv', 'details.json', 'LICENSE', 'GLOSSARY-NOTICE.md', 'LEXICON-NOTICE.md')
     if (-not $Legacy) { $Files += @('update.ps1', 'update-worker.ps1', 'update-core.psm1', 'version.json') }
-    if (-not $Legacy -and -not $Stdio) { $Files += 'lingomate_engine.dll' }
+    if (-not $Legacy -and -not $Stdio) { $Files += 'lingomate_engine.dll'; if ((Get-LingoMateVersion $Version) -ge (Get-LingoMateVersion '0.1.17')) { $Files += 'lingomate-desktop.exe' } }
     foreach ($Name in $Files) { [IO.File]::WriteAllText((Join-Path $Directory $Name), "synthetic-$Version-$Name") }
     if (-not $Legacy) {
         Write-LingoMateJson @{ schema = 1; version = $Version; arch = 'x64'; channel = 'preview'; repository = 'jizw0704-source/lingomate'; minimum_windows_build = 22000 } (Join-Path $Directory 'version.json')
@@ -55,7 +55,7 @@ try {
     Check ($null -eq (Assert-LingoMateUpdate $Empty "0.1.1")) "unpublished feed is an empty state"
     $Package = Join-Path $Temporary 'package'
     Fixture $Package '0.2.0'
-    Check ((Test-LingoMatePackage $Package).PSObject.Properties.Name.Count -eq 13) 'complete package validates the in-process engine'
+    Check ((Test-LingoMatePackage $Package).PSObject.Properties.Name.Count -eq 14) 'complete package validates the engine and desktop helper'
     $MissingCore = Join-Path $Temporary 'missing-core'
     Fixture $MissingCore '0.2.0'
     Remove-Item -LiteralPath (Join-Path $MissingCore 'lingomate_engine.dll') -Force

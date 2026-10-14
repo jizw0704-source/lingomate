@@ -1,9 +1,12 @@
 #![allow(non_snake_case)]
+mod accessibility;
 mod diagnostics;
 mod document;
 mod mode;
+mod mouse;
 mod panel;
 mod registration;
+mod translations;
 mod updates;
 use crate::bridge::{Bridge, Confirmation, EngineFailure};
 use crate::input::{Input, Key};
@@ -45,7 +48,7 @@ impl Drop for Guard {
         REFERENCES.fetch_sub(1, Ordering::SeqCst);
     }
 }
-fn module_path() -> Result<PathBuf> {
+pub(crate) fn module_path() -> Result<PathBuf> {
     let mut buffer = [0u16; 32768];
     let size =
         unsafe { GetModuleFileNameW(Some(HMODULE(MODULE.load(Ordering::SeqCst))), &mut buffer) }
@@ -64,6 +67,12 @@ fn down(key: i32) -> bool {
 }
 fn command_modifier() -> bool {
     down(0x11) || down(0x12) || down(0x5B) || down(0x5C)
+}
+fn bilingual_shortcut(key: usize) -> bool {
+    key == 0x75 && !command_modifier() && !down(0x10)
+}
+fn punctuation_shortcut(key: usize) -> bool {
+    key == 0x50 && down(0x11) && down(0x10) && !down(0x12) && !down(0x5B) && !down(0x5C)
 }
 fn blocked(context: &ITfContext) -> bool {
     let Ok(manager) = context.cast::<ITfCompartmentMgr>() else {
@@ -153,6 +162,17 @@ struct State {
     show_pos: Cell<bool>,
     display: Cell<crate::preferences::Display>,
     memory_warning: Cell<bool>,
+    shared: RefCell<Option<crate::settings::Shared>>,
+    shared_revision: Cell<u64>,
+    configuring: Cell<Option<(u64, crate::settings::Setting)>>,
+    translator: RefCell<Option<translations::Translator>>,
+    sentence: RefCell<crate::sentence::Sentence>,
+    sentence_due: Cell<Option<Instant>>,
+    sentence_sent: Cell<bool>,
+    translation_configuration: Cell<u64>,
+    sentence_epoch: Cell<u64>,
+    mouse_revision: Cell<u64>,
+    focused: Cell<bool>,
     preview: bool,
 }
 #[derive(Clone)]
@@ -160,6 +180,7 @@ struct Binding {
     document: Option<Rc<document::Document>>,
     epoch: u64,
     text: bool,
+    account: u64,
 }
 thread_local! {
     // TSF can deactivate while an engine query is in flight. Keep the originating
@@ -200,6 +221,17 @@ impl State {
             show_pos: Cell::new(show_pos),
             display: Cell::new(crate::preferences::Display::default()),
             memory_warning: Cell::new(false),
+            shared: RefCell::new(None),
+            shared_revision: Cell::new(0),
+            configuring: Cell::new(None),
+            translator: RefCell::new(None),
+            sentence: RefCell::new(Default::default()),
+            sentence_due: Cell::new(None),
+            sentence_sent: Cell::new(false),
+            translation_configuration: Cell::new(0),
+            sentence_epoch: Cell::new(1),
+            mouse_revision: Cell::new(0),
+            focused: Cell::new(false),
             preview: false,
         })
     }
@@ -218,15 +250,71 @@ impl State {
             )?;
         }
         let root = module_path()?.parent().ok_or(E_FAIL)?.to_path_buf();
-        let memory = std::env::var_os("LOCALAPPDATA")
-            .map(|path| PathBuf::from(path).join("LingoMate/PersonalVocabulary/words.json"));
+        *self.shared.borrow_mut() = crate::settings::Shared::open();
+        if let Some(shared) = self.shared.borrow().as_ref()
+            && let Some(snapshot) = shared.snapshot()
+        {
+            let mut input = self.input.borrow_mut();
+            input.bilingual = snapshot.bilingual;
+            input.remember = snapshot.remember;
+            input.punctuation_mode = crate::punctuation::Mode::ALL[snapshot.punctuation as usize];
+            self.show_pos.set(snapshot.show_pos);
+            self.display.set(snapshot.display);
+            self.shared_revision.set(shared.revision());
+            self.translation_configuration.set(shared.configuration());
+        }
+        let desktop = root.join("lingomate-desktop.exe");
+        *self.translator.borrow_mut() = Some(translations::Translator::new(desktop.clone()));
+        if std::env::var_os("LINGOMATE_TEST_SESSION").is_none() {
+            let preferences = desktop.clone();
+            let guard = Guard::new();
+            std::thread::spawn(move || {
+                let _guard = guard;
+                let stop = std::sync::atomic::AtomicBool::new(false);
+                if let Ok(child) =
+                    crate::helper::spawn(&preferences, &["--preferences".into()], true)
+                {
+                    let _ = child.capture(b"", &stop, Duration::from_secs(5));
+                }
+            });
+        }
+        let memory = crate::personal::path();
+        let test_session = std::env::var_os("LINGOMATE_TEST_SESSION").is_some();
         *self.worker.borrow_mut() = Some(Worker::start_with(move || {
-            Bridge::start_embedded(&root.join("lingomate_engine.dll"), &root, memory.as_deref())
+            // Complete migration on this background worker before the core can
+            // create its first memory file. No helper/IO wait touches the host UI.
+            let ready = test_session
+                || (|| {
+                    let child =
+                        crate::helper::spawn(&desktop, &["--prepare-memory".into()], true).ok()?;
+                    child
+                        .capture(
+                            b"",
+                            &std::sync::atomic::AtomicBool::new(false),
+                            Duration::from_secs(5),
+                        )
+                        .ok()?;
+                    Some(())
+                })()
+                .is_some();
+            let mut engine = Bridge::start_embedded(
+                &root.join("lingomate_engine.dll"),
+                &root,
+                if ready { memory.as_deref() } else { None },
+            )?;
+            if !ready {
+                engine.warn_memory();
+            }
+            Ok(engine)
         }));
         let input = self.input.borrow();
         self.send(Command::Remember(input.remember));
         self.send(Command::PunctuationMode(input.punctuation_mode));
         self.send(Command::EnglishMode(input.english));
+        self.send(Command::Configure {
+            id: 0,
+            setting: crate::settings::Setting::Bilingual(input.bilingual),
+        });
         Ok(())
     }
     fn send(&self, command: Command) -> bool {
@@ -285,9 +373,12 @@ impl State {
             {
                 // Keep the mode after its Finish even when both bounded queues
                 // are full. New keys cannot overtake this control boundary.
+                let id = self.next();
+                let setting = crate::settings::Setting::English(english);
                 self.outbox
                     .borrow_mut()
-                    .push_back(Command::EnglishMode(english));
+                    .push_back(Command::Configure { id, setting });
+                self.configuring.set(Some((id, setting)));
             }
             if self.deferred_boundary.borrow().is_none()
                 && self.outbox.borrow().len() < crate::worker::QUEUE_CAPACITY * 2
@@ -322,6 +413,7 @@ impl State {
                 document,
                 epoch,
                 text,
+                account: self.account_scope(),
             },
         );
     }
@@ -339,6 +431,7 @@ impl State {
         self.input.borrow_mut().punctuation.reset_context();
     }
     fn cancel_composition(&self) {
+        self.cancel_sentence();
         let id = self.next();
         self.boundary(id, true);
         self.input.borrow_mut().reset();
@@ -364,6 +457,7 @@ impl State {
                     document,
                     epoch,
                     text: false,
+                    account: self.account_scope(),
                 },
             ));
         }
@@ -384,23 +478,324 @@ impl State {
             self.memory_warning.set(true);
         }
     }
-    fn remember(&self, remember: bool) {
-        if self.send(Command::Remember(remember)) {
-            self.input.borrow_mut().remember = remember;
-        }
-    }
-    fn punctuation_mode(&self, mode: crate::punctuation::Mode) {
-        if self.send(Command::PunctuationMode(mode)) {
-            let mut input = self.input.borrow_mut();
-            input.punctuation_mode = mode;
-            input.punctuation.reset_context();
-        }
-    }
     fn settings(self: &Rc<Self>) {
-        let window = self.panel.borrow().as_ref().map(panel::Panel::window);
-        if let Some(window) = window {
-            panel::settings(window, self);
+        self.open_settings("account");
+    }
+    fn open_settings(&self, section: &str) {
+        if self.preview {
+            return;
         }
+        self.finish();
+        let window = self
+            .panel
+            .borrow()
+            .as_ref()
+            .map_or(HWND::default(), panel::Panel::window);
+        if let Ok(path) = module_path().and_then(|p| {
+            crate::helper::desktop_path(&p).map_err(|_| windows::core::Error::from(E_FAIL))
+        }) {
+            let _ = crate::helper::spawn(
+                &path,
+                &[
+                    "--settings".into(),
+                    "--section".into(),
+                    section.into(),
+                    "--service".into(),
+                    format!("{:x}", window.0 as usize),
+                ],
+                false,
+            );
+        }
+    }
+    fn account_scope(&self) -> u64 {
+        self.shared
+            .borrow()
+            .as_ref()
+            .map_or(0, crate::settings::Shared::account)
+    }
+    fn settings_snapshot(&self) -> crate::settings::Snapshot {
+        let input = self.input.borrow();
+        crate::settings::Snapshot {
+            english: input.english,
+            bilingual: input.bilingual,
+            remember: input.remember,
+            punctuation: crate::punctuation::Mode::ALL
+                .iter()
+                .position(|m| *m == input.punctuation_mode)
+                .unwrap_or(0) as u32,
+            show_pos: self.show_pos.get(),
+            display: self.display.get(),
+            pending: self.configuring.get().is_some()
+                || self.busy.get()
+                || self.deferred_mode.get().is_some()
+                || self.deferred_boundary.borrow().is_some(),
+        }
+    }
+    fn apply_setting(&self, setting: crate::settings::Setting, publish: bool) -> bool {
+        use crate::settings::Setting;
+        if self.preview
+            || self.retiring.get()
+            || self.worker.borrow().is_none()
+            || self.outbox.borrow().len() >= 32
+        {
+            return false;
+        }
+        match setting {
+            Setting::ShowPOS(value) => {
+                self.show_pos.set(value);
+                self.refresh();
+                return true;
+            }
+            Setting::Font(value) => {
+                let mut display = self.display.get();
+                display.font = value;
+                self.display.set(display);
+                self.refresh();
+                return true;
+            }
+            Setting::Theme(value) => {
+                let mut display = self.display.get();
+                display.theme = value;
+                self.display.set(display);
+                self.refresh_palette();
+                self.refresh();
+                return true;
+            }
+            Setting::Bilingual(_) => {}
+            _ => {
+                self.finish();
+            }
+        }
+        if let Setting::English(value) = setting {
+            self.english(value);
+            if self.input.borrow().english != value {
+                return false;
+            }
+        }
+        self.cancel_sentence();
+        let id = self.next();
+        if !self.send(Command::Configure { id, setting }) {
+            return false;
+        }
+        {
+            let mut input = self.input.borrow_mut();
+            match setting {
+                Setting::Bilingual(value) => {
+                    input.bilingual = value;
+                    if !value {
+                        input.expanded = false;
+                    }
+                }
+                Setting::Remember(value) => input.remember = value,
+                Setting::Punctuation(value) => {
+                    input.punctuation_mode = crate::punctuation::Mode::ALL[value as usize];
+                    input.punctuation.reset_context();
+                }
+                _ => {}
+            }
+        }
+        self.configuring.set(Some((id, setting)));
+        if publish && let Some(shared) = self.shared.borrow().as_ref() {
+            shared.set_runtime(self.settings_snapshot());
+            self.shared_revision.set(shared.revision());
+        }
+        self.refresh();
+        true
+    }
+    fn refresh_display_preferences(&self) {
+        if let Some(shared) = self.shared.borrow().as_ref()
+            && let Some(snapshot) = shared.snapshot()
+        {
+            self.show_pos.set(snapshot.show_pos);
+            self.display.set(snapshot.display);
+        } else {
+            self.show_pos.set(crate::preferences::load());
+            self.display.set(crate::preferences::display());
+        }
+        self.refresh_palette();
+    }
+    fn poll_settings(&self) {
+        if self.shared.borrow().is_none() && !self.preview && self.translator.borrow().is_some() {
+            *self.shared.borrow_mut() = crate::settings::Shared::open();
+        }
+        let desired = self.shared.borrow().as_ref().and_then(|s| {
+            let revision = s.revision();
+            if revision == self.shared_revision.get() {
+                return None;
+            }
+            s.snapshot().map(|v| (revision, v))
+        });
+        if let Some((revision, snapshot)) = desired {
+            self.show_pos.set(snapshot.show_pos);
+            if self.display.replace(snapshot.display) != snapshot.display {
+                self.refresh_palette();
+            }
+            let current = self.settings_snapshot();
+            for (setting, different) in [
+                (
+                    crate::settings::Setting::English(snapshot.english),
+                    current.english != snapshot.english,
+                ),
+                (
+                    crate::settings::Setting::Bilingual(snapshot.bilingual),
+                    current.bilingual != snapshot.bilingual,
+                ),
+                (
+                    crate::settings::Setting::Remember(snapshot.remember),
+                    current.remember != snapshot.remember,
+                ),
+                (
+                    crate::settings::Setting::Punctuation(snapshot.punctuation),
+                    current.punctuation != snapshot.punctuation,
+                ),
+            ] {
+                if different && !self.apply_setting(setting, false) {
+                    return;
+                }
+            }
+            self.shared_revision.set(revision);
+            self.refresh();
+        }
+    }
+    fn cancel_sentence(&self) {
+        self.sentence.borrow_mut().cancel();
+        self.sentence_due.set(None);
+        self.sentence_sent.set(false);
+        if let Some(translator) = self.translator.borrow().as_ref() {
+            translator.cancel();
+        }
+        self.sentence_epoch
+            .set(self.sentence_epoch.get().wrapping_add(1));
+    }
+    fn sentence_token(&self) -> Option<crate::sentence::CandidateToken> {
+        let input = self.input.borrow();
+        if self.preview
+            || self.retiring.get()
+            || !self.focused.get()
+            || self.busy.get()
+            || input.error
+            || !input.bilingual
+            || input.english
+            || input.raw.is_empty()
+        {
+            return None;
+        }
+        let candidate = input.frame.candidates.get(input.selected)?;
+        if !candidate.translations.is_empty()
+            || candidate.text.chars().count() < if candidate.personal { 2 } else { 3 }
+            || !crate::remote::valid_source(&candidate.text)
+        {
+            return None;
+        }
+        Some(crate::sentence::CandidateToken {
+            input_revision: self.sentence_epoch.get(),
+            engine_generation: input.frame.generation,
+            selected: input.selected,
+            page: input.page(),
+            source: candidate.text.clone(),
+        })
+    }
+    fn poll_sentence(&self) -> bool {
+        let mut changed = false;
+        let configuration = self
+            .shared
+            .borrow()
+            .as_ref()
+            .map_or(0, crate::settings::Shared::configuration);
+        if configuration != self.translation_configuration.get() {
+            self.translation_configuration.set(configuration);
+            self.cancel_sentence();
+            changed = true;
+        }
+        let token = self.sentence_token();
+        if token != self.sentence.borrow().token {
+            self.cancel_sentence();
+            changed = true;
+            if let Some(mut token) = token {
+                token.input_revision = self.sentence_epoch.get();
+                self.sentence.borrow_mut().begin(token);
+                self.sentence_due
+                    .set(Some(Instant::now() + Duration::from_millis(350)));
+            }
+        }
+        if self
+            .sentence_due
+            .get()
+            .is_some_and(|due| Instant::now() >= due)
+            && !self.sentence_sent.replace(true)
+        {
+            let sentence = self.sentence.borrow();
+            if let Some(token) = &sentence.token {
+                let submitted = self
+                    .translator
+                    .borrow()
+                    .as_ref()
+                    .map_or(translations::Submission::Stopped, |t| {
+                        t.request(sentence.request_id, token.clone(), configuration)
+                    });
+                match submitted {
+                    translations::Submission::Queued => {}
+                    translations::Submission::Busy => {
+                        // A cancelled job may still occupy the bounded queue while its helper exits.
+                        // Keep the current token waiting and retry; never misreport local preparation.
+                        self.sentence_sent.set(false);
+                        self.sentence_due
+                            .set(Some(Instant::now() + Duration::from_millis(50)));
+                    }
+                    translations::Submission::Stopped => {
+                        drop(sentence);
+                        self.sentence.borrow_mut().phase = crate::sentence::Phase::Failed(
+                            crate::remote::RemoteError::HelperUnavailable,
+                        );
+                        changed = true;
+                    }
+                }
+            }
+        }
+        loop {
+            let result = self
+                .translator
+                .borrow()
+                .as_ref()
+                .and_then(translations::Translator::poll);
+            let Some(result) = result else {
+                break;
+            };
+            changed |= self
+                .sentence
+                .borrow_mut()
+                .accept(result.id, &result.token, result.response);
+        }
+        changed
+    }
+    fn sentence_submit(self: &Rc<Self>) -> bool {
+        let Some(token) = self.sentence_token() else {
+            return true;
+        };
+        let english = self.sentence.borrow().english(&token).map(str::to_owned);
+        let Some(english) = english else {
+            return true;
+        };
+        if !self.accepts_keys() {
+            return true;
+        }
+        let selection = Selection::from_input(self.displayed.get(), &self.input.borrow());
+        let id = self.next();
+        if self.send(Command::Sentence {
+            id,
+            selection,
+            source: token.source,
+            english,
+        }) {
+            self.bind(id, true);
+            self.cancel_sentence();
+            self.refresh();
+        }
+        true
+    }
+    fn retry_sentence(&self) {
+        self.cancel_sentence();
+        self.refresh();
     }
     fn english(&self, english: bool) {
         self.english_from_system(english);
@@ -424,6 +819,12 @@ impl State {
         }
         self.deferred_mode.set(Some(english));
         self.flush();
+        if self.focused.get()
+            && let Some(shared) = self.shared.borrow().as_ref()
+        {
+            shared.set_english(english);
+            self.shared_revision.set(shared.revision());
+        }
     }
     #[cfg(test)]
     fn key(self: &Rc<Self>, key: Key) {
@@ -436,6 +837,20 @@ impl State {
         }
     }
     fn keyboard(self: &Rc<Self>, vk: usize) -> bool {
+        if vk == 0x20 && down(0x10) {
+            let input = self.input.borrow();
+            if input.bilingual
+                && !input.raw.is_empty()
+                && input
+                    .frame
+                    .candidates
+                    .get(input.selected)
+                    .is_some_and(|c| c.translations.is_empty())
+            {
+                drop(input);
+                return self.sentence_submit();
+            }
+        }
         let idle = decode(vk, false);
         let composing = decode(vk, true);
         let shadow = if self.input.borrow().raw.is_empty() {
@@ -473,6 +888,11 @@ impl State {
             self.refresh();
             return false;
         }
+        if !(matches!(key, Key::Tab(_))
+            || matches!(key, Key::Escape) && self.input.borrow().expanded)
+        {
+            self.cancel_sentence();
+        }
         let document = self.document.borrow().clone();
         let own_pending = self.pending.borrow().values().any(|binding| {
             binding.text
@@ -500,6 +920,12 @@ impl State {
                 }
                 Key::Escape if input.expanded => input.expanded = false,
                 Key::Escape | Key::Return => input.reset(),
+                Key::ToggleBilingual => {
+                    input.bilingual = !input.bilingual;
+                    if !input.bilingual {
+                        input.expanded = false;
+                    }
+                }
                 _ => {}
             }
             // The displayed frame stays until the FIFO worker replies, so typing
@@ -565,6 +991,7 @@ impl State {
         }
         let _polling = Polling(&self.polling);
         let started = Instant::now();
+        self.poll_settings();
         self.flush();
         let mut changed = false;
         for _ in 0..16 {
@@ -601,11 +1028,12 @@ impl State {
                                 // Queries for old prefixes need no intermediate rewrite.
                                 // Commits remain FIFO and always use their original document.
                                 if commit.is_some() || id == self.latest.get() {
-                                    let result = doc.enqueue(
+                                    let result = doc.enqueue_scoped(
                                         commit,
                                         input.raw.clone(),
                                         study,
                                         memory.clone(),
+                                        binding.account,
                                     );
                                     if result.is_err()
                                         && let Some(receipt) = &memory
@@ -626,10 +1054,12 @@ impl State {
                             let remember = cached.remember;
                             let english = cached.english;
                             let mode = cached.punctuation_mode;
+                            let bilingual = cached.bilingual;
                             *cached = *input;
                             cached.remember = remember;
                             cached.english = english;
                             cached.punctuation_mode = mode;
+                            cached.bilingual = bilingual;
                             self.displayed.set(id);
                             self.failure.set(failure);
                             self.busy.set(false);
@@ -653,6 +1083,33 @@ impl State {
                     self.memory_warning
                         .set(memory_warning || self.memory_warning.get());
                 }
+                Reply::Configured {
+                    id,
+                    english,
+                    bilingual,
+                    remember,
+                    punctuation,
+                } => {
+                    if let Some((pending, setting)) = self.configuring.get()
+                        && pending == id
+                    {
+                        self.configuring.set(None);
+                        let matched = match setting {
+                            crate::settings::Setting::English(v) => v == english,
+                            crate::settings::Setting::Bilingual(v) => v == bilingual,
+                            crate::settings::Setting::Remember(v) => v == remember,
+                            crate::settings::Setting::Punctuation(v) => {
+                                crate::punctuation::Mode::ALL[v as usize] == punctuation
+                            }
+                            _ => false,
+                        };
+                        if !matched {
+                            self.failure.set(Some(EngineFailure::InvalidReply));
+                        }
+                        // A later system mode/boundary may already own the cache.
+                        // This confirms only its enum command; it never rewinds newer intent.
+                    }
+                }
                 Reply::Barrier { id } => {
                     if self.barrier.get() == Some(id) {
                         self.drained.set(true);
@@ -661,6 +1118,7 @@ impl State {
             }
             self.flush();
         }
+        changed |= self.poll_sentence();
         self.edited.borrow_mut().retain(|doc| !doc.is_idle());
         if self.retiring.get()
             && self.pending.borrow().is_empty()
@@ -681,6 +1139,7 @@ impl State {
         true
     }
     fn finish(&self) -> bool {
+        self.cancel_sentence();
         if self.preview {
             return true;
         }
@@ -694,6 +1153,8 @@ impl State {
         queued
     }
     fn retire(self: &Rc<Self>) {
+        self.cancel_sentence();
+        self.set_focused(false);
         if self.retiring.replace(true) {
             return;
         }
@@ -742,9 +1203,22 @@ impl State {
             self.input.borrow_mut().reset();
         }
     }
+    fn set_focused(&self, focused: bool) {
+        self.focused.set(focused);
+        if !focused {
+            self.cancel_sentence();
+        }
+        if focused
+            && let Some(shared) = self.shared.borrow().as_ref()
+            && let Some(panel) = self.panel.borrow().as_ref()
+        {
+            shared.focused(panel.window());
+        }
+    }
 }
 
 #[implement(
+    Agile = false,
     ITfTextInputProcessorEx,
     ITfKeyEventSink,
     ITfThreadMgrEventSink,
@@ -753,13 +1227,20 @@ impl State {
 struct Service {
     manager: RefCell<Option<ITfThreadMgr>>,
     state: RefCell<Rc<State>>,
-    shift: Cell<Option<Instant>>,
+    shift: Cell<Option<ShiftPress>>,
     advice: Cell<Option<u32>>,
     thread_advice: Cell<Option<u32>>,
     thread_focused: Cell<bool>,
     keys_advised: Cell<bool>,
+    mouse: RefCell<Option<mouse::Watch>>,
     activating: Cell<bool>,
     _guard: Guard,
+}
+#[derive(Clone, Copy)]
+struct ShiftPress {
+    at: Instant,
+    point: POINT,
+    mouse_revision: u64,
 }
 impl Service_Impl {
     fn attach_focus(&self) {
@@ -773,6 +1254,7 @@ impl Service_Impl {
         }
     }
     fn disconnect(&self, state: &State) {
+        self.mouse.borrow_mut().take();
         let mode = state.mode.borrow_mut().take();
         if let Some(mode) = mode {
             let _ = mode.shutdown();
@@ -839,10 +1321,12 @@ impl ITfTextInputProcessor_Impl for Service_Impl {
                 diagnostics::stage(Stage::ActivatePanel, S_OK);
                 let panel = panel::Panel::new(Rc::downgrade(&state))?;
                 *state.panel.borrow_mut() = Some(panel);
+                *self.mouse.borrow_mut() = mouse::Watch::new(Rc::downgrade(&state)).ok();
                 *self.manager.borrow_mut() = Some(manager.clone());
                 diagnostics::stage(Stage::ActivateManager, S_OK);
                 self.thread_focused
                     .set(unsafe { manager.IsThreadFocus()? }.as_bool());
+                state.set_focused(self.thread_focused.get());
                 diagnostics::state(state.input.borrow().english, self.thread_focused.get());
                 let keys: ITfKeystrokeMgr = manager.cast()?;
                 let sink: ITfKeyEventSink = self.to_interface();
@@ -923,10 +1407,9 @@ impl ITfKeyEventSink_Impl for Service_Impl {
     fn OnSetFocus(&self, foreground: BOOL) -> Result<()> {
         guarded(|| {
             let state = self.state.borrow().clone();
+            state.set_focused(foreground.as_bool() && self.thread_focused.get());
             if foreground.as_bool() {
-                state.show_pos.set(crate::preferences::load());
-                state.display.set(crate::preferences::display());
-                state.refresh_palette();
+                state.refresh_display_preferences();
             }
             self.shift.set(None);
             if !foreground.as_bool() {
@@ -943,7 +1426,15 @@ impl ITfKeyEventSink_Impl for Service_Impl {
             let state = self.state.borrow().clone();
             if key.0 == 0x10 && !command_modifier() && down(0xA0) != down(0xA1) {
                 if self.shift.get().is_none() {
-                    self.shift.set(Some(Instant::now()));
+                    let mut point = POINT::default();
+                    let _ = unsafe {
+                        windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point)
+                    };
+                    self.shift.set(Some(ShiftPress {
+                        at: Instant::now(),
+                        point,
+                        mouse_revision: state.mouse_revision.get(),
+                    }));
                 }
             } else {
                 self.shift.set(None);
@@ -954,6 +1445,13 @@ impl ITfKeyEventSink_Impl for Service_Impl {
             if blocked(context) {
                 state.cancel_composition();
                 return Ok(FALSE);
+            }
+            if (!state.input.borrow().english
+                && (bilingual_shortcut(key.0) || punctuation_shortcut(key.0)))
+                || panel::settings_shortcut(key.0)
+                || updates::shortcut(key.0)
+            {
+                return Ok(TRUE);
             }
             if state.input.borrow().english || command_modifier() {
                 state.break_input_context();
@@ -983,7 +1481,7 @@ impl ITfKeyEventSink_Impl for Service_Impl {
             Ok(decoded.is_some().into())
         })
     }
-    fn OnKeyDown(&self, context: Ref<ITfContext>, key: WPARAM, _flags: LPARAM) -> Result<BOOL> {
+    fn OnKeyDown(&self, context: Ref<ITfContext>, key: WPARAM, flags: LPARAM) -> Result<BOOL> {
         guarded(|| {
             if !self.thread_focused.get() {
                 return Ok(FALSE);
@@ -992,6 +1490,28 @@ impl ITfKeyEventSink_Impl for Service_Impl {
             let context = context.ok()?;
             if !blocked(context) && panel::settings_shortcut(key.0) {
                 state.settings();
+                return Ok(TRUE);
+            }
+            if !blocked(context) && !state.input.borrow().english && bilingual_shortcut(key.0) {
+                if flags.0 & (1 << 30) != 0 {
+                    return Ok(TRUE);
+                }
+                let next = !state.input.borrow().bilingual;
+                state.apply_setting(crate::settings::Setting::Bilingual(next), true);
+                return Ok(TRUE);
+            }
+            if !blocked(context) && !state.input.borrow().english && punctuation_shortcut(key.0) {
+                if flags.0 & (1 << 30) != 0 {
+                    return Ok(TRUE);
+                }
+                let current = state.input.borrow().punctuation_mode;
+                let next = (crate::punctuation::Mode::ALL
+                    .iter()
+                    .position(|m| *m == current)
+                    .unwrap_or(0)
+                    + 1)
+                    % 3;
+                state.apply_setting(crate::settings::Setting::Punctuation(next as u32), true);
                 return Ok(TRUE);
             }
             if !blocked(context) && updates::shortcut(key.0) {
@@ -1016,8 +1536,16 @@ impl ITfKeyEventSink_Impl for Service_Impl {
             let state = self.state.borrow().clone();
             if key.0 == 0x10
                 && self.thread_focused.get()
-                && let Some(at) = self.shift.take()
-                && at.elapsed() <= Duration::from_millis(700)
+                && let Some(press) = self.shift.take()
+                && press.at.elapsed() <= Duration::from_millis(700)
+                && press.mouse_revision == state.mouse_revision.get()
+                && {
+                    let mut point = POINT::default();
+                    let _ = unsafe {
+                        windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point)
+                    };
+                    point.x == press.point.x && point.y == press.point.y
+                }
                 && !command_modifier()
                 && context.ok().is_ok_and(|c| !blocked(c))
             {
@@ -1040,11 +1568,10 @@ impl ITfThreadFocusSink_Impl for Service_Impl {
             self.thread_focused.set(true);
             self.shift.set(None);
             let state = self.state.borrow().clone();
+            state.set_focused(true);
             diagnostics::state(state.input.borrow().english, true);
             diagnostics::stage(Stage::ThreadFocus, S_OK);
-            state.show_pos.set(crate::preferences::load());
-            state.display.set(crate::preferences::display());
-            state.refresh_palette();
+            state.refresh_display_preferences();
             self.attach_focus();
             Ok(())
         })
@@ -1054,6 +1581,7 @@ impl ITfThreadFocusSink_Impl for Service_Impl {
             self.thread_focused.set(false);
             self.shift.set(None);
             let state = self.state.borrow().clone();
+            state.set_focused(false);
             diagnostics::state(state.input.borrow().english, false);
             diagnostics::stage(Stage::ThreadFocus, S_OK);
             state.finish();
@@ -1075,9 +1603,7 @@ impl ITfThreadMgrEventSink_Impl for Service_Impl {
     ) -> Result<()> {
         guarded(|| {
             let state = self.state.borrow().clone();
-            state.show_pos.set(crate::preferences::load());
-            state.display.set(crate::preferences::display());
-            state.refresh_palette();
+            state.refresh_display_preferences();
             self.shift.set(None);
             state.finish();
             if let Ok(manager) = manager.ok()
@@ -1147,6 +1673,7 @@ impl IClassFactory_Impl for Factory_Impl {
             thread_advice: Cell::new(None),
             thread_focused: Cell::new(false),
             keys_advised: Cell::new(false),
+            mouse: RefCell::new(None),
             activating: Cell::new(false),
         }
         .into();
@@ -1208,9 +1735,42 @@ extern "system" fn DllUnregisterServer() -> HRESULT {
 }
 
 #[cfg(test)]
+fn assert_apartment_bound(unknown: &IUnknown) {
+    // IAgileObject is a marker for cross-apartment access without marshaling.
+    const AGILE: GUID = GUID::from_u128(0x94ea2b94_e9cc_49e0_c0ff_ee64ca8f5b90);
+    let mut result = std::ptr::null_mut();
+    assert_eq!(unsafe { unknown.query(&AGILE, &mut result) }, E_NOINTERFACE);
+    assert!(result.is_null());
+    const MARSHAL: GUID = GUID::from_u128(0x00000003_0000_0000_c000_000000000046);
+    assert_eq!(
+        unsafe { unknown.query(&MARSHAL, &mut result) },
+        E_NOINTERFACE
+    );
+    assert!(result.is_null());
+}
+
+#[cfg(test)]
 mod dispatch_tests {
     use super::*;
     use std::sync::mpsc;
+
+    #[test]
+    fn service_does_not_advertise_cross_apartment_access() {
+        let service: IUnknown = Service {
+            manager: RefCell::new(None),
+            state: RefCell::new(State::with_display_preferences(false)),
+            shift: Cell::new(None),
+            advice: Cell::new(None),
+            thread_advice: Cell::new(None),
+            thread_focused: Cell::new(false),
+            keys_advised: Cell::new(false),
+            mouse: RefCell::new(None),
+            activating: Cell::new(false),
+            _guard: Guard::new(),
+        }
+        .into();
+        assert_apartment_bound(&service);
+    }
 
     #[test]
     fn nested_timer_does_not_reenter_the_dispatcher() {
@@ -1224,6 +1784,41 @@ mod dispatch_tests {
         assert!(state.poll());
         assert!(!state.polling.get());
     }
+    #[test]
+    fn old_bilingual_ack_cannot_rewind_a_later_system_language_switch() {
+        let (started, initialized) = mpsc::channel();
+        let (release, gate) = mpsc::channel();
+        let state = State::with_display_preferences(false);
+        *state.worker.borrow_mut() = Some(Worker::start_with(move || {
+            started.send(()).unwrap();
+            gate.recv().unwrap();
+            Err(EngineFailure::Unavailable)
+        }));
+        assert!(state.submit_key(Key::Letter('a'), None, None));
+        initialized.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(state.apply_setting(crate::settings::Setting::Bilingual(false), false));
+        state.english_from_system(true);
+        release.send(()).unwrap();
+        drain(&state);
+        assert!(state.input.borrow().english);
+        assert!(!state.input.borrow().bilingual);
+        assert!(!state.settings_snapshot().pending);
+        let id = state.next();
+        assert!(state.send(Command::Finish { id }));
+        let worker = state.worker.borrow();
+        let worker = worker.as_ref().unwrap();
+        loop {
+            if let Reply::Update {
+                id: actual, input, ..
+            } = worker.recv_timeout(Duration::from_secs(1)).unwrap()
+                && actual == id
+            {
+                assert!(input.english);
+                assert!(!input.bilingual);
+                break;
+            }
+        }
+    }
 
     fn drain(state: &Rc<State>) {
         let until = Instant::now() + Duration::from_secs(5);
@@ -1232,6 +1827,7 @@ mod dispatch_tests {
             || state.deferred_mode.get().is_some()
             || state.deferred_context.get()
             || state.deferred_boundary.borrow().is_some()
+            || state.configuring.get().is_some()
         {
             assert!(Instant::now() < until, "owned dispatcher did not drain");
             state.poll();

@@ -16,3 +16,17 @@ pub mod worker;
 mod appearance;
 
 pub mod candidate_layout;
+#[cfg(windows)]
+pub mod credentials;
+#[cfg(windows)]
+pub mod desktop;
+#[cfg(windows)]
+pub mod helper;
+#[cfg(windows)]
+pub mod http;
+#[cfg(windows)]
+pub mod personal;
+pub mod remote;
+pub mod sentence;
+pub mod settings;
+pub mod storage;

@@ -20,6 +20,99 @@ fn type_letters(input: &mut Input, engine: &mut Bridge, text: &str) {
     }
 }
 #[test]
+fn sentence_output_is_engine_validated_without_word_learning() {
+    let mut engine = engine();
+    let mut input = Input::default();
+    type_letters(&mut input, &mut engine, "jintianxiawukaihui");
+    input.selected = input
+        .frame
+        .candidates
+        .iter()
+        .position(|c| c.text == "今天下午开会" && c.translations.is_empty())
+        .expect("real sentence candidate");
+    let selected = input.selected;
+    let raw = input.raw.clone();
+    assert!(
+        input
+            .commit_sentence(&mut engine, "错误的候选", "An obsolete result.")
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(input.raw, raw);
+    assert_eq!(input.selected, selected);
+    assert_eq!(
+        input
+            .commit_sentence(
+                &mut engine,
+                "今天下午开会",
+                "There is a meeting this afternoon."
+            )
+            .unwrap()
+            .as_deref(),
+        Some("There is a meeting this afternoon.")
+    );
+    assert!(input.raw.is_empty());
+    assert!(input.pending_study.is_none());
+    assert!(input.last_english);
+}
+#[test]
+fn translated_partial_engine_commit_retains_original_suffix_case() {
+    let mut engine = engine();
+    let mut input = Input::default();
+    type_letters(&mut input, &mut engine, "kaiFaZhe");
+    input.selected = input
+        .frame
+        .candidates
+        .iter()
+        .position(|c| c.text == "开发")
+        .unwrap();
+    // Isolate the engine's partial-consumption contract. Production eligibility
+    // uses a candidate without offline senses; this fixture leaves the engine's
+    // real Chinese candidate and syllable count unchanged.
+    input.frame.candidates[input.selected].translations.clear();
+    assert_eq!(
+        input
+            .commit_sentence(&mut engine, "开发", "Develop.")
+            .unwrap()
+            .as_deref(),
+        Some("Develop.")
+    );
+    assert_eq!(input.raw, "Zhe");
+    assert!(input.pending_study.is_none());
+    assert!(input.last_english);
+    assert_eq!(
+        input.handle(Key::Return, &mut engine).unwrap().as_deref(),
+        Some("Zhe")
+    );
+}
+#[test]
+fn bilingual_toggle_retains_candidate_and_chinese_only_rejects_english_output() {
+    let mut engine = engine();
+    let mut input = Input::default();
+    type_letters(&mut input, &mut engine, "xuexi");
+    let selected = input.selected;
+    let chinese = input.frame.candidates[selected].text.clone();
+    input.handle(Key::ToggleBilingual, &mut engine).unwrap();
+    assert!(!input.bilingual);
+    assert_eq!(input.raw, "xuexi");
+    assert_eq!(input.frame.candidates[selected].text, chinese);
+    assert!(
+        input
+            .handle(Key::Space(true), &mut engine)
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(input.raw, "xuexi");
+    assert_eq!(
+        input
+            .handle(Key::Space(false), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some(chinese.as_str())
+    );
+    assert!(input.raw.is_empty());
+}
+#[test]
 fn chinese_english_and_third_sense_use_real_engine_validation() {
     let mut engine = engine();
     for (sense, expected) in [(None, "学习"), (Some(0), "study"), (Some(2), "learning")] {

@@ -1,3 +1,4 @@
+﻿param([string]$WordNetSource)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $Root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
@@ -7,24 +8,33 @@ $Commit = & git -C $Upstream rev-parse HEAD
 if ($LASTEXITCODE -ne 0 -or $Commit -ne 'c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e') { throw 'Run setup.ps1 with the pinned source first.' }
 $Changes = & git -C $Upstream status --porcelain
 if ($LASTEXITCODE -ne 0 -or $Changes) { throw 'Upstream changes are preserved; build stopped.' }
+$WordNetArguments = if ($WordNetSource) { @('--wordnet-source', (Resolve-Path -LiteralPath $WordNetSource).Path) } else { @('--wordnet-in-memory') }
 # Retain already verified output: Windows hosts or sync software can hold a
 # generated table open. Never replace matching pinned data merely to rebuild UI.
 $Prepared = $false
 if (Test-Path -LiteralPath (Join-Path $Root 'data/generated/dict.tsv')) {
-    & python (Join-Path $Root 'tools/prepare_lexicon.py') --check
+    & python (Join-Path $Root 'tools/prepare_lexicon.py') --check @WordNetArguments
     $Prepared = $LASTEXITCODE -eq 0
 }
-if (-not $Prepared) { & python (Join-Path $Root 'tools/prepare_lexicon.py') }
+if (-not $Prepared) { & python (Join-Path $Root 'tools/prepare_lexicon.py') @WordNetArguments }
 if ($LASTEXITCODE -ne 0) { throw 'Verified release data preparation failed.' }
 $Target = 'x86_64-pc-windows-msvc'
 & cargo +1.96.0 build --manifest-path (Join-Path $Root 'prototype/bridge/Cargo.toml') --target-dir (Join-Path $Upstream 'target') --release --locked --target $Target
 if ($LASTEXITCODE -ne 0) { throw 'Shared engine build failed.' }
 & cargo +1.96.0 build --manifest-path (Join-Path $Native 'Cargo.toml') --release --locked --target $Target
 if ($LASTEXITCODE -ne 0) { throw 'Windows text-service build failed.' }
-$Package = Join-Path $Native 'package/windows-x64'
+$Package = [IO.Path]::GetFullPath((Join-Path $Native 'package/windows-x64'))
+$WorkspacePrefix = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+if (-not $Package.StartsWith($WorkspacePrefix, [StringComparison]::OrdinalIgnoreCase)) { throw 'Package path is outside the workspace.' }
+$PackageAncestor = $Package
+while ($PackageAncestor.StartsWith($WorkspacePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+    if ((Test-Path -LiteralPath $PackageAncestor) -and ((Get-Item -LiteralPath $PackageAncestor).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Package cleanup refuses a linked directory.' }
+    $PackageAncestor = Split-Path $PackageAncestor -Parent
+}
 if (Test-Path $Package) { Remove-Item -LiteralPath $Package -Recurse -Force }
 New-Item -ItemType Directory -Path $Package | Out-Null
 $Files = @{
+    'lingomate-desktop.exe' = (Join-Path $Native "target/$Target/release/lingomate-desktop.exe")
     'lingomate_tsf.dll' = (Join-Path $Native "target/$Target/release/lingomate_tsf.dll")
     'lingomate_engine.dll' = (Join-Path $Upstream "target/$Target/release/lingomate_engine.dll")
     'bilingual-ime-bridge.exe' = (Join-Path $Upstream "target/$Target/release/bilingual-ime-bridge.exe")

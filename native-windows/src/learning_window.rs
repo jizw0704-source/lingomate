@@ -11,15 +11,6 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{EnableWindow, SetFocus};
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{HSTRING, PCWSTR, PWSTR, Result, w};
 
-pub fn launch(dll: PathBuf) -> std::io::Result<()> {
-    let root = std::env::var_os("WINDIR")
-        .ok_or_else(|| std::io::Error::other("Missing Windows directory"))?;
-    use std::os::windows::process::CommandExt;
-    std::process::Command::new(PathBuf::from(root).join("System32/rundll32.exe"))
-        .raw_arg(format!("\"{}\",LingoMateLearningW", dll.display()))
-        .spawn()
-        .map(|_| ())
-}
 struct Font(HFONT);
 impl Drop for Font {
     fn drop(&mut self) {

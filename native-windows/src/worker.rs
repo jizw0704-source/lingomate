@@ -76,6 +76,16 @@ pub enum Command {
     Remember(bool),
     PunctuationMode(Mode),
     EnglishMode(bool),
+    Configure {
+        id: u64,
+        setting: crate::settings::Setting,
+    },
+    Sentence {
+        id: u64,
+        selection: Selection,
+        source: String,
+        english: String,
+    },
     Confirm {
         receipt: Confirmation,
         successful: bool,
@@ -100,6 +110,13 @@ pub enum Reply {
     Warning {
         failure: Option<EngineFailure>,
         memory_warning: bool,
+    },
+    Configured {
+        id: u64,
+        english: bool,
+        bilingual: bool,
+        remember: bool,
+        punctuation: Mode,
     },
     Barrier {
         id: u64,
@@ -316,6 +333,62 @@ impl EngineState {
                 self.input.punctuation.reset_context();
                 None
             }
+            Command::Configure { id, setting } => {
+                match setting {
+                    crate::settings::Setting::English(value) => {
+                        self.input.english = value;
+                        self.input.last_english = false;
+                        self.input.punctuation.reset_context();
+                    }
+                    crate::settings::Setting::Bilingual(value) => {
+                        self.input.bilingual = value;
+                        if !value {
+                            self.input.expanded = false;
+                        }
+                    }
+                    crate::settings::Setting::Remember(value) => {
+                        self.cancel_memory();
+                        self.input.remember = value;
+                    }
+                    crate::settings::Setting::Punctuation(value) => {
+                        self.input.punctuation_mode = Mode::ALL[value as usize];
+                        self.input.punctuation.reset_context();
+                    }
+                    _ => {}
+                }
+                Some(Reply::Configured {
+                    id,
+                    english: self.input.english,
+                    bilingual: self.input.bilingual,
+                    remember: self.input.remember,
+                    punctuation: self.input.punctuation_mode,
+                })
+            }
+            Command::Sentence {
+                id,
+                selection,
+                source,
+                english,
+            } => {
+                if !selection.apply(self.revision, &mut self.input) {
+                    return Some(self.update(id, None));
+                }
+                let commit = if let Some(engine) = self.engine.as_mut() {
+                    engine.failure = None;
+                    let result = self.input.commit_sentence(engine, &source, &english);
+                    let failure = engine.failure;
+                    match result {
+                        Ok(commit) => commit,
+                        Err(_) => {
+                            self.disconnect(failure.unwrap_or(EngineFailure::InvalidReply));
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+                Some(self.update(id, commit))
+            }
             Command::Confirm {
                 receipt,
                 successful,
@@ -418,6 +491,20 @@ impl EngineState {
         self.input.pending_study = None;
         self.input.pending_memory = None;
         match key {
+            Key::ToggleBilingual => {
+                self.input.bilingual = !self.input.bilingual;
+                self.input.expanded = false;
+            }
+            Key::CyclePunctuation => {
+                self.finish_memory();
+                let raw = self.input.raw_commit();
+                let index = Mode::ALL
+                    .iter()
+                    .position(|m| *m == self.input.punctuation_mode)
+                    .unwrap_or(0);
+                self.input.punctuation_mode = Mode::ALL[(index + 1) % 3];
+                return (!raw.is_empty()).then_some(raw);
+            }
             Key::Letter(ch) => {
                 if self.input.punctuation.is_latin() && self.input.raw.is_empty() {
                     self.finish_memory();

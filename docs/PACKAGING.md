@@ -1,5 +1,47 @@
 # 安装包与同事试用
 
+2026-10-14源码审核：用户要求先推送Windows 0.1.21开发源码并请求合并。以下“未提交／推送”属于产包时的阶段记录，安装包仍只保存在本地；本次PR不公开二进制、更新源、真实配置或凭据，也不代表安装／实机验收完成。
+
+## Windows 0.1.21 API反馈与候选重试本地包 · 2026-10-14
+
+最终包包含API密钥保存掩码、待保存状态与独立连接测试，以及候选翻译队列繁忙后的等待重试、helper异常独立提示。已有凭据与旧版本保留。0.1.20中间安装包保留；0.1.21尚未安装／登记、提交／推送或发布。126项Windows Rust、格式／all-targets Clippy、MSVC及14文件manifest校验通过，真实设置按钮单次MiniMax检查2.6秒成功；实际候选／截图故障及既有COMLESS未通过的边界见[Windows QA](../native-windows/QA.md)。
+
+| 产物 | SHA-256／大小 |
+| --- | --- |
+| 14文件 `manifest.json` | `A021A6BDFFE26F22786AA96614F2F3A88C922C68B15C677311CDDBD5780698CB` |
+| `lingomate-desktop.exe` | `72CAC42B49576C38EA345C921454BE3815606B403E27FE4217762120BDD5D585` |
+| `lingomate_tsf.dll` | `74F44142CB917D8870143FAACE0A51E899727FE29599A550A091EE7A14C7CDEB` |
+| `native-windows/package/installer-0.1.21/lingomate-windows-x64-0.1.21-setup.exe` | `FC12A99F735792040464BA4430AE2B5F52DC782FEA4B08A4F0F1BDDCDB5E1419`，6,691,451字节 |
+
+中间0.1.20安装EXE的SHA-256为 `1C3779485ABED74A8A9C5AF9D2637C9D5B77B0842B8D6EDA383A024227DA30D3`，6,691,769字节。该窗口已用于实际密钥状态与测试按钮检查；最终0.1.21程序 `--identity` 确认unpacked=true／version=0.1.21，不代表实际宿主键盘验收。
+
+## Windows 0.1.19 设置修复本地包 · 2026-10-13
+
+已生成本地14文件包及Inno安装EXE，修复设置页滚动残影／输入框遮挡，把“准备本地整句翻译…”更名为“本机翻译设置”，明确AI启用与候选窗提交说明。已有配置、凭据及旧版本保留。0.1.18中间安装包保留但未安装；0.1.19尚未安装／登记、提交／推送或发布。自动检查与COMLESS未通过的边界见[Windows QA](../native-windows/QA.md)。
+
+| 产物 | SHA-256／大小 |
+| --- | --- |
+| 14文件 `manifest.json` | `B8EE3632AB36B91427CE8634C733AD339C8E039CED6424ACF55AF63E678C6F3F` |
+| `lingomate-desktop.exe` | `CA9B13EBE5E61FD45A2F8B6A14AC449DCDC1D4FB26D0F393D59C9FEC06750653` |
+| `lingomate_tsf.dll` | `FB020E6ABCFBF11F84FCF0B433E54A267BFA8B3BAB19647FA78EBF86865BFCE3` |
+| `native-windows/package/installer-0.1.19/lingomate-windows-x64-0.1.19-setup.exe` | `B159C4CBC9E237FC61D2D9B67AB6E8CE666C70512BFE06A7C57F1BCF09A90671`，6,687,808字节 |
+
+## Windows 0.1.17 对齐开发包 · 2026-10-13
+
+本地MSVC release和Inno编译完成，当前包包含独立设置／翻译helper、五页设置、默认OFF的API句译、账号词条客户端、受验证的本机模型准备及Mac候选／快捷键对齐。自动检查和隔离界面结果见[Windows QA](../native-windows/QA.md)与[实施记录](WINDOWS-MAC-PARITY-IMPLEMENTATION-2026-10-13.md)。**本机安装文件、HKLM登记和设置程序直接启动已核验，现有Chrome／钉钉／ChatGPT仍加载0.1.16，新版入口及真实键盘待验；未提交、推送或上传发布**。旧0.1.16文件保留。
+
+| 校验对象 | 当前结果 |
+| --- | --- |
+| 14文件 `manifest.json` | SHA-256 `E4C662244541043F2DEF1D39917CB9C80D40EDC06FADD5F3D628BEB04EB42B6B` |
+| `lingomate-desktop.exe` | SHA-256 `5BA6EE81E15A202D6B548095338F199FAA698C74B8F2D2203B8310B188CA4C06` |
+| `lingomate_tsf.dll` | SHA-256 `65B3C0E6A55299A648C20FD2D6436034429E71EBA9265582D24FA4F028918A4F` |
+| Inno安装EXE | `native-windows/package/installer-0.1.17/lingomate-windows-x64-0.1.17-setup.exe`，6,686,864字节 |
+| 安装EXE SHA-256 | `DBC67F392A266C3FC318D58C90573DF1FDF0633055C97992C808735C7DF7BF25` |
+
+安装前与安装完成两份试用说明已更新新功能、在线AI默认关闭、服务配置及实机验收边界；首轮未更新说明的EXE保留在ignored `package/installer-0.1.17-before-notes/`，不作为当前试用包。Inno成功不等于安装／UAC／卸载／恢复已验收，也不表示取得发行签名。当前更新清单和已有草稿保持原状。
+
+只有确认本地测试后才安装和执行真实键盘用例，记录包摘要、登记、无包身份helper、Chrome／钉钉／grokbot／ChatGPT或Codex的实际上屏、DPI／鼠标及旧版恢复。API、公开邮件账号、本机模型和读屏／真实多屏分别验收，不以调试器身份probe或隔离截图代替。
+
 ## Windows 0.1.16 包外安装验收与显示修复 · 2026-10-13
 
 在没有应用包身份的终端运行 `install.ps1`（同账号 UAC）后，用户确认 Chrome、钉钉、grokbot、ChatGPT／Codex 的输入与上屏正常。
