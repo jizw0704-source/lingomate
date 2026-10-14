@@ -1,5 +1,7 @@
 # 灵果 · LingoMate · Windows 开发版
 
+提交前已整合主线PR #11并重新构建，完整 `check.ps1 -SkipUpdates`、140项Rust（Windows126／共享14）及三种TSF合成宿主通过。本次COMLESS未复现先前崩溃，历史记录和实机限制仍保留。本轮交接及验收在[Issue #15](https://github.com/jizw0704-source/lingomate/issues/15)跟踪，详见[QA](QA.md)。
+
 2026-10-14：用户已要求先提交0.1.21源码供GitHub审核，开发分支固定 `codex/windows-dev`，PR目标为 `main`。实机候选及COMLESS检查的实际限制见[QA](QA.md)，不会因提交而改成通过；下文各版本未提交／推送的文字保留为阶段记录。本轮对齐参考Mac 0.12.9 / PR #6，尚未合入的Mac PR #12／Issue #13新功能不在本次实现范围。
 
 ## 候选翻译重试与提示 · 0.1.21

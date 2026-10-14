@@ -1,5 +1,7 @@
 # 安装包与同事试用
 
+提交前整合主线PR #11后已重建0.1.21运行包，14文件清单SHA-256为 `13A6D51882A33FC8182D382B96B1F8CE131A96EEA529F4ACC7F44DAD453F7C7D`，完整 `check.ps1 -SkipUpdates`通过。下文Setup EXE是在整合PR #11前生成的保留产物，其原摘要仍有效；未重新制作或上传Setup，不宣称旧EXE包含当前Git提交全部共享源码。安装／实机验收及公开发布均独立，记录见[QA](../native-windows/QA.md)与[Issue #15](https://github.com/jizw0704-source/lingomate/issues/15)。
+
 2026-10-14源码审核：用户要求先推送Windows 0.1.21开发源码并请求合并。以下“未提交／推送”属于产包时的阶段记录，安装包仍只保存在本地；本次PR不公开二进制、更新源、真实配置或凭据，也不代表安装／实机验收完成。
 
 ## Windows 0.1.21 API反馈与候选重试本地包 · 2026-10-14

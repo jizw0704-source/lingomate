@@ -1,5 +1,7 @@
 # Windows 与 Mac 功能、外观对齐实施记录
 
+提交前复核关联[Windows交接任务 #15](https://github.com/jizw0704-source/lingomate/issues/15)，整合主线PR #11后重建并通过完整 `check.ps1 -SkipUpdates`：Windows Rust126、共享Rust14、固定数据／Python回归、DLL工厂及STA／MTA／COMLESS三种合成宿主。本次COMLESS未复现旧崩溃，保留历史事故和根因待确认，不把自动检查算作实机验收。请求审核继续使用 `Refs`，任务保持未关闭。新的运行包与旧本地Setup产物的来源区别见[打包记录](PACKAGING.md)。
+
 2026-10-14提交状态：按用户最新要求，0.1.21源码通过 `codex/windows-dev` 向 `main` 请求审核合并，实机候选验收继续单独跟踪。本次参考Mac 0.12.9 / build31（PR #6）；主线PR #11作为共享引擎兼容基础，尚未合并的PR #12／Issue #13英文片段大写与固定表达属于后续交接，不计入本次Windows已实现范围。下文“未提交／推送”等保留为当时阶段记录，不代表当前提交状态。
 
 2026-10-14最终0.1.21在0.1.20设置改进上修复候选翻译队列满时停止／误报本机未准备，增加等待重试及独立helper异常提示。现有密钥在真实“测试连接”按钮通过（2.6秒），0.1.19生产helper固定示例也通过；126项Windows Rust、格式／Clippy、MSVC通过。Chrome／钉钉已载入0.1.19，具体截图根因与实际候选提交仍待新版复测；COMLESS未通过的边界不变。最终本地安装包见[打包记录](PACKAGING.md)，未安装0.1.20／0.1.21或提交／推送／发布。

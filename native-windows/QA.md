@@ -1,5 +1,13 @@
 # Windows 验证记录
 
+## 提交前主线兼容复核 · 2026-10-14
+
+本轮审核关联[Windows交接任务 #15](https://github.com/jizw0704-source/lingomate/issues/15)，固定Mac参考PR #6／0.12.9；开发分支整合主线PR #11（`a03b384`），保留默认Windows C ABI策略。已重新构建当前源码，并完整执行 `check.ps1 -SkipUpdates -WordNetSource runtime/wordnet-3.0-pinned.bin`：固定来源、大小／摘要／完整许可与包内数据验证、脚本解析、Rust格式／Clippy、Python引擎10／排序4／记忆19、共享Rust14及Windows Rust126、DLL工厂、STA／MTA／COMLESS各16阶段与64轮hover全部通过。Ruff格式／lint和Obsidian镜像3项测试通过。
+
+此前COMLESS系统崩溃本次未复现，完整脚本本次退出0；历史失败记录仍保留，根因尚未确认，不将单轮通过写成崩溃已修复。`-SkipUpdates`明确不包含更新检查；此前PowerShell7／5.1各137项更新保护的记录独立保留。真实候选、实体键盘和Mac设备限制不因这次自动检查而改变。
+
+重建后的14文件包manifest为 `13A6D51882A33FC8182D382B96B1F8CE131A96EEA529F4ACC7F44DAD453F7C7D`，没有安装或登记。先前本地0.1.21 Setup EXE及其摘要仍保留，它在整合PR #11之前生成，不宣称与当前Git提交的全部共享源码一一匹配。本次GitHub请求仅提交源码及说明，不上传运行包、证据、真实配置或凭据。
+
 2026-10-14审核提交：用户已要求先推送0.1.21源码并向 `main` 请求合并。候选触发／上屏、COMLESS失败和Mac设备检查仍分别保留为待完成，不因提交PR勾选实机验收；下文未提交／推送的表述为各阶段当时记录。
 
 ## 候选翻译队列与错误分类 · 0.1.21 · 2026-10-14
