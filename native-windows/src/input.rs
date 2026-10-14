@@ -28,6 +28,8 @@ pub enum Key {
     Next,
     Digit(usize),
     Punctuation(char),
+    ToggleBilingual,
+    CyclePunctuation,
 }
 #[derive(Clone)]
 pub struct Input {
@@ -37,6 +39,7 @@ pub struct Input {
     pub sense: usize,
     pub expanded: bool,
     pub english: bool,
+    pub bilingual: bool,
     pub error: bool,
     pub last_english: bool,
     pub pending_study: Option<crate::learning::Word>,
@@ -55,6 +58,7 @@ impl Default for Input {
             sense: 0,
             expanded: false,
             english: false,
+            bilingual: true,
             error: false,
             last_english: false,
             pending_study: None,
@@ -121,6 +125,23 @@ impl Input {
             self.refresh(engine)?;
         }
         match key {
+            Key::ToggleBilingual => {
+                self.bilingual = !self.bilingual;
+                if !self.bilingual {
+                    self.expanded = false;
+                }
+            }
+            Key::CyclePunctuation => {
+                self.finish_memory(engine);
+                let raw = self.raw_commit();
+                let index = crate::punctuation::Mode::ALL
+                    .iter()
+                    .position(|m| *m == self.punctuation_mode)
+                    .unwrap_or(0);
+                self.punctuation_mode = crate::punctuation::Mode::ALL[(index + 1) % 3];
+                self.punctuation.reset_context();
+                return Ok((!raw.is_empty()).then_some(raw));
+            }
             Key::Literal(ch) => {
                 self.finish_memory(engine);
                 self.punctuation.observe_literal(&ch.to_string());
@@ -156,6 +177,9 @@ impl Input {
                 }
             }
             Key::Tab(back) => {
+                if !self.bilingual {
+                    return Ok(None);
+                }
                 if let Some(candidate) = self.frame.candidates.get(self.selected) {
                     let count = candidate.translations.len();
                     if count > 0 {
@@ -254,6 +278,9 @@ impl Input {
         self.expanded = false;
     }
     fn commit(&mut self, engine: &mut Bridge, english: bool) -> Result<Option<String>, String> {
+        if english && !self.bilingual {
+            return Ok(None);
+        }
         let Some(candidate) = self.frame.candidates.get(self.selected) else {
             return Ok(None);
         };
@@ -317,6 +344,57 @@ impl Input {
             Language::Chinese
         });
         Ok(result.committed)
+    }
+
+    pub fn commit_sentence(
+        &mut self,
+        engine: &mut Bridge,
+        source: &str,
+        english: &str,
+    ) -> Result<Option<String>, String> {
+        if !self.bilingual || !crate::remote::valid_english(english) {
+            return Ok(None);
+        }
+        let Some(candidate) = self.frame.candidates.get(self.selected) else {
+            return Ok(None);
+        };
+        if candidate.text != source || !candidate.translations.is_empty() {
+            return Ok(None);
+        }
+        let mut request = json!({"action":"commit","input":self.normalized(),"candidate":candidate.text,"syllables":candidate.syllables});
+        if self.remember {
+            request["context"] = json!(self.memory_context);
+            request["deferred_output"] = json!(true);
+        }
+        let mut result = engine.call(request)?;
+        if result.committed.as_deref() != Some(source) {
+            return Err("Invalid sentence candidate".into());
+        }
+        let consumed = self
+            .raw
+            .len()
+            .checked_sub(result.input.len())
+            .ok_or("Invalid remaining input")?;
+        if self.normalized().get(consumed..) != Some(result.input.as_str()) {
+            return Err("Invalid engine suffix".into());
+        }
+        // The real engine consumes the validated Chinese candidate. Only this
+        // already-current translation replaces the host output; it is never a glossary sense.
+        result.committed = Some(english.into());
+        self.pending_study = None;
+        self.pending_memory = if self.remember {
+            Confirmation::new(&result, self.memory_context.clone(), false)
+        } else {
+            None
+        };
+        self.raw = self.raw[consumed..].to_owned();
+        self.frame = result;
+        self.selected = 0;
+        self.sense = 0;
+        self.expanded = false;
+        self.last_english = true;
+        self.punctuation.confirm(Language::English);
+        Ok(Some(english.into()))
     }
 }
 

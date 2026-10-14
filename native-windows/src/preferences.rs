@@ -135,6 +135,9 @@ mod registry {
 }
 #[cfg(windows)]
 pub fn load() -> bool {
+    if std::env::var_os("LINGOMATE_TEST_SESSION").is_some() {
+        return true;
+    }
     registry::read(registry::KEY, "ShowPartOfSpeech").is_none_or(|v| v != 0)
 }
 #[cfg(windows)]
@@ -143,6 +146,9 @@ pub fn save(show: bool) -> windows::core::Result<()> {
 }
 #[cfg(windows)]
 pub fn display() -> Display {
+    if std::env::var_os("LINGOMATE_TEST_SESSION").is_some() {
+        return Display::default();
+    }
     Display {
         theme: Theme::from_value(registry::read(registry::KEY, "Theme").unwrap_or(0)),
         font: Display::font(registry::read(registry::KEY, "FontSize").unwrap_or(18)),

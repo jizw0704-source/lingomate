@@ -273,7 +273,7 @@ impl Drop for ModeController {
     }
 }
 
-#[implement(ITfCompartmentEventSink)]
+#[implement(Agile = false, ITfCompartmentEventSink)]
 struct ModeSink {
     controller: Weak<ModeController>,
     _guard: Guard,
@@ -296,7 +296,7 @@ impl ITfCompartmentEventSink_Impl for ModeSink_Impl {
     }
 }
 
-#[implement(ITfLangBarItemButton, ITfSource)]
+#[implement(Agile = false, ITfLangBarItemButton, ITfSource)]
 struct ModeButton {
     controller: Weak<ModeController>,
     data: Rc<ItemData>,
@@ -385,6 +385,39 @@ impl ITfLangBarItemButton_Impl for ModeButton_Impl {
                     )?
                 };
             }
+            if let Some(controller) = self.controller.upgrade()
+                && let Some(state) = controller.state.upgrade()
+            {
+                let input = state.input.borrow();
+                let entries = [
+                    (10, "同时显示英文译词".to_string(), input.bilingual),
+                    (11, "中文选词记忆".to_string(), input.remember),
+                    (
+                        12,
+                        format!("标点：{}", input.punctuation_mode.title()),
+                        false,
+                    ),
+                    (20, "翻译设置与 API 密钥…".into(), false),
+                    (21, "准备本地整句翻译…".into(), false),
+                    (22, "账号与我的学习…".into(), false),
+                    (23, "本地学习记录…".into(), false),
+                    (24, "外观与字号…".into(), false),
+                    (25, "检查版本更新…".into(), false),
+                ];
+                drop(input);
+                for (id, title, checked) in entries {
+                    unsafe {
+                        menu.AddMenuItem(
+                            id,
+                            if checked { TF_LBMENUF_CHECKED } else { 0 },
+                            HBITMAP::default(),
+                            HBITMAP::default(),
+                            &title.encode_utf16().collect::<Vec<_>>(),
+                            std::ptr::null_mut(),
+                        )?;
+                    }
+                }
+            }
             Ok(())
         })
     }
@@ -397,6 +430,48 @@ impl ITfLangBarItemButton_Impl for ModeButton_Impl {
                     MENU_SETTINGS if !controller.stopped.get() => {
                         if let Some(state) = controller.state.upgrade() {
                             state.settings();
+                        }
+                    }
+                    10..=25 if !controller.stopped.get() => {
+                        if let Some(state) = controller.state.upgrade() {
+                            match id {
+                                10 => {
+                                    let value = !state.input.borrow().bilingual;
+                                    state.apply_setting(
+                                        crate::settings::Setting::Bilingual(value),
+                                        true,
+                                    );
+                                }
+                                11 => {
+                                    let value = !state.input.borrow().remember;
+                                    state.apply_setting(
+                                        crate::settings::Setting::Remember(value),
+                                        true,
+                                    );
+                                }
+                                12 => {
+                                    let mode = state.input.borrow().punctuation_mode;
+                                    let next = (crate::punctuation::Mode::ALL
+                                        .iter()
+                                        .position(|m| *m == mode)
+                                        .unwrap_or(0)
+                                        + 1)
+                                        % 3;
+                                    state.apply_setting(
+                                        crate::settings::Setting::Punctuation(next as u32),
+                                        true,
+                                    );
+                                }
+                                20 => state.open_settings("translation"),
+                                21 => state.open_settings("local"),
+                                22 => state.open_settings("account"),
+                                23 => state.open_settings("learning"),
+                                24 => state.open_settings("appearance"),
+                                25 => {
+                                    let _ = super::updates::launch(false);
+                                }
+                                _ => {}
+                            }
                         }
                     }
                     _ => {}
@@ -475,6 +550,23 @@ impl ITfSource_Impl for ModeButton_Impl {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mode_objects_do_not_advertise_cross_apartment_access() {
+        let sink: IUnknown = ModeSink {
+            controller: Weak::new(),
+            _guard: Guard::new(),
+        }
+        .into();
+        let button: IUnknown = ModeButton {
+            controller: Weak::new(),
+            data: ItemData::new(),
+            _guard: Guard::new(),
+        }
+        .into();
+        super::super::assert_apartment_bound(&sink);
+        super::super::assert_apartment_bound(&button);
+    }
 
     #[test]
     fn conversion_only_changes_native_bit_and_keeps_every_other_flag() {

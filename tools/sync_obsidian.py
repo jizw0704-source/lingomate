@@ -12,6 +12,7 @@ REPOSITORY = "https://github.com/jizw0704-source/lingomate"
 DOCUMENTS = {
     "协作维护.md": "CONTRIBUTING.md",
     "Mac功能基线.md": "docs/MAC_FEATURE_BASELINE.md",
+    "Windows功能外观对齐.md": "docs/WINDOWS-MAC-PARITY-IMPLEMENTATION-2026-10-13.md",
     "安装包与同事试用.md": "docs/PACKAGING.md",
     "Windows更新与发布.md": "native-windows/UPDATES.md",
     "Windows使用指南.md": "native-windows/README.md",
@@ -26,6 +27,7 @@ DOCUMENTS = {
 LINKS = {
     "CONTRIBUTING.md": "协作维护",
     "docs/MAC_FEATURE_BASELINE.md": "Mac功能基线",
+    "docs/WINDOWS-MAC-PARITY-IMPLEMENTATION-2026-10-13.md": "Windows功能外观对齐",
     "docs/PACKAGING.md": "安装包与同事试用",
     "native-windows/UPDATES.md": "Windows更新与发布",
     "native-windows/README.md": "Windows使用指南",
