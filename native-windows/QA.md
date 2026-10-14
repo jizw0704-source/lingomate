@@ -1,5 +1,11 @@
 # Windows 验证记录
 
+## PR #16 默认构建参数修复 · 2026-10-14
+
+首次GitHub push检查在数据准备阶段失败：PowerShell的if表达式把单项 `--wordnet-in-memory` 数组解包为字符串，原生参数展开变成逐个字符；本地采用两项 `-WordNetSource` 归档选项时没有触发。build.ps1／check.ps1已显式声明string[]，不会改变数据来源或校验要求。
+
+新增 `test_build_arguments.ps1` 对真实构建／检查入口的Python调用截获参数，在Cargo、下载和清理前停止，只使用一个自有临时文件。修复前默认用例失败，修复后PowerShell7.6.6和WindowsPowerShell5.1.26100.9444各4项通过，覆盖默认单项和带空格的归档路径。CI已增加两种运行时的参数回归；相关PowerShell文件UTF-8 BOM保持。
+
 ## 提交前主线兼容复核 · 2026-10-14
 
 本轮审核关联[Windows交接任务 #15](https://github.com/jizw0704-source/lingomate/issues/15)，固定Mac参考PR #6／0.12.9；开发分支整合主线PR #11（`a03b384`），保留默认Windows C ABI策略。已重新构建当前源码，并完整执行 `check.ps1 -SkipUpdates -WordNetSource runtime/wordnet-3.0-pinned.bin`：固定来源、大小／摘要／完整许可与包内数据验证、脚本解析、Rust格式／Clippy、Python引擎10／排序4／记忆19、共享Rust14及Windows Rust126、DLL工厂、STA／MTA／COMLESS各16阶段与64轮hover全部通过。Ruff格式／lint和Obsidian镜像3项测试通过。

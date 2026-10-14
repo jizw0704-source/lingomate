@@ -8,7 +8,7 @@ $Commit = & git -C $Upstream rev-parse HEAD
 if ($LASTEXITCODE -ne 0 -or $Commit -ne 'c08ae57cb88b6a4a46f4a5e9c1d6d11c5e69222e') { throw 'Run setup.ps1 with the pinned source first.' }
 $Changes = & git -C $Upstream status --porcelain
 if ($LASTEXITCODE -ne 0 -or $Changes) { throw 'Upstream changes are preserved; build stopped.' }
-$WordNetArguments = if ($WordNetSource) { @('--wordnet-source', (Resolve-Path -LiteralPath $WordNetSource).Path) } else { @('--wordnet-in-memory') }
+[string[]]$WordNetArguments = if ($WordNetSource) { @('--wordnet-source', (Resolve-Path -LiteralPath $WordNetSource).Path) } else { @('--wordnet-in-memory') }
 # Retain already verified output: Windows hosts or sync software can hold a
 # generated table open. Never replace matching pinned data merely to rebuild UI.
 $Prepared = $false

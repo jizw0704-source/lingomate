@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $Root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $Manifest = Join-Path $Root 'native-windows/Cargo.toml'
-$WordNetArguments = if ($WordNetSource) { @('--wordnet-source', (Resolve-Path -LiteralPath $WordNetSource).Path) } else { @('--wordnet-in-memory') }
+[string[]]$WordNetArguments = if ($WordNetSource) { @('--wordnet-source', (Resolve-Path -LiteralPath $WordNetSource).Path) } else { @('--wordnet-in-memory') }
 $TestEnvironment = @{}
 foreach ($Name in @('LINGOMATE_TEST_SESSION', 'LINGOMATE_TEST_RESOURCES', 'LINGOMATE_TEST_BRIDGE', 'LINGOMATE_TEST_CORE')) {
     $TestEnvironment[$Name] = [Environment]::GetEnvironmentVariable($Name, 'Process')
