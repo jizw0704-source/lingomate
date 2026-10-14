@@ -3,6 +3,10 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if arguments.contains("--word-edit-memory-test") {
+  WordEditMemoryTests.run()
+  exit(0)
+}
 if arguments.contains("--fixed-expression-test") {
   FixedExpressionTests.run()
   exit(0)

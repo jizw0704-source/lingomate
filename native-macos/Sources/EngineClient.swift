@@ -73,16 +73,20 @@ final class EngineClient {
     }
   }
 
-  func confirmSelection(_ frame: EngineFrame, context: String, chinese: Bool) {
-    guard let token = frame.learningToken else { return }
+  @discardableResult func confirmSelection(
+    _ frame: EngineFrame, context: String, chinese: Bool, trackEdits: Bool = false
+  ) -> EngineFrame? {
+    guard let token = frame.learningToken else { return nil }
     do {
       let confirmation = try request(
         EngineRequest(
           action: "confirm", input: "", context: context, learningToken: token,
-          chineseOutput: chinese), expectedIdentity: frame.engineIdentity)
+          chineseOutput: chinese, trackEdits: trackEdits), expectedIdentity: frame.engineIdentity)
       Runtime.memoryWarning = confirmation.memoryWarning
+      return confirmation
     } catch {
       Runtime.memoryWarning = "文字已输出，选词记忆暂未保存。"
+      return nil
     }
   }
 
@@ -96,7 +100,7 @@ final class EngineClient {
     lock.lock()
     defer { lock.unlock() }
     guard !closed else { throw EngineFailure.unavailable }
-    if request.action == "confirm" {
+    if ["confirm", "edit-memory", "finish-memory"].contains(request.action) {
       guard let expectedIdentity, connection?.identity == expectedIdentity else {
         throw EngineFailure.unavailable
       }

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
+mod edited_word;
 mod expressions;
 pub mod ffi;
 mod focused_candidates;
@@ -59,6 +60,12 @@ struct Request {
     chinese_output: Option<bool>,
     #[serde(default)]
     deferred_output: bool,
+    #[serde(default)]
+    track_edits: bool,
+    #[serde(default)]
+    edit_start: Option<usize>,
+    #[serde(default)]
+    edit_length: Option<usize>,
 }
 
 /// The shared local engine used by both the line-JSON CLI and native clients.
@@ -71,6 +78,7 @@ pub struct Adapter {
     pending: HashMap<String, VecDeque<Pending>>,
     chains: HashMap<String, Chain>,
     sequences: HashMap<String, sequence::Sequence>,
+    edited_words: HashMap<String, edited_word::EditedWord>,
     retired: HashSet<String>,
     token: u64,
     focused_candidates: bool,
@@ -103,6 +111,7 @@ impl Adapter {
             pending: HashMap::new(),
             chains: HashMap::new(),
             sequences: HashMap::new(),
+            edited_words: HashMap::new(),
             retired: HashSet::new(),
             token: 0,
             focused_candidates: false,
@@ -226,7 +235,7 @@ impl Adapter {
         }
         if !matches!(
             request.action.as_str(),
-            "query" | "commit" | "confirm" | "cancel"
+            "query" | "commit" | "confirm" | "cancel" | "edit-memory" | "finish-memory"
         ) {
             return Err("不支持的操作".into());
         }
@@ -235,6 +244,7 @@ impl Adapter {
         }
         if request.action == "cancel" {
             self.chains.remove(&request.context);
+            self.edited_words.remove(&request.context);
             if request.deferred_output {
                 // A retired TSF scope may still own already-queued host edits. It
                 // never receives new commits; its FIFO receipts require host success.
@@ -256,6 +266,62 @@ impl Adapter {
                 self.pending.remove(&request.context);
                 self.sequences.remove(&request.context);
                 self.retired.remove(&request.context);
+            }
+            return Ok(self.frame(None, None));
+        }
+        if matches!(request.action.as_str(), "edit-memory" | "finish-memory") {
+            if !request.input.is_empty()
+                || request.context.is_empty()
+                || request.deferred_output
+                || request.track_edits
+                || !request.candidate.is_empty()
+                || !request.syllables.is_empty()
+                || request.english.is_some()
+                || request.chinese_output.is_some()
+                || (request.action == "finish-memory"
+                    && (request.edit_start.is_some() || request.edit_length.is_some()))
+            {
+                return Err("删改操作只能用于当前已确认的词组。".into());
+            }
+            let token = request.learning_token.ok_or("缺少删改确认。")?;
+            if self.pending.contains_key(&request.context)
+                || self.retired.contains(&request.context)
+            {
+                return Err("删改会话已失效。".into());
+            }
+            let run = self
+                .edited_words
+                .get_mut(&request.context)
+                .ok_or("删改会话已失效。")?;
+            if !run.valid_token(token) {
+                return Err("删改确认已失效。".into());
+            }
+            if request.action == "edit-memory" {
+                let start = request.edit_start.ok_or("缺少删除位置。")?;
+                let length = request.edit_length.ok_or("缺少删除长度。")?;
+                if !run.delete(token, start, length) {
+                    return Err("删除范围不属于本次已确认的词组。".into());
+                }
+                self.token = self.token.saturating_add(1);
+                run.renew_token(self.token);
+                let edit_token = if run.is_empty() {
+                    self.edited_words.remove(&request.context);
+                    None
+                } else {
+                    Some(self.token)
+                };
+                // Legacy character/partial-composition chains cannot cross a host edit.
+                self.sequences.remove(&request.context);
+                self.chains.remove(&request.context);
+                let mut frame = self.frame(None, None);
+                frame["editToken"] = json!(edit_token);
+                return Ok(frame);
+            }
+            let run = self.edited_words.remove(&request.context).unwrap();
+            if let Some(word) = run.candidate(|text, syllables| self.ranking.known(text, syllables))
+            {
+                self.memory.remember(&word.syllables.concat(), &word);
+                self.memory.save();
             }
             return Ok(self.frame(None, None));
         }
@@ -283,13 +349,36 @@ impl Adapter {
                 self.pending.remove(&request.context);
             }
             pending.chinese &= request.chinese_output.unwrap_or(true);
+            let mut edit_token = None;
+            if request.track_edits
+                && pending.chinese
+                && !pending.deferred
+                && pending.remaining.is_empty()
+            {
+                if self
+                    .edited_words
+                    .entry(request.context.clone())
+                    .or_default()
+                    .append(&pending.candidate, token)
+                {
+                    edit_token = Some(token);
+                } else {
+                    self.edited_words.remove(&request.context);
+                }
+            } else {
+                self.edited_words.remove(&request.context);
+            }
             self.confirm(&request.context, pending);
             if !self.pending.contains_key(&request.context) && self.retired.remove(&request.context)
             {
                 self.sequences.remove(&request.context);
                 self.chains.remove(&request.context);
             }
-            return Ok(self.frame(None, None));
+            let mut frame = self.frame(None, None);
+            if request.track_edits {
+                frame["editToken"] = json!(edit_token);
+            }
+            return Ok(frame);
         }
         if self
             .chains
@@ -350,10 +439,12 @@ impl Adapter {
                 if self.pending.values().map(VecDeque::len).sum::<usize>() >= 128
                     || self.chains.len() >= 128
                     || self.sequences.len() >= 128
+                    || self.edited_words.len() >= 128
                 {
                     self.pending.clear();
                     self.chains.clear();
                     self.sequences.clear();
+                    self.edited_words.clear();
                     self.retired.clear();
                 }
                 self.pending
@@ -381,7 +472,11 @@ impl Adapter {
         let independent_character = pending.chinese
             && pending.remaining.is_empty()
             && pending.candidate.text.chars().count() == 1
-            && !self.chains.contains_key(context);
+            && !self.chains.contains_key(context)
+            && !self
+                .edited_words
+                .get(context)
+                .is_some_and(|run| run.was_edited());
         if independent_character {
             let ranking = &self.ranking;
             for word in self
