@@ -113,7 +113,9 @@ macOS 由[项目发起人](https://github.com/jizw0704-source)主要维护，Win
 
 Windows 今后的开发只使用 `codex/windows-dev`，不另建 Windows 功能分支；Pull Request 的来源为该分支，目标为 `main`，由项目创建者或有权限的维护者审核后合并。不得直接推送 `main` 或未经明确要求自动合并。每次 PR 说明改动、测试结果和实际验证范围；共享变更同时检查两端兼容性。详细分工与流程见 [协作维护说明](CONTRIBUTING.md)。
 
-Mac 新功能通过 PR 提供参考实现，再使用 [Mac 新功能同步到 Windows 任务模板](https://github.com/jizw0704-source/lingomate/issues/new?template=macos-to-windows.md)交接给 Wright。任务集中记录用户行为、参考代码及共同验收用例，分别跟踪 Mac 完成、Windows 实现和 Windows 实机验证。完整步骤见 [功能同步流程](CONTRIBUTING.md#mac-新功能同步到-windows)。
+纯平台改动由对应维护者检查和验收，另一端不做例行复核；共享改动定稿后，另一端集中复核共享代码及本端兼容性。GitHub 必需审批与合并权限仍按仓库设置执行。范围与时机见 [平台职责与共享改动复核](CONTRIBUTING.md#平台职责与共享改动复核)。
+
+Mac 新功能通过 PR 提供参考实现，再使用 [Mac 新功能同步到 Windows 任务模板](https://github.com/jizw0704-source/lingomate/issues/new?template=macos-to-windows.md)按稳定功能或版本交接给 Wright，固定参考提交并列出前置依赖。Windows 独立排期，无需跟随每次 Mac 提交。任务集中记录用户行为、参考代码及共同验收用例，分别跟踪 Mac 完成、Windows 实现和 Windows 实机验证。完整步骤见 [功能同步流程](CONTRIBUTING.md#mac-新功能同步到-windows)。
 
 当前 Mac 功能、默认设置、安装包源码覆盖范围与 Windows 共同验收用例集中在 [Mac 版本功能基线](docs/MAC_FEATURE_BASELINE.md)，供两端维护者对照。
 
