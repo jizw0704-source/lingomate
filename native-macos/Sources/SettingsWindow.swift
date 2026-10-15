@@ -176,7 +176,10 @@ final class SettingsController: NSObject, NSWindowDelegate {
     root.translatesAutoresizingMaskIntoConstraints = false
     root.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
     mount(scroll)
-    if preserveScroll { scroll.contentView.scroll(to: offset) }
+    if preserveScroll {
+      scroll.contentView.scroll(to: offset)
+      scroll.reflectScrolledClipView(scroll.contentView)
+    }
   }
   private func showInput(preserveScroll: Bool = true) {
     form(preserveScroll: preserveScroll) { stack in
@@ -213,6 +216,16 @@ final class SettingsController: NSObject, NSWindowDelegate {
           ("显示词性（n. / v. / adj. / adv.）", value?.showPOS == true, .showPOS(true)),
           ("隐藏词性", value?.showPOS == false, .showPOS(false)),
         ])
+      choices(
+        "英文片段首字母大写 · 保存此选择",
+        values: [
+          ("开启（默认）", value?.capitalizeEnglish == true, .capitalizeEnglish(true)),
+          ("关闭（保留原样）", value?.capitalizeEnglish == false, .capitalizeEnglish(false)),
+        ])
+      add(
+        NativeTheme.label(
+          "中文模式回车确认英文或选择译词时生效：我想说 Hello world。已有大小写保留，英文直输不变。",
+          size: 13, secondary: true), to: stack)
       choices(
         "标点",
         values: PunctuationMode.allCases.map {

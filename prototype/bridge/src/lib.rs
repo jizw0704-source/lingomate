@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
+mod expressions;
 pub mod ffi;
 mod focused_candidates;
 mod memory;
@@ -72,6 +73,7 @@ pub struct Adapter {
     retired: HashSet<String>,
     token: u64,
     focused_candidates: bool,
+    expressions: expressions::Expressions,
 }
 
 impl Adapter {
@@ -103,12 +105,22 @@ impl Adapter {
             retired: HashSet::new(),
             token: 0,
             focused_candidates: false,
+            expressions: expressions::Expressions::default(),
         })
     }
 
     /// Enable only an explicitly supplied local vocabulary store.
     pub fn set_memory_path(&mut self, path: Option<PathBuf>) {
         self.memory = memory::Memory::open(path);
+    }
+
+    /// Load the licensed catalog only for an explicitly opted-in client.
+    pub fn enable_fixed_expressions(
+        &mut self,
+        root: &Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.expressions = expressions::Expressions::load(root)?;
+        Ok(())
     }
 
     pub fn detail_count(&self) -> usize {
@@ -162,11 +174,32 @@ impl Adapter {
                 items.push(remembered);
             }
         }
+        items.retain(|c| !self.expressions.is_completion(input, c));
         if self.focused_candidates {
             self.ranking.order_focused(input, &mut items, &self.memory);
             items = focused_candidates::select(input, query.as_ref(), items);
         } else {
             self.ranking.order(input, &mut items, &self.memory);
+        }
+        let completions: Vec<_> = self
+            .expressions
+            .candidates(input, &self.memory)
+            .into_iter()
+            .filter(|c| {
+                !items
+                    .iter()
+                    .any(|existing| existing.text == c.text && existing.syllables == c.syllables)
+            })
+            .collect();
+        if !completions.is_empty() {
+            items.retain(|c| {
+                c.text
+                    .chars()
+                    .any(|ch| ('\u{3400}'..='\u{9fff}').contains(&ch))
+            });
+            items.truncate(64 - completions.len());
+            let position = items.len().min(2);
+            items.splice(position..position, completions);
         }
         let mut list = qingjian_core::candidate::CandidateList { items };
         self.engine.annotate(&mut list);

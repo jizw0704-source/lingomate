@@ -54,7 +54,7 @@ final class EngineClient {
   private func start(deadline: UInt64) throws {
     let next = Connection()
     next.process.executableURL = resources.appendingPathComponent("bilingual-ime-bridge")
-    next.process.arguments = [resources.path, "--mac-candidates"]
+    next.process.arguments = [resources.path, "--mac-candidates", "--fixed-expressions"]
     if let memoryURL { next.process.arguments! += ["--memory", memoryURL.path] }
     next.process.standardInput = next.input
     next.process.standardOutput = next.output

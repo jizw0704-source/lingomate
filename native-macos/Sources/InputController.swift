@@ -10,6 +10,7 @@ final class BilingualInputController: IMKInputController {
   private(set) var isSessionActive = false
   var hasTextClient: Bool { textClient != nil }
   private var punctuation = PunctuationState()
+  private var englishFragment = EnglishFragmentState()
   private var shiftTap = ShiftTap()
   private var modeNotice = UUID()
   private var textClient: IMKTextInput?
@@ -71,17 +72,20 @@ final class BilingualInputController: IMKInputController {
         InputDiagnostics.rejectedClients += 1
         return false
       }
+      if (textClient as AnyObject?) !== (client as AnyObject?) { englishFragment.reset() }
       textClient = client
       if IsSecureEventInputEnabled() {
         InputDiagnostics.secureRejections += 1
         discard()
         punctuation.resetContext()
+        englishFragment.reset()
         shiftTap.reset()
         return false
       }
       if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type) {
         rawCommit()
         punctuation.resetContext()
+        englishFragment.reset()
         shiftTap.reset()
         return false
       }
@@ -95,6 +99,7 @@ final class BilingualInputController: IMKInputController {
       guard event.type == .keyDown else { return false }
       // Every normal key, including punctuation and shortcuts, belongs to the host in English.
       guard Runtime.typingMode == .chinese else {
+        englishFragment.reset()
         InputDiagnostics.englishPassThroughs += 1
         return false
       }
@@ -108,6 +113,7 @@ final class BilingualInputController: IMKInputController {
       if flags.contains(.command) || flags.contains(.control) || flags.contains(.option) {
         rawCommit()
         punctuation.resetContext()
+        englishFragment.reset()
         return false
       }
       if event.keyCode == 97 {
@@ -120,6 +126,7 @@ final class BilingualInputController: IMKInputController {
         Runtime.engine?.cancelLearning(context: learningContext)
         guard !state.input.isEmpty else {
           punctuation.resetContext()
+          englishFragment.reset()
           return false
         }
         state.removeLastLetter()
@@ -140,6 +147,7 @@ final class BilingualInputController: IMKInputController {
         if state.input.isEmpty { Runtime.engine?.cancelLearning(context: learningContext) }
         guard !state.input.isEmpty else {
           punctuation.resetContext()
+          englishFragment.reset()
           return false
         }
         state.move(event.keyCode == 125 ? 1 : -1)
@@ -147,13 +155,17 @@ final class BilingualInputController: IMKInputController {
         draw()
         return true
       case 116, 121:
-        guard !state.input.isEmpty else { return false }
+        guard !state.input.isEmpty else {
+          englishFragment.reset()
+          return false
+        }
         changePage(event.keyCode == 116 ? -1 : 1)
         return true
       case 48:
         punctuation.clearLiteral()
         guard !state.input.isEmpty, Runtime.bilingual else {
           rawCommit()
+          englishFragment.reset()
           return false
         }
         if state.expanded {
@@ -176,16 +188,21 @@ final class BilingualInputController: IMKInputController {
       case 36, 76:
         Runtime.engine?.cancelLearning(context: learningContext)
         punctuation.resetContext()
-        guard !state.input.isEmpty else { return false }
-        rawCommit()
-        // 原样单词已经结束，下一组字母重新进入中文拼音；英文标点语言保留。
+        guard !state.input.isEmpty else {
+          englishFragment.reset()
+          return false
+        }
+        rawCommit(confirmedEnglish: true)
+        // 英文确认后重新进入拼音；英文片段及标点语言保留至实际输出边界。
         punctuation.clearLiteral()
         return true
-      case 115, 119, 123, 124:
+      case 115, 117, 119, 123, 124:
         Runtime.engine?.cancelLearning(context: learningContext)
         punctuation.resetContext()
+        englishFragment.reset()
         guard !state.input.isEmpty else { return false }
         rawCommit()
+        englishFragment.reset()
         return false
       default: break
       }
@@ -197,6 +214,7 @@ final class BilingualInputController: IMKInputController {
         characters.utf8.allSatisfy({ (33...126).contains($0) })
       {
         punctuation.observeLiteral(characters)
+        englishFragment.observe(characters)
         return false
       }
       if !state.input.isEmpty, !flags.contains(.shift), characters == "-" || characters == "=" {
@@ -225,6 +243,7 @@ final class BilingualInputController: IMKInputController {
       }
       rawCommit()
       punctuation.observeLiteral(characters)
+      englishFragment.observe(characters)
       return false
     }
   }
@@ -351,7 +370,14 @@ final class BilingualInputController: IMKInputController {
       let remaining = state.rawRemainder(for: next.input)
       state.clear()
       sentenceTranslator.cancel()
-      textClient.insertText(sentenceEnglish ?? committed, replacementRange: noReplacement)
+      let original = sentenceEnglish ?? committed
+      let output =
+        sense == nil
+        ? original
+        : englishFragment.formatted(
+          original, enabled: EnglishInputPreferences.current.capitalizeFragments)
+      textClient.insertText(output, replacementRange: noReplacement)
+      englishFragment.observe(output)
       InputDiagnostics.insertCalls += 1
       punctuation.confirm(sense == nil ? .chinese : .english)
       if let sense, candidate.translations.indices.contains(sense), sentenceEnglish == nil {
@@ -389,19 +415,25 @@ final class BilingualInputController: IMKInputController {
     guard let symbol = punctuation.render(key, mode: Runtime.punctuationMode) else { return false }
     if let textClient {
       textClient.insertText(symbol, replacementRange: noReplacement)
+      englishFragment.observe(symbol)
       InputDiagnostics.insertCalls += 1
     }
     Runtime.engine?.cancelLearning(context: learningContext)
     return true
   }
 
-  private func rawCommit() {
+  private func rawCommit(confirmedEnglish: Bool = false) {
     Runtime.engine?.cancelLearning(context: learningContext)
     sentenceTranslator.cancel()
     let raw = state.takeRawInput()
     panel.orderOut(nil)
     if !raw.isEmpty, let textClient {
-      textClient.insertText(raw, replacementRange: noReplacement)
+      let output =
+        confirmedEnglish
+        ? englishFragment.formatted(
+          raw, enabled: EnglishInputPreferences.current.capitalizeFragments) : raw
+      textClient.insertText(output, replacementRange: noReplacement)
+      englishFragment.observe(output)
       InputDiagnostics.insertCalls += 1
       punctuation.observeLiteral(raw)
     }
@@ -424,6 +456,7 @@ final class BilingualInputController: IMKInputController {
       let nextClient = (sender as? IMKTextInput) ?? client()
       if !isSessionActive || (textClient as AnyObject?) !== (nextClient as AnyObject?) {
         Runtime.engine?.cancelLearning(context: learningContext)
+        englishFragment.reset()
       }
       textClient = nextClient
       isSessionActive = true
@@ -437,6 +470,7 @@ final class BilingualInputController: IMKInputController {
       InputDiagnostics.deactivations += 1
       isSessionActive = false
       rawCommit()
+      englishFragment.reset()
       shiftTap.reset()
       modeNotice = UUID()
       punctuation.resetContext()
@@ -449,6 +483,7 @@ final class BilingualInputController: IMKInputController {
       if let client = sender as? IMKTextInput {
         if (textClient as AnyObject?) !== (client as AnyObject?) {
           Runtime.engine?.cancelLearning(context: learningContext)
+          englishFragment.reset()
         }
         textClient = client
       }
@@ -577,7 +612,7 @@ final class BilingualInputController: IMKInputController {
   func applySetting(_ setting: InputSetting) {
     mainSync {
       switch setting {
-      case .showPOS, .fontSize:
+      case .showPOS, .fontSize, .capitalizeEnglish:
         setting.apply()
         if !IsSecureEventInputEnabled() { draw() }
         return
@@ -615,6 +650,7 @@ final class BilingualInputController: IMKInputController {
   @objc private func toggleTyping(_ sender: Any?) {
     mainSync {
       rawCommit()
+      englishFragment.reset()
       shiftTap.reset()
       Runtime.typingMode = Runtime.typingMode.next
       punctuation.resetContext()
