@@ -181,3 +181,7 @@ runtime/python/bin/python tools/sync_obsidian.py --vault '/path/to/Obsidian Vaul
 MSVC 构建、格式、all-targets Clippy、75 项 Rust（共享 8／Windows 67）、STA／MTA／COMLESS 共 48 个行为场景与 192 轮鼠标循环、PowerShell 7／5.1 各 101 项模拟安装更新检查通过。新增检查包含已有聚焦上下文激活、线程局部 CBT 递归激活、中英 compartment／语言栏按钮、同文档失焦结束及恢复、双队列饱和模式边界，以及系统主题读取不改变 STA／MTA／未初始化 apartment。普通安装 EXE 编译通过，未以其编译成功代替权限／卸载实机验收。
 
 已用同账号可信 helper 登记 `%LOCALAPPDATA%\LingoMate\Windows\0.1.15-3B4294E1F2F0`，13 项清单及 COM 工厂回读通过，启用状态保持 true；用户 InputMethodTips 现包含微软拼音和灵果。清单 SHA-256 `3B4294E1F2F05DDD9F20A6A05AF3A0578434B8EB7908C7B29D6C77859CB521E7`，TSF DLL SHA-256 `9FD4134D553325B78F65AEC1F089A8E1E3D4FB8C51D011C236AB90D11EF3A992`；0.1.14 原目录保留。钉钉／grokbot／谷歌浏览器已经手测失败；ChatGPT 0.1.15 回归仍待完整退出重开后验收；本轮没有选择系统输入源、停止宿主、重启 ctfmon／电脑、提交、推送或发布。Mac 候选／菜单参考仍是 0.12.9／build 31，未修改 Mac 客户端或数据；共享核心跨平台复核和 Mac 设备检查边界保留。Obsidian 路径未配置，未同步外部笔记库。
+
+### Mac 表情与符号候选（开发中）
+
+输入完整关键词可选择 👍、🏸、省略号、箭头及希腊字母；普通中文候选优先，混合输入与中文词库格式保留。默认开启，可在灵果菜单关闭并保存。实现与验证边界见 [Mac 指南](native-macos/README.md#表情与符号候选--mac-01214-开发版)。
