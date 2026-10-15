@@ -38,6 +38,30 @@ enum SymbolCandidateTests {
             == original.candidates.map(\.text))
         _ = try engine.request(EngineRequest(action: "cancel", input: "", context: "symbols"))
       }
+      let punctuation: [String: [String]] = [
+        "gantanhao": ["！", "!"], "jingtanhao": ["！", "!"], "wenhao": ["？", "?"],
+        "douhao": ["，", ","], "maohao": ["：", ":"], "fenhao": ["；", ";"],
+        "juhao": ["。", "."], "dunhao": ["、"], "pozhehao": ["——", "—", "--"],
+      ]
+      for (input, expected) in punctuation {
+        precondition(SymbolCandidates.outputs(for: input) == expected)
+        let original = try engine.request(EngineRequest(action: "query", input: input))
+        var page = SessionState()
+        page.input = input
+        page.frame = SymbolCandidates.augment(original, enabled: true)
+        precondition(page.pageCount == (page.frame!.candidates.count + 4) / 5)
+        for output in expected {
+          let index = page.frame!.candidates.firstIndex { $0.text == output && $0.symbol == true }!
+          precondition(index >= min(2, original.candidates.count) && index < 5)
+          page.active = index
+          precondition(page.indexOnPage(index % 5) == index)
+          precondition(SymbolCandidates.output(page.candidate!, input: input, sense: nil) == output)
+        }
+      }
+      for input in ["gantan", "gantanha", "gth", "wenha", "wh", "douha", "dh"] {
+        precondition(SymbolCandidates.outputs(for: input).isEmpty)
+      }
+      precondition(SymbolCandidates.outputs(for: "gan'tan'hao") == ["！", "!"])
       precondition(SymbolCandidates.outputs(for: "Alpha") == ["α", "Α"])
       precondition(SymbolCandidates.outputs(for: "yu'mao'qiu") == ["🏸"])
       for input in ["yumao", "yumaoqi", "ymq", "alph", "alphafoo", "http", "a@b", ""] {
@@ -59,7 +83,7 @@ enum SymbolCandidateTests {
           syllables: chosen.syllables, context: "symbols"))
       engine.confirmSelection(receipt, context: "symbols", chinese: true)
       let before = try Data(contentsOf: file)
-      for input in ["zan", "yumaoqiu", "shengluehao", "alpha"] {
+      for input in ["zan", "yumaoqiu", "shengluehao", "alpha"] + punctuation.keys.sorted() {
         let frame = try engine.request(
           EngineRequest(action: "query", input: input, context: "symbols"))
         let enriched = SymbolCandidates.augment(frame, enabled: true)
