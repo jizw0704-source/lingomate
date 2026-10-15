@@ -13,6 +13,7 @@ type Operation = (
     Option<crate::learning::Word>,
     Option<crate::bridge::Confirmation>,
     u64,
+    u64,
 );
 
 pub(super) struct Document {
@@ -52,12 +53,28 @@ impl Document {
         study: Option<crate::learning::Word>,
         memory: Option<crate::bridge::Confirmation>,
     ) -> Result<()> {
+        let account = self.state.upgrade().map_or(0, |s| s.account_scope());
+        self.enqueue_scoped(commit, preedit, study, memory, account)
+    }
+    pub fn enqueue_scoped(
+        self: &Rc<Self>,
+        commit: Option<String>,
+        preedit: String,
+        study: Option<crate::learning::Word>,
+        memory: Option<crate::bridge::Confirmation>,
+        account: u64,
+    ) -> Result<()> {
         if self.queue.borrow().len() >= crate::worker::QUEUE_CAPACITY {
             return Err(windows::Win32::Foundation::E_FAIL.into());
         }
-        self.queue
-            .borrow_mut()
-            .push_back((commit, preedit, study, memory, self.epoch.get()));
+        self.queue.borrow_mut().push_back((
+            commit,
+            preedit,
+            study,
+            memory,
+            self.epoch.get(),
+            account,
+        ));
         if self.scheduled.replace(true) {
             return Ok(());
         }
@@ -77,7 +94,7 @@ impl Document {
                 .queue
                 .borrow_mut()
                 .drain(..)
-                .filter_map(|(_, _, _, memory, _)| memory)
+                .filter_map(|(_, _, _, memory, _, _)| memory)
                 .collect();
             if let Some(state) = self.state.upgrade() {
                 for receipt in cancelled {
@@ -210,7 +227,7 @@ fn move_caret(context: &ITfContext, cookie: u32, range: &ITfRange) -> Result<()>
     drop(ManuallyDrop::into_inner(selection.range));
     result
 }
-#[implement(ITfEditSession)]
+#[implement(Agile = false, ITfEditSession)]
 struct Edit {
     document: Rc<Document>,
     _guard: Guard,
@@ -229,7 +246,7 @@ impl ITfEditSession_Impl for Edit_Impl {
             let operations: Vec<_> = self.document.queue.borrow_mut().drain(..).collect();
             self.document.scheduled.set(false);
             let mut failure = None;
-            for (commit, preedit, study, memory, epoch) in operations {
+            for (commit, preedit, study, memory, epoch, account) in operations {
                 if failure.is_some() || !self.document.valid(epoch) {
                     if let Some(state) = self.document.state.upgrade()
                         && let Some(receipt) = memory
@@ -275,14 +292,14 @@ impl ITfEditSession_Impl for Edit_Impl {
                     Ok::<(), windows::core::Error>(()),
                     commit.as_deref(),
                     study,
-                    crate::learning::confirmed,
+                    |word| crate::learning::confirmed_scoped(word, account),
                 )?;
             }
             failure.map_or(Ok(()), Err)
         })
     }
 }
-#[implement(ITfCompositionSink)]
+#[implement(Agile = false, ITfCompositionSink)]
 struct Sink {
     document: Weak<Document>,
     _guard: Guard,
@@ -303,7 +320,7 @@ impl ITfCompositionSink_Impl for Sink_Impl {
                     .queue
                     .borrow_mut()
                     .drain(..)
-                    .filter_map(|(_, _, _, memory, _)| memory)
+                    .filter_map(|(_, _, _, memory, _, _)| memory)
                     .collect();
                 document.terminated.set(true);
                 document.epoch.set(document.epoch.get().wrapping_add(1));
@@ -324,4 +341,15 @@ impl ITfCompositionSink_Impl for Sink_Impl {
             Ok(())
         })
     }
+}
+
+#[cfg(test)]
+#[test]
+fn composition_sink_does_not_advertise_cross_apartment_access() {
+    let sink: windows::core::IUnknown = Sink {
+        document: Weak::new(),
+        _guard: Guard::new(),
+    }
+    .into();
+    super::assert_apartment_bound(&sink);
 }

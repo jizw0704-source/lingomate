@@ -67,6 +67,12 @@ jobs:
       - name: Check updater under both PowerShell runtimes and render its window
         shell: pwsh
         run: ./native-windows/tools/check-updates.ps1
+      - name: Check build and verification argument forwarding in both PowerShell runtimes
+        shell: pwsh
+        run: |
+          ./native-windows/tools/test_build_arguments.ps1
+          & "$env:WINDIR/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -File ./native-windows/tools/test_build_arguments.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Windows PowerShell argument forwarding regression failed.' }
       - name: Prepare fixed source and toolchain
         shell: pwsh
         run: ./native-windows/tools/setup.ps1

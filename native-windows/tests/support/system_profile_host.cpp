@@ -580,7 +580,8 @@ int wmain(int argc, wchar_t** argv) {
         record("create_fresh_probe_local_data", HRESULT_FROM_WIN32(GetLastError())); return 2;
     }
     record("create_fresh_probe_local_data", S_OK);
-    if (!SetEnvironmentVariableW(L"LOCALAPPDATA", argv[2])) {
+    const auto test_session=L"profile-"+std::to_wstring(GetCurrentProcessId());
+    if (!SetEnvironmentVariableW(L"LINGOMATE_TEST_SESSION",test_session.c_str()) || !SetEnvironmentVariableW(L"LOCALAPPDATA", argv[2])) {
         record("isolate_probe_local_data", HRESULT_FROM_WIN32(GetLastError())); return 2;
     }
     record("isolate_probe_local_data", S_OK);

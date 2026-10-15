@@ -111,12 +111,16 @@ def compile_catalog(cedict, dictionary, supplement, config):
 
 
 def build():
-    config = json.loads((ROOT / "data/expressions-source.json").read_text())
-    source = json.loads((ROOT / "data/source.json").read_text())
+    config = json.loads(
+        (ROOT / "data/expressions-source.json").read_text(encoding="utf-8")
+    )
+    source = json.loads((ROOT / "data/source.json").read_text(encoding="utf-8"))
     cedict = prepare_lexicon.verified_source(source)
     supplement = verified_supplement(config["supplement"])
     dictionary = (ROOT / "data/generated/dict.tsv").read_bytes()
-    manifest = json.loads((ROOT / "data/generated/data-manifest.json").read_text())
+    manifest = json.loads(
+        (ROOT / "data/generated/data-manifest.json").read_text(encoding="utf-8")
+    )
     if hashlib.sha256(dictionary).hexdigest() != manifest["files"]["dict.tsv"]:
         raise ValueError("Generated dictionary checksum mismatch")
     catalog = compile_catalog(cedict, dictionary, supplement, config)
@@ -125,7 +129,7 @@ def build():
         "CC-CEDICT idiom-tagged entries are extracted from the pinned dictionary.\n"
         "Only Han-only 4-16 character entries and their matching readings are used.\n"
         "Weights reuse the verified dictionary; no new corpus frequency is invented.\n\n"
-        + (ROOT / "docs/licenses/CC-CEDICT-NOTICE.txt").read_text()
+        + (ROOT / "docs/licenses/CC-CEDICT-NOTICE.txt").read_text(encoding="utf-8")
         + "\n\nSupplement: Chinese Wikipedia contributors, 绕口令.\n"
         + config["supplement"]["official_url"]
         + "\nContributor history: "
@@ -137,9 +141,11 @@ def build():
             {"cedict": source, "expressions": config}, ensure_ascii=False, indent=2
         )
         + "\n\nExisting frequency attribution:\n"
-        + (ROOT / "docs/licenses/GOOGLE-BOOKS-NGRAM-NOTICE.txt").read_text()
+        + (ROOT / "docs/licenses/GOOGLE-BOOKS-NGRAM-NOTICE.txt").read_text(
+            encoding="utf-8"
+        )
         + "\n\nFull license:\n"
-        + (ROOT / "docs/licenses/CC-BY-SA-4.0.txt").read_text()
+        + (ROOT / "docs/licenses/CC-BY-SA-4.0.txt").read_text(encoding="utf-8")
     ).encode()
     return {"fixed-expressions.json": catalog, "EXPRESSIONS-NOTICE.md": notice}
 

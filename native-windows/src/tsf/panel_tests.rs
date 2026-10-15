@@ -230,8 +230,11 @@ fn hidden_candidate_window_renders_empty_status_and_short_page_headers() {
                 surface.ink(l.title_rect()) > 10,
                 "{theme_name}/{name}: composition title is outside its visible rectangle"
             );
-            assert!(surface.ink(l.mode_rect()) > 5);
+            assert_eq!(l.mode_rect().width, 0, "Mac icon header has no mode label");
             for action in 0..5 {
+                if l.header_item(action).width == 0 {
+                    continue;
+                }
                 assert!(
                     surface.ink(l.header_item(action)) > 2,
                     "{theme_name}/{name}: header action {action} is invisible"
@@ -316,6 +319,85 @@ fn hidden_preview(theme: crate::preferences::Theme) -> Rc<State> {
     *state.panel.borrow_mut() = Some(panel);
     assert_hidden(&state);
     state
+}
+
+#[test]
+fn sentence_footer_renders_each_state_and_keeps_complete_ready_tooltip() {
+    use crate::sentence::Phase;
+    let foreground = unsafe { GetForegroundWindow() };
+    for (name, theme) in [
+        ("light", crate::preferences::Theme::Light),
+        ("dark", crate::preferences::Theme::Dark),
+    ] {
+        let state = hidden_preview(theme);
+        let source = "今天下午开会";
+        let english = "There is a meeting this afternoon. This complete synthetic translation must remain available in the tooltip even on a narrow work area.";
+        {
+            let mut input = state.input.borrow_mut();
+            input.raw = "jintianxiawukaihui".into();
+            input.frame.candidates = vec![Candidate {
+                text: source.into(),
+                ..Default::default()
+            }];
+        }
+        for (stage, phase) in [
+            ("waiting", Phase::Waiting),
+            (
+                "ready",
+                Phase::Ready {
+                    source: source.into(),
+                    english: english.into(),
+                },
+            ),
+            (
+                "missing-model",
+                Phase::Failed(crate::remote::RemoteError::Unavailable),
+            ),
+            ("denied", Phase::Failed(crate::remote::RemoteError::Denied)),
+        ] {
+            state.sentence.borrow_mut().phase = phase;
+            let (layout, surface) = capture(&state);
+            for action in [
+                layout.sentence_action(),
+                layout.sentence_settings(),
+                layout.sentence_retry(),
+            ] {
+                assert!(
+                    surface.ink(action) > 5,
+                    "{name}/{stage}: sentence footer action is not visible"
+                );
+                assert_eq!(
+                    layout.hit(action.x + 2, action.y + 2),
+                    None,
+                    "sentence footer overlapped a Chinese candidate hit target"
+                );
+                assert!(action.y + action.height <= layout.height() - layout.padding);
+            }
+            assert!(
+                layout.footer_rect().y
+                    >= layout.visible(layout.candidate_rect(0, false)).y
+                        + layout.visible(layout.candidate_rect(0, false)).height
+            );
+            if stage == "ready" {
+                let expected = HSTRING::from(format!("{english}\nShift＋空格确认"));
+                assert!(
+                    tooltip_texts(&state, layout)
+                        .iter()
+                        .any(|(rect, text)| *rect == layout.sentence_action() && text == &expected)
+                );
+            }
+            surface.save_preview(&format!("{name}-sentence-{stage}"));
+            assert_hidden(&state);
+        }
+        state.input.borrow_mut().bilingual = false;
+        let (layout, _) = capture(&state);
+        assert_eq!(
+            layout.sentence_action(),
+            BoxRect::default(),
+            "Chinese-only mode retained a sentence submit target"
+        );
+    }
+    assert_eq!(unsafe { GetForegroundWindow() }, foreground);
 }
 
 #[test]
@@ -548,7 +630,7 @@ fn part_of_speech_is_muted_on_the_same_english_line_and_can_be_hidden() {
 }
 
 #[test]
-fn untranslated_candidate_keeps_a_visible_muted_placeholder() {
+fn all_untranslated_candidates_use_chinese_only_rows_without_an_empty_english_target() {
     let foreground = unsafe { GetForegroundWindow() };
     let state = hidden_preview(crate::preferences::Theme::Dark);
     {
@@ -561,9 +643,14 @@ fn untranslated_candidate_keeps_a_visible_muted_placeholder() {
     let english = l.candidate_rect(0, true);
     surface.save_preview("dark-no-english");
     assert!(surface.ink(l.candidate_rect(0, false)) > 10);
-    let roles = capture_roles(&state);
-    assert!(roles.role_bounds(english, SECONDARY_ROLE).is_some());
-    assert!(roles.role_bounds(english, ACCENT_ROLE).is_none());
+    assert_eq!(english.height, 0);
+    assert_eq!(
+        l.hit(
+            l.candidate_rect(0, false).x + 1,
+            l.candidate_rect(0, false).y + 1
+        ),
+        Some((0, false))
+    );
     assert!(!tooltip_texts(&state, l).iter().any(|(r, _)| *r == english));
     surface.save_preview("dark-no-english");
     assert_eq!(unsafe { GetForegroundWindow() }, foreground);

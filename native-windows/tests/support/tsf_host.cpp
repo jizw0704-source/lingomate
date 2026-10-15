@@ -452,19 +452,24 @@ public:
             using CreateThreadMgr = HRESULT (WINAPI*)(ITfThreadMgr**);
             const auto create = reinterpret_cast<CreateThreadMgr>(GetProcAddress(msctf, "TF_CreateThreadMgr"));
             require(create != nullptr, "Find COM-less manager factory");
+            std::cout << "SETUP system COM-less manager factory" << std::endl;
             check(create(&real), "Create COM-less manager");
             tip_flags = TF_TMAE_COMLESS;
         }
         ComPtr<ITfThreadMgrEx> extended;
         check(real.As(&extended), "Extended manager");
+        std::cout << "SETUP system TSF ActivateEx before loading fixture DLL" << std::endl;
         check(extended->ActivateEx(&client, TF_TMAE_NOACTIVATETIP | TF_TMAE_NOACTIVATEKEYBOARDLAYOUT | tip_flags), "Activate owned manager without source selection");
+        std::cout << "SETUP system TSF activated; setting owned thread compartments" << std::endl;
         owned.Attach(new OwnedManager(real.Get()));
         // These are this fixture process/thread's compartments. Do not inherit
         // the interactive user's current mode or touch global compartments.
         thread_compartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION, TF_CONVERSIONMODE_NATIVE);
         thread_compartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, 1);
+        std::cout << "SETUP loading fixture DLL" << std::endl;
         module = LoadLibraryExW(dll, nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
         require(module != nullptr, "Load fixture TSF DLL");
+        std::cout << "SETUP fixture DLL loaded" << std::endl;
         using GetClass = HRESULT (WINAPI*)(REFCLSID, REFIID, void**);
         const auto get_class = reinterpret_cast<GetClass>(GetProcAddress(module, "DllGetClassObject"));
         require(get_class != nullptr, "Find factory export");
@@ -472,6 +477,7 @@ public:
         ComPtr<IClassFactory> factory;
         check(get_class(clsid, IID_PPV_ARGS(&factory)), "Factory");
         check(factory->CreateInstance(nullptr, IID_PPV_ARGS(&processor)), "Extended processor");
+        std::cout << "SETUP fixture processor created" << std::endl;
     }
     ~Host() {
         if (active) processor->Deactivate();
@@ -829,8 +835,11 @@ int wmain(int argc, wchar_t** argv) {
     const std::wstring apartment = argv[3];
     if (apartment != L"sta" && apartment != L"mta" && apartment != L"comless") return 2;
     require(SetEnvironmentVariableW(L"LOCALAPPDATA", argv[1]) != FALSE, "Isolate local data directory");
+    const auto test_session=L"tsf-"+std::to_wstring(GetCurrentProcessId());
+    require(SetEnvironmentVariableW(L"LINGOMATE_TEST_SESSION",test_session.c_str()) != FALSE,"Isolate settings session");
     try {
         Host host(argv[2], apartment);
+        std::cout << "SETUP running owned scenarios" << std::endl;
         scenarios(host);
         std::cout << "PASS owned TSF contexts, direct sinks and ActivateEx; system loading and real apps are outside this fixture\n";
         return 0;
