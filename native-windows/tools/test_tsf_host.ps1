@@ -41,7 +41,7 @@ try {
         New-Item -ItemType Directory -Path $LocalData | Out-Null
         Write-Output ('Owned TSF context mode: ' + $Apartment)
         & $Exe $LocalData $Dll $Apartment
-        if ($LASTEXITCODE -ne 0) { throw ('Synthetic TSF host failed in ' + $Apartment + ' mode.') }
+        if ($LASTEXITCODE -ne 0) { throw ('Synthetic TSF host failed in ' + $Apartment + ' mode. Exit code: ' + $LASTEXITCODE) }
     }
     Write-Output 'Synthetic TSF host checks passed. No registration, global source changes, physical keys or external host text were used.'
     Write-Output 'The owned subscription shim does not validate actual ChatGPT, Codex or DingTalk profile loading and keyboard input.'

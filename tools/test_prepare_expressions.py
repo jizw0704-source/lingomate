@@ -22,7 +22,7 @@ DICTIONARY = "百闻不如一见\tbai wen bu ru yi jian\t20\n学习\txue xi\t10\
 class ExpressionDataTests(unittest.TestCase):
     def setUp(self):
         self.config = json.loads(
-            (builder.ROOT / "data/expressions-source.json").read_text()
+            (builder.ROOT / "data/expressions-source.json").read_text(encoding="utf-8")
         )
 
     def test_idiom_only_matching_licensed_dictionary_and_supplement(self):

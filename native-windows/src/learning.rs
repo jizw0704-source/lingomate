@@ -263,6 +263,16 @@ pub fn local_store() -> Result<Store, String> {
 pub static SAVE_WARNING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 #[cfg(windows)]
 pub fn confirmed(word: Word) {
+    confirmed_scoped(word, 0)
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StudyRequest {
+    pub word: Word,
+    pub account: u64,
+}
+#[cfg(windows)]
+pub fn confirmed_scoped(word: Word, account: u64) {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static PENDING: AtomicUsize = AtomicUsize::new(0);
     if PENDING.fetch_add(1, Ordering::SeqCst) >= 128 {
@@ -299,7 +309,26 @@ pub fn confirmed(word: Word) {
         .name("lingomate-learning".into())
         .spawn(move || {
             let _guard = guard;
-            if local_store().and_then(|store| store.record(word)).is_err() {
+            let result = (|| {
+                let executable = crate::tsf::module_path()
+                    .map_err(|_| ())?
+                    .parent()
+                    .ok_or(())?
+                    .join("lingomate-desktop.exe");
+                let request =
+                    serde_json::to_vec(&StudyRequest { word, account }).map_err(|_| ())?;
+                let child = crate::helper::spawn(&executable, &["--record-study".into()], true)
+                    .map_err(|_| ())?;
+                child
+                    .capture(
+                        &request,
+                        &std::sync::atomic::AtomicBool::new(false),
+                        Duration::from_secs(25),
+                    )
+                    .map_err(|_| ())?;
+                Ok::<(), ()>(())
+            })();
+            if result.is_err() {
                 SAVE_WARNING.store(true, Ordering::Relaxed);
             }
             PENDING.fetch_sub(1, Ordering::SeqCst);

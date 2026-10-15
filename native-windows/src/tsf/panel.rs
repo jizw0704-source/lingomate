@@ -1,4 +1,4 @@
-use super::{Guard, Key, MODULE, State, down, updates};
+use super::{Guard, Key, MODULE, State, down};
 use crate::{
     appearance::{self, px},
     candidate_layout::{BoxRect, Layout},
@@ -37,6 +37,7 @@ pub(super) struct Panel {
     selection: Cell<Option<(u64, usize, usize, bool)>>,
     tooltip: Option<HWND>,
     tips: RefCell<Vec<(BoxRect, HSTRING)>>,
+    accessible: super::accessibility::Channel,
     _guard: Guard,
 }
 /// Thread DPI context for one candidate-window operation. TSF calls arrive in
@@ -127,7 +128,7 @@ fn layout(window: HWND, state: &State) -> Layout {
         .len()
         .saturating_sub(input.page() * 5)
         .min(5);
-    let extra = if input.expanded && !empty {
+    let extra = if input.bilingual && input.expanded && !empty {
         input
             .frame
             .candidates
@@ -147,8 +148,35 @@ fn layout(window: HWND, state: &State) -> Layout {
         .take(if empty { 0 } else { count })
         .map(|c| c.text.chars().count())
         .collect();
-    let layout = Layout::with_lengths(
+    let compact = lengths.iter().all(|n| *n <= 8);
+    let has_english = input.bilingual
+        && input
+            .frame
+            .candidates
+            .iter()
+            .skip(input.page() * 5)
+            .take(count)
+            .any(|c| !c.translations.is_empty());
+    let english_rows: Vec<_> = input
+        .frame
+        .candidates
+        .iter()
+        .skip(input.page() * 5)
+        .take(count)
+        .map(|c| {
+            if compact {
+                has_english
+            } else {
+                input.bilingual && !c.translations.is_empty()
+            }
+        })
+        .collect();
+    let sentence = !matches!(state.sentence.borrow().phase, crate::sentence::Phase::None)
+        && !empty
+        && input.bilingual;
+    let layout = Layout::for_candidates(
         &lengths,
+        &english_rows,
         extra,
         state.display.get().font,
         dpi,
@@ -158,6 +186,16 @@ fn layout(window: HWND, state: &State) -> Layout {
             .as_ref()
             .and_then(|p| p.limit.get())
             .unwrap_or(work.right - work.left - 8),
+        input.page_count() > 1,
+        input.bilingual
+            && input
+                .frame
+                .candidates
+                .iter()
+                .skip(input.page() * 5)
+                .take(count)
+                .any(|c| !c.translations.is_empty()),
+        sentence,
     );
     layout.with_viewport(
         work.bottom - work.top - px(16, dpi),
@@ -266,6 +304,7 @@ impl Panel {
             selection: Cell::new(None),
             tooltip,
             tips: RefCell::new(Vec::new()),
+            accessible: std::sync::Arc::new(std::sync::RwLock::new(Default::default())),
             _guard: Guard::new(),
         })
     }
@@ -334,6 +373,7 @@ impl Panel {
         let bounds = [x, y, l.width(), l.height()];
         let moved = self.bounds.replace(Some(bounds)) != Some(bounds);
         let shown = !self.visible.replace(true);
+        self.update_accessibility(&state, l, x, y);
         unsafe {
             if moved {
                 let _ = SetWindowPos(
@@ -366,6 +406,154 @@ impl Panel {
     pub fn position(&self, x: i32, y: i32) {
         self.caret.set(window_point(self.window, POINT { x, y }));
         self.update();
+    }
+    fn update_accessibility(&self, state: &State, l: Layout, x: i32, y: i32) {
+        use super::accessibility::Item;
+        use windows::Win32::UI::Accessibility::UiaRect;
+        let input = state.input.borrow();
+        let mut items = Vec::new();
+        let bounds = |r: BoxRect| UiaRect {
+            left: f64::from(x + r.x),
+            top: f64::from(y + r.y),
+            width: f64::from(r.width),
+            height: f64::from(r.height),
+        };
+        let active = !state.busy.get() && !state.preview && !input.error;
+        for (index, label) in [
+            (0, "上一页"),
+            (2, "下一页"),
+            (
+                3,
+                if input.expanded {
+                    "收起译法"
+                } else {
+                    "展开译法"
+                },
+            ),
+            (4, "打开灵果设置"),
+        ] {
+            let r = l.header_item(index);
+            if r.width > 0 {
+                items.push(Item {
+                    name: label.into(),
+                    bounds: bounds(r),
+                    action: 401 + index as u32,
+                    enabled: !state.preview
+                        && (index == 4
+                            || active
+                                && match index {
+                                    0 => input.page() > 0,
+                                    2 => input.page() + 1 < input.page_count(),
+                                    _ => true,
+                                }),
+                    selected: false,
+                });
+            }
+        }
+        for (slot, candidate) in input
+            .frame
+            .candidates
+            .iter()
+            .skip(input.page() * 5)
+            .take(if input.error { 0 } else { 5 })
+            .enumerate()
+        {
+            let r = l.visible(l.candidate_rect(slot, false));
+            if r.height > 0 {
+                items.push(Item {
+                    name: format!("{}，中文候选 {}", candidate.text, slot + 1),
+                    bounds: bounds(r),
+                    action: 100 + slot as u32,
+                    enabled: active,
+                    selected: input.selected == input.page() * 5 + slot,
+                });
+            }
+            if input.bilingual
+                && let Some(sense) = candidate.translations.first()
+            {
+                let r = l.visible(l.candidate_rect(slot, true));
+                if r.height > 0 {
+                    items.push(Item {
+                        name: format!(
+                            "{}，英文译词，{}，{}",
+                            sense.display_word(state.show_pos.get()),
+                            sense.note,
+                            sense.example
+                        ),
+                        bounds: bounds(r),
+                        action: 200 + slot as u32,
+                        enabled: active,
+                        selected: false,
+                    });
+                }
+            }
+        }
+        if input.bilingual
+            && input.expanded
+            && let Some(candidate) = input.frame.candidates.get(input.selected)
+        {
+            for row in l.visible_senses() {
+                let sense = &candidate.translations[row];
+                items.push(Item {
+                    name: format!(
+                        "{}，{}，{}",
+                        sense.display_word(state.show_pos.get()),
+                        sense.note,
+                        sense.example
+                    ),
+                    bounds: bounds(l.visible(l.sense_rect(row))),
+                    action: 1000 + row as u32,
+                    enabled: active,
+                    selected: input.sense == row,
+                });
+            }
+        }
+        let sentence = state.sentence.borrow();
+        if !matches!(sentence.phase, crate::sentence::Phase::None) {
+            let (name, enabled) = match &sentence.phase {
+                crate::sentence::Phase::Ready { english, .. } => {
+                    (format!("整句英文，{english}"), active)
+                }
+                crate::sentence::Phase::Waiting => ("正在翻译当前中文候选".into(), false),
+                crate::sentence::Phase::Failed(error) => (error.description().into(), false),
+                _ => Default::default(),
+            };
+            items.push(Item {
+                name,
+                bounds: bounds(l.sentence_action()),
+                action: 410,
+                enabled,
+                selected: false,
+            });
+            items.push(Item {
+                name: "打开翻译设置".into(),
+                bounds: bounds(l.sentence_settings()),
+                action: 411,
+                enabled: !state.preview,
+                selected: false,
+            });
+            items.push(Item {
+                name: "重试或准备本机翻译".into(),
+                bounds: bounds(l.sentence_retry()),
+                action: 412,
+                enabled: active && !matches!(sentence.phase, crate::sentence::Phase::Waiting),
+                selected: false,
+            });
+        }
+        if let Ok(mut data) = self.accessible.write() {
+            *data = super::accessibility::Model {
+                revision: data.revision.wrapping_add(1),
+                name: format!("灵果候选，{}", input.raw),
+                bounds: UiaRect {
+                    left: f64::from(x),
+                    top: f64::from(y),
+                    width: f64::from(l.width()),
+                    height: f64::from(l.height()),
+                },
+                items,
+                visible: true,
+            };
+        }
     }
     /// While a query with no displayable frame is pending, returns whether its
     /// loading state is due. Fast replies replace the old frame directly.
@@ -406,6 +594,10 @@ impl Panel {
         }
     }
     pub fn hide(&self) {
+        if let Ok(mut data) = self.accessible.write() {
+            data.visible = false;
+            data.revision = data.revision.wrapping_add(1);
+        }
         self.stop_loading();
         self.scroll.set(0);
         self.selection.set(None);
@@ -528,6 +720,83 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
         unsafe { &*pointer }.upgrade()
     };
     if let Some(state) = state {
+        if message == WM_GETOBJECT
+            && lparam.0 as i32 == windows::Win32::UI::Accessibility::UiaRootObjectId
+            && let Some(panel) = state.panel.borrow().as_ref()
+        {
+            let provider = super::accessibility::provider(window, panel.accessible.clone());
+            return unsafe {
+                windows::Win32::UI::Accessibility::UiaReturnRawElementProvider(
+                    window, wparam, lparam, &provider,
+                )
+            };
+        }
+        if message == super::accessibility::INVOKE {
+            let valid = state.panel.borrow().as_ref().is_some_and(|p| {
+                p.accessible
+                    .read()
+                    .is_ok_and(|data| data.visible && data.revision == lparam.0 as u64)
+            });
+            if !valid || state.preview || state.retiring.get() || state.busy.get() {
+                return LRESULT(0);
+            }
+            match wparam.0 {
+                100..=104 | 200..=204 => {
+                    let english = wparam.0 >= 200;
+                    let slot = wparam.0 % 100;
+                    let mut input = state.input.borrow_mut();
+                    let selected = input.page() * 5 + slot;
+                    if selected >= input.frame.candidates.len() {
+                        return LRESULT(0);
+                    }
+                    input.selected = selected;
+                    input.sense = 0;
+                    drop(input);
+                    state.click(Key::Space(english));
+                }
+                401 => state.click(Key::Previous),
+                403 => state.click(Key::Next),
+                404 => details(window, &state),
+                405 => state.settings(),
+                410 => {
+                    state.sentence_submit();
+                }
+                411 => state.open_settings("translation"),
+                412 => state.retry_sentence(),
+                1000..=1000000 => {
+                    let row = wparam.0 - 1000;
+                    let mut input = state.input.borrow_mut();
+                    if !input.expanded
+                        || input
+                            .frame
+                            .candidates
+                            .get(input.selected)
+                            .is_none_or(|c| row >= c.translations.len())
+                    {
+                        return LRESULT(0);
+                    }
+                    input.sense = row;
+                    drop(input);
+                    state.click(Key::Space(true));
+                }
+                _ => return LRESULT(0),
+            }
+            return LRESULT(1);
+        }
+        if message == crate::settings::message() {
+            if state.preview || state.retiring.get() {
+                return LRESULT(0);
+            }
+            if wparam.0 != 0 {
+                let Some(setting) = crate::settings::Setting::decode(wparam.0, lparam.0) else {
+                    return LRESULT(0);
+                };
+                if !state.apply_setting(setting, true) {
+                    return LRESULT(0);
+                }
+            }
+            return LRESULT(state.settings_snapshot().encode() as isize);
+        }
         // Explicit relay avoids subclassing the candidate window or installing
         // callbacks in the host. Literal tip buffers live until each tool is removed.
         if matches!(
@@ -670,6 +939,9 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
             return LRESULT(0);
         }
         if message == WM_LBUTTONDOWN {
+            state
+                .mouse_revision
+                .set(state.mouse_revision.get().wrapping_add(1));
             unsafe {
                 windows::Win32::UI::Input::KeyboardAndMouse::SetCapture(window);
             }
@@ -684,6 +956,9 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
             return LRESULT(0);
         }
         if message == WM_LBUTTONUP {
+            state
+                .mouse_revision
+                .set(state.mouse_revision.get().wrapping_add(1));
             let x = (lparam.0 as u16) as i16 as i32;
             let y = ((lparam.0 >> 16) as u16) as i16 as i32;
             let pressed = state.panel.borrow().as_ref().and_then(|p| p.pressed.take());
@@ -705,6 +980,33 @@ fn procedure_body(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
             }
             if (!same_revision || state.busy.get()) && header_hit(l, x, y) != Some(4) {
                 return LRESULT(0);
+            }
+            if !matches!(state.sentence.borrow().phase, crate::sentence::Phase::None) {
+                if l.sentence_action().contains(x, y)
+                    && pressed.is_some_and(|(px, py)| l.sentence_action().contains(px, py))
+                {
+                    state.sentence_submit();
+                    return LRESULT(0);
+                }
+                if l.sentence_settings().contains(x, y)
+                    && pressed.is_some_and(|(px, py)| l.sentence_settings().contains(px, py))
+                {
+                    state.open_settings("translation");
+                    return LRESULT(0);
+                }
+                if l.sentence_retry().contains(x, y)
+                    && pressed.is_some_and(|(px, py)| l.sentence_retry().contains(px, py))
+                {
+                    if matches!(
+                        state.sentence.borrow().phase,
+                        crate::sentence::Phase::Failed(crate::remote::RemoteError::Unavailable)
+                    ) {
+                        state.open_settings("local");
+                    } else {
+                        state.retry_sentence();
+                    }
+                    return LRESULT(0);
+                }
             }
             if let Some(item) = header_hit(l, x, y) {
                 if pressed.and_then(|(px, py)| header_hit(l, px, py)) == Some(item) {
@@ -898,6 +1200,7 @@ struct Fonts {
     header: HFONT,
     small: HFONT,
     detail: HFONT,
+    number: HFONT,
     spacing: i32,
 }
 impl Fonts {
@@ -910,8 +1213,9 @@ impl Fonts {
             main,
             english: font(l.english_font()),
             header: font(px(14, dpi)),
-            small: font(px(11, dpi)),
-            detail: font(px(16, dpi)),
+            small: font(l.secondary_font(11)),
+            detail: font(l.secondary_font(16)),
+            number: font(l.secondary_font(if l.compact { 11 } else { 13 })),
             spacing: px(6, dpi),
         }
     }
@@ -931,6 +1235,7 @@ impl Drop for Fonts {
                 self.header,
                 self.small,
                 self.detail,
+                self.number,
             ] {
                 let _ = DeleteObject(value.into());
             }
@@ -1052,17 +1357,11 @@ fn draw(window: HWND, state: &Rc<State>, dc: HDC, client: &RECT) {
     fonts.select(fonts.header);
     label(dc, &input.raw, l.title_rect(), palette.foreground, false);
     fonts.select(fonts.small);
-    centered(
-        dc,
-        if input.english { "英文" } else { "中英" },
-        l.mode_rect(),
-        palette.secondary,
-    );
     for (i, value) in [
         "‹".to_owned(),
         format!("{}/{}", input.page() + 1, input.page_count().max(1)),
         "›".into(),
-        if input.expanded { "收起" } else { "译法" }.into(),
+        if input.expanded { "⌃" } else { "⌄" }.into(),
         "⚙".into(),
     ]
     .iter()
@@ -1162,7 +1461,7 @@ fn draw(window: HWND, state: &Rc<State>, dc: HDC, client: &RECT) {
             let hot = hovered.and_then(|(x, y)| l.hit(x, y)) == Some((slot, english));
             let down = pressed.and_then(|(x, y)| l.hit(x, y)) == Some((slot, english));
             let selected = !english && input.selected == input.page() * 5 + slot;
-            if selected || hot || down {
+            if hot || down {
                 rounded(
                     dc,
                     r,
@@ -1178,24 +1477,82 @@ fn draw(window: HWND, state: &Rc<State>, dc: HDC, client: &RECT) {
             let inner = insets(r, px(8, dpi));
             if !english {
                 fonts.select(fonts.main);
-                let foreground = if selected {
-                    palette.selected_text
-                } else {
-                    palette.foreground
-                };
-                let title = format!("{} {}", slot + 1, candidate.text);
+                let foreground = palette.foreground;
                 if l.compact && r.height == l.row {
-                    label(dc, &title, inner, foreground, false);
-                } else {
+                    fonts.select(fonts.number);
                     label(
                         dc,
-                        &title,
+                        &(slot + 1).to_string(),
                         BoxRect {
-                            y: inner.y + px(10, dpi),
-                            height: inner.height - px(10, dpi),
+                            width: px(20, dpi),
                             ..inner
                         },
-                        foreground,
+                        palette.secondary,
+                        false,
+                    );
+                    fonts.select(fonts.main);
+                    let mut measured = SIZE::default();
+                    let text: Vec<_> = candidate.text.encode_utf16().collect();
+                    let _ = unsafe { GetTextExtentPoint32W(dc, &text, &mut measured) };
+                    let text_rect = BoxRect {
+                        x: inner.x + px(22, dpi),
+                        width: (measured.cx + px(16, dpi)).min(inner.width - px(22, dpi)),
+                        height: r.height - px(10, dpi),
+                        y: r.y + px(5, dpi),
+                    };
+                    if selected {
+                        rounded(
+                            dc,
+                            text_rect,
+                            px(18, dpi),
+                            palette.foreground,
+                            palette.foreground,
+                        );
+                    }
+                    centered(
+                        dc,
+                        &candidate.text,
+                        text_rect,
+                        if selected {
+                            palette.background
+                        } else {
+                            foreground
+                        },
+                    );
+                } else {
+                    if selected {
+                        rounded(dc, r, px(20, dpi), palette.foreground, palette.foreground);
+                    }
+                    fonts.select(fonts.number);
+                    label(
+                        dc,
+                        &(slot + 1).to_string(),
+                        BoxRect {
+                            width: px(22, dpi),
+                            ..inner
+                        },
+                        if selected {
+                            palette.background
+                        } else {
+                            palette.secondary
+                        },
+                        false,
+                    );
+                    fonts.select(fonts.main);
+                    label(
+                        dc,
+                        &candidate.text,
+                        BoxRect {
+                            x: inner.x + px(24, dpi),
+                            width: (inner.width - px(24, dpi)).max(1),
+                            y: inner.y + px(10, dpi),
+                            height: inner.height - px(10, dpi),
+                        },
+                        if selected {
+                            palette.background
+                        } else {
+                            foreground
+                        },
                         true,
                     );
                 }
@@ -1217,6 +1574,7 @@ fn draw(window: HWND, state: &Rc<State>, dc: HDC, client: &RECT) {
     }
     if !empty
         && input.expanded
+        && l.extra > 0
         && let Some(candidate) = input.frame.candidates.get(input.selected)
     {
         let title = l.details_title_rect();
@@ -1311,6 +1669,56 @@ fn draw(window: HWND, state: &Rc<State>, dc: HDC, client: &RECT) {
             false,
         );
     }
+    let sentence = state.sentence.borrow();
+    if !empty && input.bilingual && !matches!(sentence.phase, crate::sentence::Phase::None) {
+        let r = l.sentence_action();
+        let (content, enabled) = match &sentence.phase {
+            crate::sentence::Phase::Ready { english, .. } => (english.as_str(), true),
+            crate::sentence::Phase::Waiting => ("正在翻译当前中文候选…", false),
+            crate::sentence::Phase::Failed(error) => (error.description(), false),
+            crate::sentence::Phase::None => ("", false),
+        };
+        if enabled {
+            rounded(dc, r, px(18, dpi), palette.selected, palette.divider);
+        }
+        fonts.select(fonts.english);
+        label(
+            dc,
+            content,
+            insets(r, px(8, dpi)),
+            if enabled {
+                palette.accent
+            } else {
+                palette.secondary
+            },
+            true,
+        );
+        fonts.select(fonts.small);
+        label(
+            dc,
+            if enabled {
+                "Shift＋空格确认 · 翻译设置"
+            } else {
+                "翻译设置"
+            },
+            l.sentence_settings(),
+            palette.secondary,
+            false,
+        );
+        centered(
+            dc,
+            if matches!(
+                sentence.phase,
+                crate::sentence::Phase::Failed(crate::remote::RemoteError::Unavailable)
+            ) {
+                "准备"
+            } else {
+                "重试"
+            },
+            l.sentence_retry(),
+            palette.foreground,
+        );
+    }
 }
 
 fn header_hit(l: Layout, x: i32, y: i32) -> Option<usize> {
@@ -1329,6 +1737,16 @@ fn tooltip_texts(state: &State, l: Layout) -> Vec<(BoxRect, HSTRING)> {
     }
     if input.error || input.frame.candidates.is_empty() {
         return items;
+    }
+    match &state.sentence.borrow().phase {
+        crate::sentence::Phase::Ready { english, .. } => items.push((
+            l.sentence_action(),
+            HSTRING::from(format!("{english}\nShift＋空格确认")),
+        )),
+        crate::sentence::Phase::Failed(error) => {
+            items.push((l.sentence_action(), HSTRING::from(error.description())))
+        }
+        _ => {}
     }
     for (slot, candidate) in input
         .frame
@@ -1435,175 +1853,10 @@ fn details(window: HWND, state: &Rc<State>) {
 }
 
 pub(super) fn settings_shortcut(key: usize) -> bool {
-    key == 0x50 && down(0x11) && down(0x10) && !down(0x12) && !down(0x5B) && !down(0x5C)
+    key == 0xBC && down(0x11) && !down(0x10) && !down(0x12) && !down(0x5B) && !down(0x5C)
 }
-pub(super) fn settings(window: HWND, state: &Rc<State>) {
-    if state.preview {
-        return;
-    }
-    // Native checked menu; no activation or host text access. Cancel makes no change.
-    let Ok(menu) = (unsafe { CreatePopupMenu() }) else {
-        return;
-    };
-    let current = crate::preferences::load();
-    state.display.set(crate::preferences::display());
-    let display = state.display.get();
-    let punctuation = state.input.borrow().punctuation_mode;
-    let remember = state.input.borrow().remember;
-    state.show_pos.set(current);
-    let mut point = POINT::default();
-    unsafe {
-        let _ = GetCursorPos(&mut point);
-        let flags = MF_STRING | if current { MF_CHECKED } else { MF_UNCHECKED };
-        let _ = AppendMenuW(menu, flags, 1, w!("显示词性（n. / v. / adj. / adv.）"));
-        let _ = AppendMenuW(menu, MF_STRING, 2, w!("本地学习记录…"));
-        let memory_flags = MF_STRING | if remember { MF_CHECKED } else { MF_UNCHECKED };
-        let _ = AppendMenuW(menu, memory_flags, 4, w!("中文选词记忆（当前应用）"));
-        if state.memory_warning.get() {
-            let _ = AppendMenuW(
-                menu,
-                MF_STRING | MF_GRAYED,
-                5,
-                w!("中文选词记忆未保存，请检查本机存储"),
-            );
-        }
-        if crate::learning::SAVE_WARNING.load(Ordering::Relaxed) {
-            let _ = AppendMenuW(
-                menu,
-                MF_STRING | MF_GRAYED,
-                3,
-                w!("本地记录未保存，请检查存储权限"),
-            );
-        }
-        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, None);
-        let _ = AppendMenuW(menu, MF_STRING, 6, w!("检查版本更新…"));
-        let theme = CreatePopupMenu().ok();
-        let font = CreatePopupMenu().ok();
-        let marks = CreatePopupMenu().ok();
-        for (submenu, title, choices) in [
-            (
-                theme,
-                "外观",
-                crate::preferences::Theme::ALL
-                    .iter()
-                    .enumerate()
-                    .map(|(i, t)| (10 + i, t.title().to_owned(), *t == display.theme))
-                    .collect::<Vec<_>>(),
-            ),
-            (
-                font,
-                "候选字号",
-                crate::preferences::Display::SIZES
-                    .iter()
-                    .enumerate()
-                    .map(|(i, v)| {
-                        (
-                            20 + i,
-                            ["小", "标准", "大", "特大"][i].to_owned(),
-                            *v == display.font,
-                        )
-                    })
-                    .collect(),
-            ),
-            (
-                marks,
-                "标点规则（当前应用）",
-                crate::punctuation::Mode::ALL
-                    .iter()
-                    .enumerate()
-                    .map(|(i, m)| (30 + i, m.title().to_owned(), *m == punctuation))
-                    .collect(),
-            ),
-        ] {
-            if let Some(submenu) = submenu {
-                for (id, label, checked) in choices {
-                    let _ = AppendMenuW(
-                        submenu,
-                        MF_STRING | if checked { MF_CHECKED } else { MF_UNCHECKED },
-                        id,
-                        &windows::core::HSTRING::from(label),
-                    );
-                }
-                if AppendMenuW(
-                    menu,
-                    MF_POPUP,
-                    submenu.0 as usize,
-                    &windows::core::HSTRING::from(title),
-                )
-                .is_err()
-                {
-                    let _ = DestroyMenu(submenu);
-                }
-            }
-        }
-        let selected = TrackPopupMenu(
-            menu,
-            TPM_RETURNCMD | TPM_NONOTIFY,
-            point.x,
-            point.y,
-            None,
-            window,
-            None,
-        )
-        .0;
-        let _ = DestroyMenu(menu);
-        if selected == 6 {
-            let _ = updates::launch(false);
-        }
-        if selected == 4 {
-            state.remember(!remember);
-        }
-        if selected == 2
-            && super::module_path()
-                .ok()
-                .and_then(|dll| crate::learning_window::launch(dll).ok())
-                .is_none()
-        {
-            let _ = MessageBoxW(
-                Some(window),
-                w!("无法打开本地学习窗口，请重试。"),
-                w!("灵果"),
-                MB_OK | MB_ICONERROR,
-            );
-        }
-        if selected == 1 {
-            if crate::preferences::save(!current).is_ok() {
-                state.show_pos.set(!current);
-            } else {
-                let _ = MessageBoxW(
-                    Some(window),
-                    w!("未能保存词性显示设置，请重试。"),
-                    w!("灵果"),
-                    MB_OK | MB_ICONERROR,
-                );
-            }
-        }
-        let saved = match selected {
-            10..=12 => crate::preferences::save_theme(
-                crate::preferences::Theme::ALL[selected as usize - 10],
-            ),
-            20..=23 => crate::preferences::save_font(
-                crate::preferences::Display::SIZES[selected as usize - 20],
-            ),
-            30..=32 => {
-                state.punctuation_mode(crate::punctuation::Mode::ALL[selected as usize - 30]);
-                Ok(())
-            }
-            _ => Ok(()),
-        };
-        if saved.is_err() {
-            let _ = MessageBoxW(
-                Some(window),
-                w!("未能保存显示设置，请重试。"),
-                w!("灵果"),
-                MB_OK | MB_ICONERROR,
-            );
-        }
-        state.display.set(crate::preferences::display());
-        state.refresh_palette();
-        state.refresh();
-        let _ = InvalidateRect(Some(window), None, false);
-    }
+pub(super) fn settings(_window: HWND, state: &Rc<State>) {
+    state.settings();
 }
 
 // Isolated render-only callbacks: synthetic frame, no engine, registry writes, TSF registration,
@@ -1716,6 +1969,17 @@ fn preview_state(theme: crate::preferences::Theme, size: u32) -> Rc<State> {
         show_pos: Cell::new(true),
         display: Cell::new(crate::preferences::Display { theme, font: size }),
         memory_warning: Cell::new(false),
+        shared: RefCell::new(None),
+        shared_revision: Cell::new(0),
+        configuring: Cell::new(None),
+        translator: RefCell::new(None),
+        sentence: RefCell::new(Default::default()),
+        sentence_due: Cell::new(None),
+        sentence_sent: Cell::new(false),
+        translation_configuration: Cell::new(0),
+        sentence_epoch: Cell::new(1),
+        mouse_revision: Cell::new(0),
+        focused: Cell::new(false),
         preview: true,
     });
     {
@@ -1726,6 +1990,7 @@ fn preview_state(theme: crate::preferences::Theme, size: u32) -> Rc<State> {
             .iter()
             .map(|s| Candidate {
                 text: (*s).into(),
+                personal: false,
                 syllables: vec!["xue".into(), "xi".into()],
                 translations: ["study", "learn", "learning"]
                     .iter()

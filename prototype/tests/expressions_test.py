@@ -104,7 +104,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertEqual(frame["input"], "")
         self.assertFalse(self.memory.exists())
         self.confirm(frame)
-        entries = json.loads(self.memory.read_text())["entries"]
+        entries = json.loads(self.memory.read_text(encoding="utf-8"))["entries"]
         self.assertTrue(
             any(e["pinyin"] == "chiputao" and e["text"] == PHRASE for e in entries)
         )
@@ -148,7 +148,7 @@ class ExpressionTests(unittest.TestCase):
     def test_remembered_completion_promoted_only_within_completion_slots(self):
         candidates = self.request("yishi")["candidates"]
         catalog = json.loads(
-            (ROOT / "data/generated/fixed-expressions.json").read_text()
+            (ROOT / "data/generated/fixed-expressions.json").read_text(encoding="utf-8")
         )["entries"]
         known = {
             (e["text"], tuple(e["syllables"]))

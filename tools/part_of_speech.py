@@ -17,11 +17,13 @@ CATEGORIES = {
 ORDER = ["n.", "v.", "adj.", "adv."]
 
 
-def verified_source(config, override=None):
+def verified_source(config, override=None, *, in_memory=False):
     if config.get("license") != "WordNet" or config.get("snapshot_url") != URL:
         raise ValueError("Unexpected WordNet source or permission")
     path = override or ROOT / "data/sources/WordNet-3.0.tar.gz"
-    if path.exists():
+    if in_memory and override is not None:
+        raise ValueError("In-memory WordNet verification cannot use a file override")
+    if path.exists() and not in_memory:
         data = path.read_bytes()
     else:
         if override:
@@ -35,7 +37,7 @@ def verified_source(config, override=None):
         or hashlib.sha256(data).hexdigest() != config["source_sha256"]
     ):
         raise ValueError("WordNet checksum or size mismatch; cached data preserved")
-    if not path.exists():
+    if not in_memory and not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
     return data

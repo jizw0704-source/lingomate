@@ -1,10 +1,10 @@
-<#
+﻿<#
 .SYNOPSIS
 Explicitly check a trusted, already installed LingoMate profile through Windows.
 .DESCRIPTION
 Run manually in the authorized local native testing scope; never part of default
 check.ps1 or CI. A previously installed current-user profile and a matching trusted
-13-file local package are required. This script does not install/register/enable a
+14-file local package are required. This script does not install/register/enable a
 profile, modify a COM mapping, select a global/default source, restart hosts, send
 keys, focus a real application, read host text or access the clipboard.
 
@@ -41,7 +41,7 @@ if ($Modes.Count -eq 0 -or @($Modes | Select-Object -Unique).Count -ne $Modes.Co
 Import-Module (Join-Path $PSScriptRoot 'update-core.psm1') -Force
 $Package = (Resolve-Path -LiteralPath $Package).Path
 $TrustedManifest = Test-LingoMatePackage $Package
-if (@($TrustedManifest.PSObject.Properties.Name).Count -ne 13) { throw 'A complete current 13-file trusted package is required.' }
+if (@($TrustedManifest.PSObject.Properties.Name).Count -ne 14) { throw 'A complete current 14-file trusted package is required.' }
 $TrustedDigest = (Get-FileHash -LiteralPath (Join-Path $Package 'manifest.json') -Algorithm SHA256).Hash
 $Installed = Get-LingoMateRegisteredDirectory
 $Dll = Join-Path $Installed 'lingomate_tsf.dll'
@@ -53,15 +53,15 @@ function Assert-InstalledProfilePackage {
         throw 'The registered installation changed during this check.'
     }
     $InstalledManifest = Test-LingoMatePackage $Installed
-    if (@($InstalledManifest.PSObject.Properties.Name).Count -ne 13) {
-        throw 'The registered installation does not have a complete current 13-file package.'
+    if (@($InstalledManifest.PSObject.Properties.Name).Count -ne 14) {
+        throw 'The registered installation does not have a complete current 14-file package.'
     }
     if ((Get-FileHash -LiteralPath (Join-Path $Installed 'manifest.json') -Algorithm SHA256).Hash -ine $TrustedDigest) {
         throw 'The registered installation does not match the explicitly supplied trusted package.'
     }
     foreach ($Entry in $TrustedManifest.PSObject.Properties) {
         if ($InstalledManifest.PSObject.Properties[$Entry.Name].Value -ine $Entry.Value) {
-            throw 'The installed file hashes do not match the trusted 13-file package.'
+            throw 'The installed file hashes do not match the trusted 14-file package.'
         }
     }
     # COM-less Windows may read this machine mapping directly. Missing mapping
