@@ -1,5 +1,13 @@
 # Windows 验证记录
 
+## 0.1.22 本机同步安装 · 2026-10-15
+
+用户明确授权安装后，在无 MSIX 包身份的 64 位 PowerShell 中运行可信 `install.ps1`，完成同账号 UAC 登记。当前本机目录为 `%LOCALAPPDATA%\LingoMate\Windows\0.1.22-17CA3AF04D8E`，14 项 manifest 文件、版本及完整摘要与下节最终测试包一致。HKCU／HKLM 自有 CLSID 的默认 DLL 路径均指向新版，ThreadingModel 为 Apartment；自有 TSF profile 已登记，启用状态保持 true。
+
+独立无包身份进程通过系统 COM 创建自有类，实际加载路径确认是 0.1.22 DLL，未调用激活或选择输入源；安装目录的 DLL 工厂检查通过，`lingomate-desktop.exe --identity` 回读 `unpacked=true`、`version=0.1.22`。安装前自有登记／profile 快照已保存于忽略目录，13 个旧版本目录全部保留，包括此前机器登记指向的 `0.1.21-A021A6BDFFE2`。
+
+未停止或重启任何用户应用、ctfmon 或电脑，也未改变当前输入源。已经打开的宿主可能仍驻留旧 DLL，须由用户保存工作后正常完全退出并重开，再选择灵果测试。用户尚未反馈 0.1.22 的实体键盘结果；本机安装、文件／登记核验与真实应用验收分别记录。下节“未安装”的描述为源码提交和隔离测试阶段的状态。
+
 ## 全量审查后的四项修复 · 0.1.22 · 2026-10-15
 
 本轮从 `0ea8b5f26757a073e5789310ec29e234aabf96fe`（0.1.21）审查基线开始，用户授权修复后按 `codex/windows-dev` → `main` 提交 PR。0.1.22 已完成 MSVC x64 release 构建和完整 `check.ps1 -SkipUpdates -WordNetSource runtime/wordnet-3.0-pinned.bin`，脚本退出 0。格式、all-targets Clippy、158 项 Rust（Windows 144／共享 14）、49 项 Python 引擎／数据测试与 DLL 工厂检查通过。最终 release 包另跑 STA／MTA／COMLESS 三模式全部通过，合计 192 轮 hover；每种模式最大直接按键回调为 16 ms。PowerShell 7／5.1 各 137 项更新保护及更新窗口 smoke、两种 PowerShell 参数转发各 4 项、Obsidian 镜像脚本 3 项测试通过。
