@@ -2,7 +2,7 @@
 $ErrorActionPreference = 'Stop'
 $script:TrustedModuleSource = [IO.File]::ReadAllText($PSCommandPath, [Text.Encoding]::UTF8)
 $script:Repository = 'jizw0704-source/lingomate'
-$script:PackageFiles = @('lingomate_tsf.dll', 'bilingual-ime-bridge.exe', 'dict.tsv', 'glossary-en.tsv', 'details.json', 'LICENSE', 'GLOSSARY-NOTICE.md', 'LEXICON-NOTICE.md', 'version.json', 'update.ps1', 'update-worker.ps1', 'update-core.psm1', 'lingomate_engine.dll')
+$script:PackageFiles = @('lingomate_tsf.dll', 'bilingual-ime-bridge.exe', 'dict.tsv', 'glossary-en.tsv', 'details.json', 'LICENSE', 'GLOSSARY-NOTICE.md', 'LEXICON-NOTICE.md', 'version.json', 'update.ps1', 'update-worker.ps1', 'update-core.psm1', 'lingomate_engine.dll', 'lingomate-desktop.exe')
 
 function Get-LingoMateVersion([string]$Value) {
     if ($Value -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw '版本格式无效。' }
@@ -136,9 +136,10 @@ function Test-LingoMatePackage([string]$Package, [switch]$Legacy) {
     $Manifest = Read-LingoMateJson (Join-Path $Package 'manifest.json')
     $Names = @($Manifest.PSObject.Properties.Name)
     # New installs require the in-process engine. Only explicit rollback may use
-    # one of the two complete historical formats; partial combinations are invalid.
+    # one of the complete historical formats; partial combinations are invalid.
     $Required = if ($Legacy -and $Names.Count -eq 8) { $script:PackageFiles[0..7] }
         elseif ($Legacy -and $Names.Count -eq 12) { $script:PackageFiles[0..11] }
+        elseif ($Legacy -and $Names.Count -eq 13) { $script:PackageFiles[0..12] }
         else { $script:PackageFiles }
     if ($Names.Count -ne $Required.Count -or @($Names | Where-Object { $_ -cnotin $Required }).Count -gt 0) { throw '安装包文件清单不完整或包含额外文件。' }
     foreach ($Entry in $Manifest.PSObject.Properties) {
@@ -147,7 +148,11 @@ function Test-LingoMatePackage([string]$Package, [switch]$Legacy) {
         if ($File.PSIsContainer -or ($File.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw '安装包不能包含链接或目录。' }
         if ((Get-FileHash -Algorithm SHA256 -LiteralPath $File.FullName).Hash -ine $Entry.Value) { throw '安装文件校验失败，旧版本未修改。' }
     }
-    if ($Names -contains 'version.json') { Assert-LingoMateConfig (Read-LingoMateJson (Join-Path $Package 'version.json')) | Out-Null }
+    if ($Names -contains 'version.json') {
+        $PackageConfig = Read-LingoMateJson (Join-Path $Package 'version.json')
+        Assert-LingoMateConfig $PackageConfig | Out-Null
+        if ((Get-LingoMateVersion $PackageConfig.version) -ge (Get-LingoMateVersion '0.1.17') -and $Names -cnotcontains 'lingomate-desktop.exe') { throw 'This version requires the desktop settings and translation helper.' }
+    }
     return $Manifest
 }
 function Expand-LingoMateUpdate([string]$Archive, [string]$Destination, $Metadata) {

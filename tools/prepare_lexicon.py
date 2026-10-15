@@ -210,7 +210,16 @@ def verify_package(package, files):
             )
 
 
-def prepare(source=None, check=False, package=None, frequency_source=None):
+def prepare(
+    source=None,
+    check=False,
+    package=None,
+    frequency_source=None,
+    wordnet_in_memory=False,
+    wordnet_source=None,
+):
+    if wordnet_source is not None and wordnet_in_memory:
+        raise ValueError("Select either a pinned WordNet file or in-memory download")
     config = json.loads((ROOT / "data/source.json").read_text(encoding="utf-8"))
     ranking_bytes = (ROOT / "data/ranking.json").read_bytes()
     ranking = json.loads(ranking_bytes)
@@ -238,7 +247,10 @@ def prepare(source=None, check=False, package=None, frequency_source=None):
     if digest(pos_license) != pos_config["license_sha256"]:
         raise ValueError("WordNet license checksum mismatch")
     pos_index = part_of_speech.read_index(
-        part_of_speech.verified_source(pos_config), pos_license
+        part_of_speech.verified_source(
+            pos_config, wordnet_source, in_memory=wordnet_in_memory
+        ),
+        pos_license,
     )
     files["glossary-en.tsv"], pos_stats = part_of_speech.annotate(
         files["glossary-en.tsv"], pos_index, pos_license
@@ -319,6 +331,17 @@ if __name__ == "__main__":
         type=Path,
         help="Already downloaded pinned official frequency GZip",
     )
+    wordnet = parser.add_mutually_exclusive_group()
+    wordnet.add_argument(
+        "--wordnet-in-memory",
+        action="store_true",
+        help="Verify the same pinned WordNet download in memory without reading or writing its archive cache",
+    )
+    wordnet.add_argument(
+        "--wordnet-source",
+        type=Path,
+        help="Already downloaded WordNet snapshot; recheck the same pinned size, SHA-256 and full license",
+    )
     arguments = parser.parse_args()
     try:
         prepare(
@@ -326,6 +349,8 @@ if __name__ == "__main__":
             arguments.check,
             arguments.package,
             arguments.frequency_source,
+            arguments.wordnet_in_memory,
+            arguments.wordnet_source,
         )
     except (ValueError, OSError) as error:
         parser.exit(1, f"Data preparation failed: {error}\n")

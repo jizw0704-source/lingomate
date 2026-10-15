@@ -68,6 +68,8 @@ pub struct Candidate {
     pub text: String,
     pub syllables: Vec<String>,
     pub translations: Vec<Translation>,
+    #[serde(default)]
+    pub personal: bool,
 }
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Frame {
@@ -157,8 +159,12 @@ pub struct Bridge {
     live: bool,
     startup_pending: bool,
     pub failure: Option<EngineFailure>,
+    initial_memory_warning: bool,
 }
 impl Bridge {
+    pub fn warn_memory(&mut self) {
+        self.initial_memory_warning = true;
+    }
     pub fn start(executable: &Path, resources: &Path) -> Result<Self, String> {
         Self::start_with_memory(executable, resources, None)
     }
@@ -226,6 +232,7 @@ impl Bridge {
             live: true,
             startup_pending: true,
             failure: None,
+            initial_memory_warning: false,
         })
     }
 
@@ -246,6 +253,7 @@ impl Bridge {
             live: true,
             startup_pending: false,
             failure: None,
+            initial_memory_warning: false,
         })
     }
 
@@ -375,6 +383,9 @@ impl Bridge {
             }
         };
         frame.generation = self.generation;
+        if self.initial_memory_warning {
+            frame.memory_warning = Some("中文记忆迁移未完成，本次暂停新增；原数据保留。".into());
+        }
         if frame.candidates.len() > 64 || frame.input.len() > 240 || frame.learning_token == Some(0)
         {
             self.failure = Some(EngineFailure::InvalidReply);

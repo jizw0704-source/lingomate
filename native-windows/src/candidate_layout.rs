@@ -42,6 +42,7 @@ pub struct Layout {
     footer_height: i32,
     viewport_height: i32,
     scroll: i32,
+    sentence: bool,
 }
 impl Layout {
     pub fn new(count: usize, extra: usize, font: u32, dpi: i32, available: i32) -> Self {
@@ -54,13 +55,31 @@ impl Layout {
         dpi: i32,
         available: i32,
     ) -> Self {
+        Self::for_candidates(
+            lengths, &[true; 5], extra, font, dpi, available, true, true, false,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn for_candidates(
+        lengths: &[usize],
+        english_rows: &[bool],
+        extra: usize,
+        font: u32,
+        dpi: i32,
+        available: i32,
+        paging: bool,
+        details: bool,
+        sentence: bool,
+    ) -> Self {
         let dpi = dpi.clamp(96, 768);
         let scale = |value: i32| ((i64::from(value) * i64::from(dpi) + 48) / 96) as i32;
         let count = lengths.len().min(5);
         let lengths = &lengths[..count];
         let compact = lengths.iter().all(|length| *length <= 8);
-        let chinese_font = scale(((font.clamp(12, 32) * 15 + 9) / 18) as i32);
-        let english_font = scale(((font.clamp(12, 32) * 13 + 9) / 18) as i32);
+        let chinese_font =
+            scale(((font.clamp(12, 32) * if compact { 18 } else { 16 } + 9) / 18) as i32);
+        let english_font =
+            scale(((font.clamp(12, 32) * if compact { 12 } else { 14 } + 9) / 18) as i32);
         let padding = scale(12);
         let gap = scale(4);
         let row = scale(44);
@@ -82,8 +101,9 @@ impl Layout {
         let width = wanted.min(scale(560)).min(available.max(row));
         let body_width = (width - padding * 2).max(row);
         let narrow = width < scale(500);
-        let control_width = row * 4 + scale(28);
-        let mode_width = scale(22);
+        let control_width = row * (1 + i32::from(details) + 2 * i32::from(paging))
+            + if paging { scale(28) } else { 0 };
+        let mode_width = 0;
         // A second header row retains native-size actions on very narrow work areas.
         let stacked_header = body_width < control_width + mode_width + row;
         let header = if stacked_header { row * 2 } else { row };
@@ -91,7 +111,16 @@ impl Layout {
         let control_x = (width - padding - control_width).max(padding);
         let mut controls = [BoxRect::default(); 5];
         let mut cursor = control_x;
-        for (index, item_width) in [row, scale(28), row, row, row].into_iter().enumerate() {
+        for (index, item_width) in [
+            if paging { row } else { 0 },
+            if paging { scale(28) } else { 0 },
+            if paging { row } else { 0 },
+            if details { row } else { 0 },
+            row,
+        ]
+        .into_iter()
+        .enumerate()
+        {
             controls[index] = BoxRect {
                 x: cursor,
                 y: control_y,
@@ -154,6 +183,8 @@ impl Layout {
                     .map(|length| text_height(*length, column))
                     .max()
                     .unwrap_or(row);
+                let has_english =
+                    (start..end).any(|slot| english_rows.get(slot).copied().unwrap_or(false));
                 for slot in start..end {
                     let x = padding + (slot - start) as i32 * (column + gap);
                     chinese[slot] = BoxRect {
@@ -162,18 +193,27 @@ impl Layout {
                         width: column,
                         height: chinese_height,
                     };
-                    english[slot] = BoxRect {
-                        x,
-                        y: y + chinese_height,
-                        width: column,
-                        height: row,
+                    english[slot] = if english_rows.get(slot).copied().unwrap_or(false) {
+                        BoxRect {
+                            x,
+                            y: y + chinese_height,
+                            width: column,
+                            height: row,
+                        }
+                    } else {
+                        BoxRect::default()
                     };
                 }
-                y += chinese_height + row + gap;
+                y += chinese_height + if has_english { row } else { 0 } + gap;
             }
         } else {
             for (slot, length) in lengths.iter().enumerate() {
-                let chinese_width = if narrow { body_width } else { scale(128) };
+                let show_english = english_rows.get(slot).copied().unwrap_or(false);
+                let chinese_width = if narrow || !show_english {
+                    body_width
+                } else {
+                    scale(128)
+                };
                 let chinese_height = text_height(*length, chinese_width);
                 chinese[slot] = BoxRect {
                     x: padding,
@@ -181,7 +221,9 @@ impl Layout {
                     width: chinese_width,
                     height: chinese_height,
                 };
-                english[slot] = if narrow {
+                english[slot] = if !show_english {
+                    BoxRect::default()
+                } else if narrow {
                     BoxRect {
                         x: padding,
                         y: y + chinese_height,
@@ -196,7 +238,7 @@ impl Layout {
                         height: chinese_height,
                     }
                 };
-                y += chinese_height + if narrow { row } else { 0 } + gap;
+                y += chinese_height + if narrow && show_english { row } else { 0 } + gap;
             }
         }
         let body_bottom = if count == 0 {
@@ -226,9 +268,10 @@ impl Layout {
             body_top,
             body_bottom,
             sense_height: scale(88),
-            footer_height: scale(24),
+            footer_height: scale(if sentence { 132 } else { 24 }),
             viewport_height: i32::MAX,
             scroll: 0,
+            sentence,
         }
     }
     pub fn width(self) -> i32 {
@@ -239,7 +282,14 @@ impl Layout {
     }
     pub fn full_height(self) -> i32 {
         if self.extra == 0 {
-            self.body_bottom + self.padding + self.scroll
+            self.body_bottom
+                + self.padding
+                + self.scroll
+                + if self.sentence {
+                    self.footer_height + self.gap
+                } else {
+                    0
+                }
         } else {
             self.senses_y()
                 + self.extra as i32 * self.sense_height
@@ -266,7 +316,7 @@ impl Layout {
     }
     pub fn content_bottom(self) -> i32 {
         let bottom = self.height() - self.padding;
-        if self.extra == 0 {
+        if self.extra == 0 && !self.sentence {
             bottom
         } else {
             (self.footer_rect().y - self.gap).max(self.body_top)
@@ -290,6 +340,10 @@ impl Layout {
     }
     pub fn english_font(self) -> i32 {
         self.english_font
+    }
+    pub fn secondary_font(self, base: i32) -> i32 {
+        let chinese = if self.compact { 18 } else { 16 };
+        (self.chinese_font * base + chinese / 2) / chinese
     }
     /// 0 previous, 1 page label, 2 next, 3 details, 4 settings.
     pub fn header_item(self, index: usize) -> BoxRect {
@@ -381,6 +435,40 @@ impl Layout {
             height: self.footer_height,
         }
     }
+    pub fn sentence_action(self) -> BoxRect {
+        if !self.sentence {
+            return BoxRect::default();
+        }
+        let footer = self.footer_rect();
+        BoxRect {
+            height: footer.height - self.row,
+            ..footer
+        }
+    }
+    pub fn sentence_settings(self) -> BoxRect {
+        if !self.sentence {
+            return BoxRect::default();
+        }
+        let footer = self.footer_rect();
+        BoxRect {
+            y: footer.y + footer.height - self.row,
+            width: footer.width - self.row,
+            height: self.row,
+            ..footer
+        }
+    }
+    pub fn sentence_retry(self) -> BoxRect {
+        if !self.sentence {
+            return BoxRect::default();
+        }
+        let footer = self.footer_rect();
+        BoxRect {
+            x: footer.x + footer.width - self.row,
+            y: footer.y + footer.height - self.row,
+            width: self.row,
+            height: self.row,
+        }
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -443,8 +531,8 @@ mod tests {
     #[test]
     fn compact_height_and_font_scale_match_the_short_candidate_contract() {
         let layout = Layout::new(5, 0, 18, 96, 560);
-        assert_eq!(layout.chinese_font(), 15);
-        assert_eq!(layout.english_font(), 13);
+        assert_eq!(layout.chinese_font(), 18);
+        assert_eq!(layout.english_font(), 12);
         assert!(layout.width() >= 400 && layout.width() <= 560);
         assert_eq!(layout.width(), 560);
         assert!(layout.height() <= 190);

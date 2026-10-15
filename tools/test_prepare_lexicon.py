@@ -14,6 +14,10 @@ def fixture(*lines):
 
 
 class LexiconTests(unittest.TestCase):
+    def test_wordnet_file_and_download_modes_cannot_be_combined(self):
+        with self.assertRaises(ValueError):
+            builder.prepare(wordnet_source=Path("unused"), wordnet_in_memory=True)
+
     def test_readings_glosses_and_line_provenance(self):
         source = fixture(
             "綠 绿 [lu:4] /green/CL:個|个[ge4]/",

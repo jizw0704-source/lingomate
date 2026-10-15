@@ -6,11 +6,55 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import part_of_speech as pos
 
 
 class POSTests(unittest.TestCase):
+    def test_in_memory_download_does_not_touch_tampered_cache(self):
+        data = b"verified official fixture"
+        config = {
+            "license": "WordNet",
+            "snapshot_url": pos.URL,
+            "source_bytes": len(data),
+            "source_sha256": hashlib.sha256(data).hexdigest(),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = root / "data/sources/WordNet-3.0.tar.gz"
+            cache.parent.mkdir(parents=True)
+            cache.write_bytes(b"changed by local archive processing")
+            response = io.BytesIO(data)
+            response.url = pos.URL
+            with (
+                patch.object(pos, "ROOT", root),
+                patch.object(pos.urllib.request, "urlopen", return_value=response),
+            ):
+                self.assertEqual(pos.verified_source(config, in_memory=True), data)
+            self.assertEqual(cache.read_bytes(), b"changed by local archive processing")
+            response = io.BytesIO(b"untrusted download")
+            response.url = pos.URL
+            with (
+                patch.object(pos, "ROOT", root),
+                patch.object(pos.urllib.request, "urlopen", return_value=response),
+                self.assertRaises(ValueError),
+            ):
+                pos.verified_source(config, in_memory=True)
+            self.assertEqual(cache.read_bytes(), b"changed by local archive processing")
+
+    def test_in_memory_download_rejects_redirect_and_file_override(self):
+        config = {"license": "WordNet", "snapshot_url": pos.URL}
+        response = io.BytesIO(b"fixture")
+        response.url = "https://example.invalid/other"
+        with (
+            patch.object(pos.urllib.request, "urlopen", return_value=response),
+            self.assertRaises(ValueError),
+        ):
+            pos.verified_source(config, in_memory=True)
+        with self.assertRaises(ValueError):
+            pos.verified_source(config, Path("unused"), in_memory=True)
+
     def test_contextual_infinitive_and_exact_lexical_categories(self):
         index = {
             "study": {"n.", "v."},
