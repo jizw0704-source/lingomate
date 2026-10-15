@@ -2,7 +2,7 @@
 import AppKit
 
 enum SettingsSection: Int, CaseIterable {
-  case account, translation, input, appearance, learning
+  case account, translation, input, appearance, learning, vocabulary
   var title: String {
     switch self {
     case .account: return "账号"
@@ -10,6 +10,7 @@ enum SettingsSection: Int, CaseIterable {
     case .input: return "输入"
     case .appearance: return "外观"
     case .learning: return "学习"
+    case .vocabulary: return "词库"
     }
   }
 }
@@ -20,7 +21,9 @@ enum SettingsWindow {
     guard !AppearanceSettings.current.isIsolated else { return }
     let process = Process()
     process.executableURL = Bundle.main.executableURL
-    process.arguments = section == .learning ? ["--settings", "--local-learning"] : ["--settings"]
+    process.arguments = ["--settings"]
+    if section == .learning { process.arguments!.append("--local-learning") }
+    if section == .vocabulary { process.arguments!.append("--personal-vocabulary") }
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
     try? process.run()
@@ -42,6 +45,14 @@ final class SettingsController: NSObject, NSWindowDelegate {
   let translation: AISettingsController
   let input: SettingsInputClient
   let localLearning: LocalLearningController
+  private var vocabularyController: PersonalVocabularyController?
+  var personalVocabulary: PersonalVocabularyController {
+    if let vocabularyController { return vocabularyController }
+    let controller = PersonalVocabularyController(store: PersonalVocabularyStore(preview: preview))
+    vocabularyController = controller
+    return controller
+  }
+  func cleanupVocabulary() { vocabularyController?.cleanup() }
   private let body = NSView()
   private var tabs: [ActionButton] = []
   private(set) var section = SettingsSection.account
@@ -127,7 +138,8 @@ final class SettingsController: NSObject, NSWindowDelegate {
   func select(_ section: SettingsSection) {
     account.prepareForNavigation()
     self.section = section
-    window.minSize = NSSize(width: 440, height: section == .learning ? 560 : 440)
+    window.minSize = NSSize(
+      width: 440, height: section == .learning || section == .vocabulary ? 560 : 440)
     for (index, tab) in tabs.enumerated() {
       tab.style = index == section.rawValue ? .subtle : .plain
       tab.state = index == section.rawValue ? .on : .off
@@ -140,6 +152,9 @@ final class SettingsController: NSObject, NSWindowDelegate {
     case .learning:
       localLearning.reload()
       mount(localLearning.contentView)
+    case .vocabulary:
+      personalVocabulary.reload()
+      mount(personalVocabulary.contentView)
     }
   }
   private func mount(_ view: NSView) {
@@ -176,7 +191,10 @@ final class SettingsController: NSObject, NSWindowDelegate {
     root.translatesAutoresizingMaskIntoConstraints = false
     root.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
     mount(scroll)
-    if preserveScroll { scroll.contentView.scroll(to: offset) }
+    if preserveScroll {
+      scroll.contentView.scroll(to: offset)
+      scroll.reflectScrolledClipView(scroll.contentView)
+    }
   }
   private func showInput(preserveScroll: Bool = true) {
     form(preserveScroll: preserveScroll) { stack in
@@ -213,6 +231,16 @@ final class SettingsController: NSObject, NSWindowDelegate {
           ("显示词性（n. / v. / adj. / adv.）", value?.showPOS == true, .showPOS(true)),
           ("隐藏词性", value?.showPOS == false, .showPOS(false)),
         ])
+      choices(
+        "英文片段首字母大写 · 保存此选择",
+        values: [
+          ("开启（默认）", value?.capitalizeEnglish == true, .capitalizeEnglish(true)),
+          ("关闭（保留原样）", value?.capitalizeEnglish == false, .capitalizeEnglish(false)),
+        ])
+      add(
+        NativeTheme.label(
+          "中文模式回车确认英文或选择译词时生效：我想说 Hello world。已有大小写保留，英文直输不变。",
+          size: 13, secondary: true), to: stack)
       choices(
         "标点",
         values: PunctuationMode.allCases.map {
@@ -289,6 +317,7 @@ final class SettingsController: NSObject, NSWindowDelegate {
   func windowDidBecomeKey(_ notification: Notification) {
     if !input.waiting { input.refresh() }
     if section == .learning { localLearning.reload() }
+    if section == .vocabulary { personalVocabulary.reload() }
   }
   func windowWillClose(_ notification: Notification) { NSApplication.shared.stop(nil) }
 }
