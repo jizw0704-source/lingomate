@@ -155,6 +155,29 @@ fn mixed_input_preserves_case_without_a_mode_switch() {
     assert!(!input.english);
 }
 #[test]
+fn literal_commits_remaining_raw_before_the_character() {
+    let mut engine = engine();
+    let mut input = Input::default();
+    type_letters(&mut input, &mut engine, "Wo");
+    assert_eq!(
+        input
+            .handle(Key::Literal('6'), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some("Wo6")
+    );
+    assert!(input.raw.is_empty());
+    assert!(input.pending_memory.is_none());
+    assert!(input.pending_study.is_none());
+    assert_eq!(
+        input
+            .handle(Key::Punctuation('.'), &mut engine)
+            .unwrap()
+            .as_deref(),
+        Some(".")
+    );
+}
+#[test]
 fn partial_commit_preserves_original_case_suffix() {
     let mut engine = engine();
     let mut input = Input::default();
@@ -217,6 +240,38 @@ fn punctuation_follows_confirmed_language() {
             .as_deref(),
         Some(",")
     );
+}
+
+#[test]
+fn correcting_pinyin_preserves_quotes_around_confirmed_chinese() {
+    let mut engine = engine();
+    for (key, opening, closing) in [('"', "“", "”"), ('\'', "‘", "’")] {
+        let mut input = Input::default();
+        assert_eq!(
+            input
+                .handle(Key::Punctuation(key), &mut engine)
+                .unwrap()
+                .as_deref(),
+            Some(opening)
+        );
+        type_letters(&mut input, &mut engine, "nihaoo");
+        input.handle(Key::Backspace, &mut engine).unwrap();
+        assert_eq!(input.raw, "nihao");
+        assert_eq!(
+            input
+                .handle(Key::Space(false), &mut engine)
+                .unwrap()
+                .as_deref(),
+            Some("你好")
+        );
+        assert_eq!(
+            input
+                .handle(Key::Punctuation(key), &mut engine)
+                .unwrap()
+                .as_deref(),
+            Some(closing)
+        );
+    }
 }
 #[test]
 fn fabricated_translation_is_rejected() {

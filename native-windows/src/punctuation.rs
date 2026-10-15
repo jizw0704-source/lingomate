@@ -133,8 +133,11 @@ impl Punctuation {
         self.double_opening = true;
         self.single_opening = true;
     }
-    pub fn reset_context(&mut self) {
+    pub fn reset_literal(&mut self) {
         self.literal = Literal::None;
+    }
+    pub fn reset_context(&mut self) {
+        self.reset_literal();
         self.reset_quotes();
     }
     pub fn render(&mut self, key: char, mode: Mode) -> Option<String> {
@@ -173,6 +176,28 @@ impl Punctuation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn editing_composition_clears_literal_classes_without_resetting_quotes_or_language() {
+        let mut state = Punctuation::default();
+        assert_eq!(state.render('"', Mode::Automatic).unwrap(), "“");
+        assert_eq!(state.render('\'', Mode::Automatic).unwrap(), "‘");
+        state.observe_literal("3");
+        assert_eq!(state.render('.', Mode::Automatic).unwrap(), ".");
+        state.reset_literal();
+        assert_eq!(state.render('.', Mode::Automatic).unwrap(), "。");
+        assert_eq!(state.render('"', Mode::Automatic).unwrap(), "”");
+        assert_eq!(state.render('\'', Mode::Automatic).unwrap(), "’");
+        state.observe_literal("https");
+        assert!(state.is_latin());
+        state.reset_literal();
+        assert!(!state.is_latin());
+        assert_eq!(state.language(Mode::Automatic), Language::English);
+        assert_eq!(state.render(',', Mode::Automatic).unwrap(), ",");
+        state.confirm(Language::Chinese);
+        assert_eq!(state.render('"', Mode::Automatic).unwrap(), "“");
+        state.reset_context();
+        assert_eq!(state.render('"', Mode::Automatic).unwrap(), "“");
+    }
     #[test]
     fn mappings_manual_modes_quotes_and_context_match_mac() {
         let keys = [
