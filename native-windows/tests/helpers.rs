@@ -76,3 +76,25 @@ fn cancellation_before_pipe_handoff_rejects_the_body() {
         Err(RemoteError::Changed)
     );
 }
+
+#[test]
+fn updater_helper_rejects_extra_modes_before_any_update_state_or_process() {
+    let executable = Path::new(env!("CARGO_BIN_EXE_lingomate-desktop"));
+    let stop = AtomicBool::new(false);
+    for args in [
+        vec!["--updates".into(), "install".into()],
+        vec!["--updates".into(), "manual".into(), "-File".into()],
+        vec![
+            "--relay".into(),
+            "--pipe".into(),
+            "--updates".into(),
+            "manual".into(),
+        ],
+    ] {
+        let child = helper::spawn(executable, &args, true).unwrap();
+        assert_eq!(
+            child.capture(b"", &stop, Duration::from_secs(5)),
+            Err(RemoteError::Unavailable)
+        );
+    }
+}

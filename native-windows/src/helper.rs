@@ -137,29 +137,26 @@ impl Child {
     }
 }
 pub fn spawn(executable: &Path, args: &[String], capture: bool) -> Result<Child, RemoteError> {
-    if !unpacked() {
+    spawn_direct(
+        executable,
+        &launch_arguments(unpacked(), args, capture),
+        capture,
+    )
+}
+fn launch_arguments(unpacked: bool, args: &[String], capture: bool) -> Vec<String> {
+    if !unpacked {
         let mut relay = vec![
             "--relay".into(),
             if capture { "--pipe" } else { "--ui" }.into(),
         ];
         relay.extend_from_slice(args);
-        return spawn_direct(executable, &relay, capture);
+        return relay;
     }
-    spawn_direct(executable, args, capture)
+    args.to_vec()
 }
 pub fn relay(args: &[String]) -> Result<(), RemoteError> {
     let (kind, args) = args.split_first().ok_or(RemoteError::Configuration)?;
-    if !matches!(
-        args.first().map(String::as_str),
-        Some(
-            "--translate"
-                | "--preferences"
-                | "--identity"
-                | "--record-study"
-                | "--settings"
-                | "--prepare-memory"
-        )
-    ) {
+    if !relay_allowed(kind, args) {
         return Err(RemoteError::Configuration);
     }
     let executable = std::env::current_exe().map_err(|_| RemoteError::Unavailable)?;
@@ -186,6 +183,22 @@ pub fn relay(args: &[String]) -> Result<(), RemoteError> {
         }
         _ => Err(RemoteError::Configuration),
     }
+}
+fn relay_allowed(kind: &str, args: &[String]) -> bool {
+    if args.first().map(String::as_str) == Some("--updates") {
+        return kind == "--ui" && crate::desktop::updates::Mode::parse(&args[1..]).is_ok();
+    }
+    matches!(
+        args.first().map(String::as_str),
+        Some(
+            "--translate"
+                | "--preferences"
+                | "--identity"
+                | "--record-study"
+                | "--settings"
+                | "--prepare-memory"
+        )
+    )
 }
 fn spawn_direct(executable: &Path, args: &[String], capture: bool) -> Result<Child, RemoteError> {
     // Only fixed switches and enum/window metadata go in arguments. Translation text uses pipes.
@@ -380,4 +393,40 @@ pub fn desktop_path(dll: &Path) -> Result<std::path::PathBuf, RemoteError> {
         .parent()
         .ok_or(RemoteError::Unavailable)?
         .join("lingomate-desktop.exe"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn updater_ui_relay_accepts_only_the_fixed_modes() {
+        for mode in ["manual", "background"] {
+            let args = ["--updates".into(), mode.into()];
+            assert!(relay_allowed("--ui", &args));
+            assert!(!relay_allowed("--pipe", &args));
+        }
+        for args in [
+            vec!["--updates".into()],
+            vec!["--updates".into(), "install".into()],
+            vec!["--updates".into(), "manual".into(), "-File".into()],
+        ] {
+            assert!(!relay_allowed("--ui", &args));
+        }
+    }
+
+    #[test]
+    fn updater_launch_uses_the_relay_only_for_packaged_parents() {
+        for mode in [
+            crate::desktop::updates::Mode::Manual,
+            crate::desktop::updates::Mode::Background,
+        ] {
+            let args = mode.arguments();
+            assert_eq!(launch_arguments(true, &args, false), args);
+            assert_eq!(
+                launch_arguments(false, &args, false),
+                ["--relay", "--ui", &args[0], &args[1]]
+            );
+        }
+    }
 }

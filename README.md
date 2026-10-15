@@ -1,5 +1,7 @@
 # 灵果 · LingoMate
 
+**Windows 0.1.22 修复全量审查发现的四项问题。** 数字和普通字符按输入顺序处理；导航或宿主编辑后阻止旧组合覆盖新文字，引擎尚未回复时保留原拼音。另修复退格后的引号配对、MSIX 宿主更新入口及较大离线词条队列的分批同步。自动检查和真实应用验收分别记录，详见 [Windows QA](native-windows/QA.md)。已按用户授权同步安装 0.1.22 到本机，文件及系统登记核验通过，实体键盘待用户复测；未发布更新。
+
 **Windows 0.1.21 修复候选翻译队列繁忙时误报“本机翻译尚未准备好”的路径，保留0.1.20的密钥保存状态与独立连接测试。** 队列满时等待重试，辅助进程不可用时单独提示。现有MiniMax凭据已在真实设置按钮测试中通过认证与模型调用（2.6秒）；本轮126项Windows Rust回归、格式／Clippy与MSVC构建通过。截图中具体宿主故障及实体键盘仍需新版复测，既有COMLESS检查未通过的边界保留。见[Windows QA](native-windows/QA.md)。
 
 **Windows 0.1.20 增加 API 密钥保存状态与独立连接测试。** 保存后显示“已保存 · ••••••••”；新密钥输入仍以密码字符隐藏，保存失败保留输入。点击“测试连接”仅发送固定示例“今天下午开会。”，显示成功耗时或失败原因；测试不保存设置或启用 AI，保存本身仍不联网。已有配置和凭据保留。124项Windows Rust回归通过；构建、界面与实际调用的结果见[Windows QA](native-windows/QA.md)。真实候选与实体键盘仍待验收。
@@ -117,7 +119,9 @@ macOS 由[项目发起人](https://github.com/jizw0704-source)主要维护，Win
 
 Windows 今后的开发只使用 `codex/windows-dev`，不另建 Windows 功能分支；Pull Request 的来源为该分支，目标为 `main`，由项目创建者或有权限的维护者审核后合并。不得直接推送 `main` 或未经明确要求自动合并。每次 PR 说明改动、测试结果和实际验证范围；共享变更同时检查两端兼容性。详细分工与流程见 [协作维护说明](CONTRIBUTING.md)。
 
-Mac 新功能通过 PR 提供参考实现，再使用 [Mac 新功能同步到 Windows 任务模板](https://github.com/jizw0704-source/lingomate/issues/new?template=macos-to-windows.md)交接给 Wright。任务集中记录用户行为、参考代码及共同验收用例，分别跟踪 Mac 完成、Windows 实现和 Windows 实机验证。完整步骤见 [功能同步流程](CONTRIBUTING.md#mac-新功能同步到-windows)。
+纯平台改动由对应维护者检查和验收，另一端不做例行复核；共享改动定稿后，另一端集中复核共享代码及本端兼容性。GitHub 必需审批与合并权限仍按仓库设置执行。范围与时机见 [平台职责与共享改动复核](CONTRIBUTING.md#平台职责与共享改动复核)。
+
+Mac 新功能通过 PR 提供参考实现，再使用 [Mac 新功能同步到 Windows 任务模板](https://github.com/jizw0704-source/lingomate/issues/new?template=macos-to-windows.md)按稳定功能或版本交接给 Wright，固定参考提交并列出前置依赖。Windows 独立排期，无需跟随每次 Mac 提交。任务集中记录用户行为、参考代码及共同验收用例，分别跟踪 Mac 完成、Windows 实现和 Windows 实机验证。完整步骤见 [功能同步流程](CONTRIBUTING.md#mac-新功能同步到-windows)。
 
 当前 Mac 功能、默认设置、安装包源码覆盖范围与 Windows 共同验收用例集中在 [Mac 版本功能基线](docs/MAC_FEATURE_BASELINE.md)，供两端维护者对照。
 
