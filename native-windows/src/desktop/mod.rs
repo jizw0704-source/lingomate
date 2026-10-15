@@ -2,6 +2,7 @@
 pub mod account;
 mod local;
 pub mod translation;
+pub(crate) mod updates;
 mod window;
 use crate::remote::RemoteError;
 use std::io::{Read, Write};
@@ -27,6 +28,7 @@ pub fn main() {
         }
         crate::helper::require_unpacked()?;
         match args.first().map(String::as_str) {
+            Some("--updates") => updates::run(&args[1..])?,
             Some("--translate") => {
                 let mut bytes = Vec::new();
                 std::io::stdin()
