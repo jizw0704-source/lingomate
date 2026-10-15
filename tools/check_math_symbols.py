@@ -163,14 +163,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--write-doc", action="store_true")
     args = parser.parse_args()
-    data = json.loads((ROOT / "data/math-symbols.json").read_text())
+    data = json.loads((ROOT / "data/math-symbols.json").read_text(encoding="utf-8"))
     aliases = validate(data)
     doc = ROOT / "docs/MATH_SYMBOLS.md"
     expected = document(data)
     if args.write_doc:
-        doc.write_text(expected)
+        doc.write_text(expected, encoding="utf-8")
     else:
-        assert doc.read_text() == expected, "Math coverage table stale; run --write-doc"
+        assert doc.read_text(encoding="utf-8") == expected, (
+            "Math coverage table stale; run --write-doc"
+        )
     counts = Counter(entry["category"] for entry in data["entries"])
     print(
         f"Verified math mappings: {len(counts)} categories, {len(data['entries'])} entries, {len(aliases)} aliases."

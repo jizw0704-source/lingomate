@@ -85,6 +85,7 @@ class VocabularyTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
+            encoding="utf-8",
         )
 
     def tearDown(self):
@@ -99,6 +100,7 @@ class VocabularyTests(unittest.TestCase):
             input=json.dumps({"action": action, **fields}),
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=5,
             check=True,
         )
@@ -160,7 +162,10 @@ class VocabularyTests(unittest.TestCase):
         self.query("shi")
         self.manage("delete", text="市", syllables=["shi"])
         self.assertFalse(
-            any(e["text"] == "市" for e in json.loads(self.file.read_text())["entries"])
+            any(
+                e["text"] == "市"
+                for e in json.loads(self.file.read_text(encoding="utf-8"))["entries"]
+            )
         )
         for key in ("s", "shi"):
             self.assertFalse(
@@ -173,7 +178,9 @@ class VocabularyTests(unittest.TestCase):
         self.assertFalse(
             any(
                 p["text"] == "市"
-                for p in json.loads(self.preferences.read_text())["entries"]
+                for p in json.loads(self.preferences.read_text(encoding="utf-8"))[
+                    "entries"
+                ]
             )
         )
         # A new successful confirmed selection may remember it again, without old priority.
@@ -257,16 +264,25 @@ class VocabularyTests(unittest.TestCase):
         self.assertTrue(any(w["text"] == "学习" for w in words))
         self.assertTrue(next(w for w in words if w["text"] == "市")["prioritized"])
         self.assertEqual(
-            set(json.loads(self.file.read_text())), {"version", "sequence", "entries"}
+            set(json.loads(self.file.read_text(encoding="utf-8"))),
+            {"version", "sequence", "entries"},
         )
 
-    def test_missing_and_symlink_stores_are_not_rebuilt(self):
+    def test_missing_store_is_not_rebuilt(self):
         self.file.unlink()
         self.assertEqual(self.manage()["words"], [])
         self.assertFalse(self.file.exists())
+
+    def test_symlink_store_is_not_rebuilt(self):
+        self.file.unlink()
         target = Path(self.directory.name) / "protected.json"
-        target.write_text(json.dumps(self.original))
-        self.file.symlink_to(target)
+        target.write_text(json.dumps(self.original), encoding="utf-8")
+        try:
+            self.file.symlink_to(target)
+        except OSError as error:
+            if os.name == "nt" and error.winerror in (1314, 50):
+                self.skipTest("Windows symlink privilege or support unavailable")
+            raise
         before = target.read_bytes()
         self.assertIn("error", self.manage("delete", text="市", syllables=["shi"]))
         self.assertEqual(target.read_bytes(), before)
