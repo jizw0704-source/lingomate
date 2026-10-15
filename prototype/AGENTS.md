@@ -40,11 +40,14 @@ bash tools/cargo.sh fmt -- --check
 bash tools/cargo.sh clippy --release --locked -- -D warnings
 ../runtime/python/bin/python tests/engine_test.py
 ../runtime/python/bin/python tests/memory_test.py
+../runtime/python/bin/python tests/expressions_test.py
 ../runtime/python/bin/python tests/http_test.py
 ```
 
 The HTTP checks require `pnpm serve`. Browser checks must exercise Chinese/English/third-sense commits, mode switching, remaining Pinyin, rapid queries, errors/retry, focus and narrow layouts. Do not claim true mobile-device or system IME verification from responsive browser checks.
 
 Bridge personal vocabulary is opt-in with --memory PATH, only normal native service enables the real store. Web remains memory-disabled. Require explicit post-output confirmation and context-bound single-use receipts. Tests must use isolated temporary stores and never inspect user vocabulary.
+
+--fixed-expressions separately opts into the attributed local catalog. Without it, Windows/web bridge behavior and resource requirements remain unchanged. Require complete 2+ syllable prefix matching and an existing catalog candidate; keep two ordinary candidates ahead of up to three completions. Never expand arbitrary client text or change translated-word validation. Temporary-store completion tests include cancellation/replay rejection and normal remaining Pinyin.
 
 The user authorized automatic independent-character word memory in both native clients, including unknown 2–6 character guessing with function-character/length/20-second filters. Existing words match the licensed dictionary and actual pronunciation up to 16 characters. Keep transient runs/context queues bounded; do not persist input trails or join English. Synchronous receipts still expire on query/edit; deferred TSF receipts are FIFO and may retire with their old scope, require real host success, and cannot cross scopes or engine generations. Native vocabulary uses exclusive cross-process file locks, latest-file merge and atomic replacement; refresh peers without overwriting malformed stores. Browser memory remains disabled.

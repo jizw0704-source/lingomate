@@ -12,10 +12,13 @@ enum Preview {
   static let sentenceTranslator = SentenceTranslator()
   static var learningDirectory: URL?
   static var punctuation = PunctuationState()
+  static var englishFragment = EnglishFragmentState()
   static var punctuationView: NSView?
   static let punctuationPreview = CommandLine.arguments.contains("--preview-punctuation")
   static let typingPreview = CommandLine.arguments.contains("--preview-typing")
   static let mixedPreview = CommandLine.arguments.contains("--preview-mixed")
+  static let symbolsPreview = CommandLine.arguments.contains("--preview-symbols")
+  static let expressionsPreview = CommandLine.arguments.contains("--preview-expressions")
   static var shiftTap = ShiftTap()
   static var eventMonitor: Any?
   static let narrowPreview = CommandLine.arguments.contains("--preview-narrow")
@@ -74,18 +77,22 @@ enum Preview {
       }
     }
     if mixedPreview {
-      label.stringValue = "混输预览：输入字母，空格选中文，回车输出原样字母，Shift＋空格选译文。只使用隔离引擎。"
+      label.stringValue = "混输预览：空格选中文，回车确认英文，Shift＋空格选译文。英文片段首字母默认大写，已有大小写保留。只用隔离引擎。"
       eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
         guard event.window === window else { return event }
         return handleMixedEvent(event) ? nil : event
       }
     }
+    if expressionsPreview {
+      label.stringValue = "固定表达联想：chiputao → 吃葡萄不吐葡萄皮。候选需点击确认；本窗口仅使用隔离引擎。"
+    }
+    if symbolsPreview { label.stringValue = "表情与符号候选：保留普通候选优先，点击符号直接输出；预览不读写个人词库。" }
     if fixture != nil { label.stringValue = "界面状态样例，内容为测试数据；不代表真实翻译结果。" }
     label.font = NativeTheme.font(13)
     label.textColor = NativeTheme.muted
     label.frame = NSRect(x: 24, y: 115, width: 610, height: 40)
     let output = NSTextField(string: "尚未选择")
-    if mixedPreview { output.stringValue = "" }
+    if mixedPreview || expressionsPreview { output.stringValue = "" }
     output.isEditable = false
     output.font = NativeTheme.font(16)
     output.textColor = NativeTheme.ink
@@ -105,6 +112,12 @@ enum Preview {
     panel = CandidatePanel()
     if mixedPreview {
       state.clear()
+    } else if symbolsPreview {
+      let args = CommandLine.arguments
+      let keyword = args.firstIndex(of: "--symbol-keyword")
+      state.input = keyword.flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil } ?? "yumaoqiu"
+    } else if expressionsPreview {
+      state.input = "chiputao"
     } else if CommandLine.arguments.contains("--preview-paging") || learningDirectory != nil {
       state.input = "shi"
     } else {
@@ -113,6 +126,9 @@ enum Preview {
         ? "wojintianxiangxuexiyingyu" : "xuexi"
     }
     state.frame = try? Runtime.engine?.request(EngineRequest(action: "query", input: state.input))
+    if symbolsPreview, let frame = state.frame {
+      state.frame = SymbolCandidates.augment(frame, enabled: true)
+    }
     panel?.onLearning = {
       window.orderOut(nil)
       panel?.orderOut(nil)
@@ -129,7 +145,7 @@ enum Preview {
       AISettingsWindow.start(preview: true)
     }
     panel?.onChinese = { index in
-      if mixedPreview {
+      if mixedPreview || expressionsPreview {
         commitMixed(index: index, sense: nil)
         return
       }
@@ -143,7 +159,7 @@ enum Preview {
       draw()
     }
     panel?.onEnglish = { index, sense in
-      if mixedPreview {
+      if mixedPreview || expressionsPreview {
         commitMixed(index: index, sense: sense)
         return
       }
@@ -192,7 +208,7 @@ enum Preview {
     draw()
   }
   static func translateSentence() {
-    if mixedPreview {
+    if mixedPreview || expressionsPreview || symbolsPreview {
       sentenceTranslator.cancel()
       state.sentence = .none
       return
@@ -247,10 +263,23 @@ enum Preview {
     else { return false }
     switch event.keyCode {
     case 36, 76:
-      guard !state.input.isEmpty else { return false }
-      text?.stringValue += state.takeRawInput()
+      guard !state.input.isEmpty else {
+        englishFragment.reset()
+        return false
+      }
+      let raw = state.takeRawInput()
+      let output = englishFragment.formatted(
+        raw, enabled: EnglishInputPreferences.current.capitalizeFragments)
+      text?.stringValue += output
+      englishFragment.observe(output)
+      punctuation.observeLiteral(output)
+      punctuation.clearLiteral()
     case 49:
-      guard !state.input.isEmpty else { return false }
+      guard !state.input.isEmpty else {
+        text?.stringValue += " "
+        englishFragment.observe(" ")
+        return true
+      }
       commitMixed(
         index: state.active, sense: event.modifierFlags.contains(.shift) ? state.sense : nil)
       return true
@@ -265,7 +294,15 @@ enum Preview {
     case 53:
       state.clear()
     default:
-      guard let characters = event.characters, state.appendLetters(characters) else { return false }
+      guard let characters = event.characters else { return false }
+      if state.input.isEmpty,
+        let symbol = punctuation.render(characters, mode: Runtime.punctuationMode)
+      {
+        text?.stringValue += symbol
+        englishFragment.observe(symbol)
+        return true
+      }
+      guard state.appendLetters(characters) else { return false }
     }
     refreshMixed()
     return true
@@ -287,7 +324,14 @@ enum Preview {
       let remaining = state.rawRemainder(for: next.input)
       state.clear()
       state.replaceInput(next.input, original: remaining)
-      text?.stringValue += committed
+      let output =
+        sense == nil
+        ? committed
+        : englishFragment.formatted(
+          committed, enabled: EnglishInputPreferences.current.capitalizeFragments)
+      text?.stringValue += output
+      englishFragment.observe(output)
+      punctuation.confirm(sense == nil ? .chinese : .english)
       refreshMixed()
     } catch { NSSound.beep() }
   }
@@ -295,6 +339,9 @@ enum Preview {
   static func refreshMixed() {
     if !state.input.isEmpty {
       state.frame = try? Runtime.engine?.request(EngineRequest(action: "query", input: state.input))
+      if symbolsPreview, let frame = state.frame {
+        state.frame = SymbolCandidates.augment(frame, enabled: true)
+      }
     }
     draw()
   }

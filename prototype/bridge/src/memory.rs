@@ -1,7 +1,7 @@
 //! Confirmed local vocabulary only; never raw composition, host context or translations.
 use qingjian_core::candidate::{Candidate, CandidateKind};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, DirBuilder, OpenOptions, TryLockError};
 use std::io::{Read, Write};
 #[cfg(unix)]
@@ -9,26 +9,26 @@ use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
-const MAX_ENTRIES: usize = 5000;
-const MAX_BYTES: u64 = 4 * 1024 * 1024;
+pub(crate) const MAX_ENTRIES: usize = 5000;
+pub(crate) const MAX_BYTES: u64 = 4 * 1024 * 1024;
 pub type Preferences = HashMap<(String, Vec<String>), (u32, u64)>;
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Entry {
-    pinyin: String,
-    text: String,
-    syllables: Vec<String>,
-    count: u32,
-    last: u64,
+pub(crate) struct Entry {
+    pub pinyin: String,
+    pub text: String,
+    pub syllables: Vec<String>,
+    pub count: u32,
+    pub last: u64,
 }
 
 #[derive(Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Data {
-    version: u32,
-    sequence: u64,
-    entries: Vec<Entry>,
+pub(crate) struct Data {
+    pub version: u32,
+    pub sequence: u64,
+    pub entries: Vec<Entry>,
 }
 
 pub struct Memory {
@@ -37,6 +37,9 @@ pub struct Memory {
     pub warning: Option<&'static str>,
     dirty: Vec<(String, Candidate)>,
     fingerprint: Option<(SystemTime, u64)>,
+    priorities: crate::vocabulary::Priorities,
+    priority_keys: HashSet<(String, Vec<String>)>,
+    priority_fingerprint: Option<(SystemTime, u64)>,
 }
 
 pub fn normalize(input: &str) -> String {
@@ -47,7 +50,7 @@ fn valid_key(key: &str) -> bool {
     !key.is_empty() && key.len() <= 240 && key.bytes().all(|b| b.is_ascii_lowercase())
 }
 
-fn valid_word(text: &str, syllables: &[String]) -> bool {
+pub(crate) fn valid_word(text: &str, syllables: &[String]) -> bool {
     let count = text.chars().count();
     (1..=16).contains(&count)
         && count == syllables.len()
@@ -63,11 +66,11 @@ fn empty_data() -> Data {
         ..Data::default()
     }
 }
-fn fingerprint(path: &std::path::Path) -> Option<(SystemTime, u64)> {
+pub(crate) fn fingerprint(path: &std::path::Path) -> Option<(SystemTime, u64)> {
     let meta = fs::metadata(path).ok()?;
     Some((meta.modified().ok()?, meta.len()))
 }
-fn load_data(path: &std::path::Path) -> Result<Data, Box<dyn std::error::Error>> {
+pub(crate) fn load_data(path: &std::path::Path) -> Result<Data, Box<dyn std::error::Error>> {
     let meta = match fs::symlink_metadata(path) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(empty_data()),
         other => other?,
@@ -105,6 +108,9 @@ impl Memory {
             warning: None,
             dirty: Vec::new(),
             fingerprint: None,
+            priorities: Default::default(),
+            priority_keys: HashSet::new(),
+            priority_fingerprint: None,
         };
         if let Some(path) = &memory.path {
             let observed = fingerprint(path);
@@ -119,10 +125,12 @@ impl Memory {
                 }
             }
         }
+        memory.refresh_priorities();
         memory
     }
 
     pub fn refresh(&mut self) {
+        self.refresh_priorities();
         let Some(path) = &self.path else {
             return;
         };
@@ -132,6 +140,8 @@ impl Memory {
                 Ok(data) => {
                     self.data = data;
                     self.fingerprint = observed;
+                    self.warning = None;
+                    self.rebuild_priority_keys();
                 }
                 Err(_) => {
                     self.fingerprint = observed;
@@ -139,6 +149,33 @@ impl Memory {
                 }
             }
         }
+    }
+
+    fn refresh_priorities(&mut self) {
+        let Some(path) = &self.path else { return };
+        let path = crate::vocabulary::priority_path(path);
+        let observed = fingerprint(&path);
+        if observed != self.priority_fingerprint {
+            self.priorities = crate::vocabulary::load_priorities(&path).unwrap_or_default();
+            self.priority_fingerprint = observed;
+            self.rebuild_priority_keys();
+        }
+    }
+
+    fn rebuild_priority_keys(&mut self) {
+        let requested = self.priorities.keys();
+        self.priority_keys = self
+            .data
+            .entries
+            .iter()
+            .map(|e| (e.text.clone(), e.syllables.clone()))
+            .filter(|identity| requested.contains(identity))
+            .collect();
+    }
+
+    pub fn prioritized(&self, candidate: &Candidate) -> bool {
+        self.priority_keys
+            .contains(&(candidate.text.clone(), candidate.syllables.clone()))
     }
 
     pub fn enabled(&self) -> bool {
@@ -283,6 +320,7 @@ impl Memory {
             }
             write?;
             self.data = latest;
+            self.rebuild_priority_keys();
             self.fingerprint = fingerprint(&path);
             Ok(())
         })();
@@ -293,12 +331,18 @@ impl Memory {
 }
 
 #[cfg(not(windows))]
-fn replace_file(source: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+pub(crate) fn replace_file(
+    source: &std::path::Path,
+    target: &std::path::Path,
+) -> std::io::Result<()> {
     fs::rename(source, target)
 }
 
 #[cfg(windows)]
-fn replace_file(source: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+pub(crate) fn replace_file(
+    source: &std::path::Path,
+    target: &std::path::Path,
+) -> std::io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
     #[link(name = "kernel32")]
     unsafe extern "system" {
