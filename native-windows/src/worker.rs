@@ -253,9 +253,11 @@ impl EngineState {
                     self.finish_memory();
                     let raw = self.input.raw_commit();
                     (!raw.is_empty()).then_some(raw)
+                } else if let Key::Literal(ch) = key {
+                    self.finish_memory();
+                    Some(self.input.literal_commit(ch))
                 } else if self.input.raw.is_empty()
                     && match key {
-                        Key::Literal(_) => true,
                         Key::Punctuation(ch) => matches!(
                             Punctuation::action(ch, "", false, self.input.punctuation_mode),
                             Some(Action::Symbol)
@@ -517,12 +519,11 @@ impl EngineState {
             }
             Key::Literal(ch) => {
                 self.finish_memory();
-                self.input.punctuation.observe_literal(&ch.to_string());
-                return Some(ch.to_string());
+                return Some(self.input.literal_commit(ch));
             }
             Key::Backspace => {
                 self.cancel_memory();
-                self.input.punctuation.reset_context();
+                self.input.punctuation.reset_literal();
                 self.input.raw.pop();
             }
             Key::Escape => {

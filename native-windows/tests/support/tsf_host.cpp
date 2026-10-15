@@ -87,6 +87,14 @@ static HWND owned_candidates() {
     return window;
 }
 
+static LONG owned_candidate_height() {
+    const HWND window = owned_candidates();
+    require(window != nullptr, "Expanded-state check requires the owned candidate window");
+    RECT rectangle{};
+    require(GetClientRect(window, &rectangle) != FALSE, "Measure owned candidate state");
+    return rectangle.bottom - rectangle.top;
+}
+
 class FixtureStore final : public ITextStoreACP, public ITfContextOwnerCompositionSink {
     ULONG references = 1;
     DWORD lock = 0;
@@ -100,6 +108,23 @@ public:
     std::wstring text;
     std::vector<std::wstring> ended;
     unsigned started = 0;
+    unsigned ended_compositions = 0;
+    bool reject_synchronous = false;
+    bool fail_next_set_text = false;
+    unsigned rejected_set_text = 0;
+    void host_insert(const std::wstring& value) {
+        const LONG start = selection.acpStart, old_end = selection.acpEnd;
+        text.replace(start, old_end - start, value);
+        const LONG new_end = start + static_cast<LONG>(value.size());
+        selection.acpStart = selection.acpEnd = new_end;
+        TS_TEXTCHANGE change{start, old_end, new_end};
+        check(sink->OnTextChange(0, &change), "Notify owned host text change");
+        check(sink->OnSelectionChange(), "Notify owned host selection change");
+    }
+    void host_move(LONG position) {
+        selection.acpStart = selection.acpEnd = position;
+        check(sink->OnSelectionChange(), "Notify owned host caret movement");
+    }
     explicit FixtureStore(HWND hwnd) : window(hwnd) {}
     unsigned count(const std::wstring& value) const {
         return static_cast<unsigned>(std::count(ended.begin(), ended.end(), value));
@@ -136,6 +161,7 @@ public:
     }
     HRESULT STDMETHODCALLTYPE RequestLock(DWORD flags, HRESULT* session) override {
         if (!sink || !session) return E_INVALIDARG;
+        if (reject_synchronous && (flags & TS_LF_SYNC)) { *session = TS_E_SYNCHRONOUS; return S_OK; }
         if (lock) {
             if (flags & TS_LF_SYNC) { *session = TS_E_SYNCHRONOUS; return S_OK; }
             // A read-only holder may request an asynchronous write upgrade.
@@ -200,6 +226,11 @@ public:
         if (!writable()) return TS_E_NOLOCK;
         if (!change || (count && !value)) return E_POINTER;
         if (start < 0 || end < start || end > static_cast<LONG>(text.size())) return TS_E_INVALIDPOS;
+        if (fail_next_set_text) {
+            fail_next_set_text = false;
+            ++rejected_set_text;
+            return E_FAIL;
+        }
         text.replace(start, end - start, value ? value : L"", count);
         *change = {start, end, start + static_cast<LONG>(count)};
         selection.acpStart = selection.acpEnd = change->acpNewEnd;
@@ -260,6 +291,7 @@ public:
         result = acp->GetExtent(&start, &length);
         if (FAILED(result)) return result;
         if (start < 0 || length < 0 || start + length > static_cast<LONG>(text.size())) return TS_E_INVALIDPOS;
+        ++ended_compositions;
         if (length) ended.push_back(text.substr(start, length));
         return S_OK;
     }
@@ -624,6 +656,11 @@ public:
         while (document.store->text != text && GetTickCount64() < deadline) pump(10);
         // Drain subsequent messages too: an early matching frame must not hide a duplicate commit.
         pump(250);
+        if (document.store->text != text) {
+            std::cout << "actual UTF-16:";
+            for (wchar_t ch : document.store->text) std::cout << ' ' << std::hex << static_cast<unsigned>(ch);
+            std::cout << std::dec << std::endl;
+        }
         require(document.store->text == text, scenario);
         std::cout << "PASS " << scenario << '\n';
     }
@@ -713,8 +750,113 @@ public:
 };
 
 static void scenarios(Host& host) {
+    auto& literal = host.make_document(); host.focus(literal); host.activate();
+    host.type(literal, "wo");
+    require(host.key(literal, '6'), "Composing literal digit must remain in the FIFO");
+    host.key(literal, VK_SPACE);
+    host.expect(literal, L"wo6 ", "literal digit never overtakes or disappears from pending Pinyin");
+    host.restart();
+    auto& selected_digit = host.make_document(); host.focus(selected_digit);
+    host.type(selected_digit, "wo"); host.key(selected_digit, VK_SPACE);
+    host.key(selected_digit, '6');
+    host.expect(selected_digit, L"我6", "digit after queued candidate follows the confirmed Chinese");
+
+    host.restart();
+    auto& navigation = host.make_document(); host.focus(navigation);
+    host.type(navigation, "wode");
+    require(!host.key(navigation, VK_LEFT), "Left remains a host navigation key");
+    require(navigation.store->text == L"wode", "Navigation preserves accepted Pinyin without waiting for engine");
+    navigation.store->host_move(0);
+    navigation.store->host_insert(L"6");
+    pump(500);
+    require(host.key(navigation, VK_SPACE), "Space after navigation is an idle literal");
+    host.expect(navigation, L"6 wode", "late engine replies cannot overwrite host navigation and insertion");
+
+    host.restart();
+    auto& external = host.make_document(); host.focus(external);
+    host.type(external, "wo"); host.expect(external, L"wo", "external-edit preedit ready");
+    external.store->host_insert(L"6");
+    pump(500);
+    require(host.key(external, VK_SPACE), "External edit leaves Space as an idle literal");
+    host.expect(external, L"wo6 ", "external host text remains after composition cancellation");
+    host.type(external, "xuexi");
+    require(!host.key(external, VK_LEFT), "A second boundary in the same context remains a host key");
+    external.store->host_insert(L"7"); pump(500);
+    host.key(external, VK_SPACE);
+    host.expect(external, L"wo6 xuexi7 ", "repeated boundaries never revive a retired document epoch");
+    host.type(external, "wo"); host.key(external, VK_SPACE);
+    host.expect(external, L"wo6 xuexi7 我", "fresh input still commits after two retired epochs in one context");
+
+    host.restart();
+    auto& selected_caret = host.make_document(); host.focus(selected_caret);
+    host.type(selected_caret, "wo"); host.expect(selected_caret, L"wo", "caret-movement preedit ready");
+    selected_caret.store->host_move(0); pump(100);
+    host.type(selected_caret, "xuexi"); host.key(selected_caret, VK_SPACE);
+    host.expect(selected_caret, L"学习wo", "external caret movement cancels only the old composition");
+
+    host.restart();
+    auto& denied = host.make_document(); host.focus(denied);
+    host.type(denied, "wo"); host.expect(denied, L"wo", "lock-refusal preedit ready");
+    denied.store->reject_synchronous = true;
+    require(!host.key(denied, VK_DELETE), "Delete remains with a host refusing a synchronous write");
+    denied.store->host_insert(L"6");
+    denied.store->reject_synchronous = false; pump(500);
+    require(host.key(denied, VK_SPACE), "Rejected boundary leaves Space as an idle literal");
+    host.expect(denied, L"wo6 ", "synchronous lock refusal cannot overwrite the host's new text");
+
+    host.restart();
+    auto& failed_write = host.make_document(); host.focus(failed_write);
+    host.type(failed_write, "wo"); host.expect(failed_write, L"wo", "write-refusal preedit ready");
+    require(failed_write.store->started > 0, "Write-refusal fixture must own a live composition");
+    failed_write.store->fail_next_set_text = true;
+    require(!host.key(failed_write, VK_LEFT), "Left remains with a host rejecting the release rewrite");
+    require(failed_write.store->rejected_set_text == 1 && !failed_write.store->fail_next_set_text,
+        "Owned SetText failure must be consumed exactly once by release");
+    failed_write.store->host_insert(L"6"); pump(500);
+    require(failed_write.store->ended_compositions == failed_write.store->started,
+        "Failed release must still end every owned composition without deleting host text");
+    require(host.key(failed_write, VK_SPACE), "Failed release leaves Space as an idle literal");
+    host.expect(failed_write, L"wo6 ", "one rejected release write cannot let old replies overwrite host insertion");
+
+    host.restart();
+    auto& collapse_pending = host.make_document(); host.focus(collapse_pending);
+    host.type(collapse_pending, "xuexi");
+    host.expect(collapse_pending, L"xuexi", "glossary candidate is warm before pending expansion");
+    // Do not pump between these three keys: Escape collapses the pending Tab,
+    // rather than cancelling the already accepted Pinyin before Left is returned.
+    require(host.key(collapse_pending, VK_TAB), "Pending glossary expansion must be consumed");
+    require(host.key(collapse_pending, VK_ESCAPE), "Pending glossary collapse must be consumed");
+    require(!host.key(collapse_pending, VK_LEFT), "Left follows pending glossary collapse");
+    host.expect(collapse_pending, L"xuexi", "pending Tab then Escape preserves raw input at a host boundary");
+
+    host.restart();
+    auto& cancel_expanded = host.make_document(); host.focus(cancel_expanded);
+    host.type(cancel_expanded, "xuexi");
+    host.expect(cancel_expanded, L"xuexi", "glossary candidate is warm before confirmed expansion");
+    const LONG collapsed_height = owned_candidate_height();
+    require(host.key(cancel_expanded, VK_TAB), "Confirmed glossary expansion must be consumed");
+    const auto expanded_deadline = GetTickCount64() + 6000;
+    while (owned_candidate_height() <= collapsed_height && GetTickCount64() < expanded_deadline) pump(10);
+    require(owned_candidate_height() > collapsed_height,
+        "Owned glossary window must visibly expand before the double-Escape fixture");
+    // Once expansion is confirmed, the first Escape collapses it and the next
+    // cancels composition. Neither worker reply is pumped before Left.
+    require(host.key(cancel_expanded, VK_ESCAPE), "First Escape collapses confirmed expansion");
+    require(host.key(cancel_expanded, VK_ESCAPE), "Second Escape cancels pending composition");
+    require(!host.key(cancel_expanded, VK_LEFT), "Left follows pending composition cancellation");
+    host.expect(cancel_expanded, L"", "two Escapes after expansion cancel raw input at a host boundary");
+
+    host.restart();
+    auto& pending_boundary = host.make_document(); host.focus(pending_boundary);
+    host.type(pending_boundary, "wo"); host.key(pending_boundary, VK_SPACE);
+    host.type(pending_boundary, "x");
+    require(!host.key(pending_boundary, VK_LEFT), "Pending candidate boundary returns navigation");
+    pending_boundary.store->host_insert(L"6"); pump(500);
+    host.expect(pending_boundary, L"wox6", "navigation retains original accepted letters when candidate output is still pending");
+
     // No pumping between keys: includes a second Return while earlier work is pending.
-    auto& mixed = host.make_document(); host.focus(mixed); host.activate();
+    host.restart();
+    auto& mixed = host.make_document(); host.focus(mixed);
     host.type(mixed, "wo"); require(host.key(mixed, VK_SPACE), "Queued Space");
     host.type(mixed, "AI"); require(host.key(mixed, VK_RETURN), "Queued Return");
     host.key(mixed, VK_RETURN);

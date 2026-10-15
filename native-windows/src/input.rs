@@ -110,6 +110,16 @@ impl Input {
         }
         text
     }
+    pub(crate) fn literal_commit(&mut self, ch: char) -> String {
+        let mut text = if self.raw.is_empty() {
+            String::new()
+        } else {
+            self.raw_commit()
+        };
+        text.push(ch);
+        self.punctuation.observe_literal(&text);
+        text
+    }
     pub fn handle(&mut self, key: Key, engine: &mut Bridge) -> Result<Option<String>, String> {
         self.pending_study = None;
         self.pending_memory = None;
@@ -144,8 +154,7 @@ impl Input {
             }
             Key::Literal(ch) => {
                 self.finish_memory(engine);
-                self.punctuation.observe_literal(&ch.to_string());
-                return Ok(Some(ch.to_string()));
+                return Ok(Some(self.literal_commit(ch)));
             }
             Key::Letter(ch) => {
                 if self.punctuation.is_latin() && self.raw.is_empty() {
@@ -159,7 +168,8 @@ impl Input {
                 }
             }
             Key::Backspace => {
-                self.punctuation.reset_context();
+                // Editing Pinyin does not remove an opening quote already in the host.
+                self.punctuation.reset_literal();
                 self.break_memory(engine);
                 self.raw.pop();
                 self.refresh(engine)?;

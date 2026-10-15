@@ -126,12 +126,21 @@ fn decode(vk: usize, composing: bool) -> Option<Key> {
         0xBF => Some(Key::Punctuation(if shift { '?' } else { '/' })),
         0x31 if shift => Some(Key::Punctuation('!')),
         0xBA => Some(Key::Punctuation(if shift { ':' } else { ';' })),
-        0x30..=0x39 if !composing && !shift => Some(Key::Literal(vk as u8 as char)),
-        0x60..=0x69 if !composing => Some(Key::Literal((vk as u8 - 0x60 + b'0') as char)),
-        0x6E if !composing => Some(Key::Punctuation('.')),
+        0x30..=0x39 if !shift => Some(Key::Literal(vk as u8 as char)),
+        0x33..=0x38 if shift => Some(Key::Literal(['#', '$', '%', '^', '&', '*'][vk - 0x33])),
+        0xDB if shift => Some(Key::Literal('{')),
+        0xDD if shift => Some(Key::Literal('}')),
+        0xDC if shift => Some(Key::Literal('|')),
+        0xC0 => Some(Key::Literal(if shift { '~' } else { '`' })),
+        0x60..=0x69 => Some(Key::Literal((vk as u8 - 0x60 + b'0') as char)),
+        0x6A => Some(Key::Literal('*')),
+        0x6B => Some(Key::Literal('+')),
+        0x6D => Some(Key::Literal('-')),
+        0x6E => Some(Key::Punctuation('.')),
+        0x6F => Some(Key::Literal('/')),
         0x20 if !composing => Some(Key::Literal(' ')),
         0xBD if !composing => Some(Key::Literal('-')),
-        0xBB if !composing => Some(Key::Literal(if shift { '+' } else { '=' })),
+        0xBB => Some(Key::Literal(if shift { '+' } else { '=' })),
         _ => None,
     }
 }
@@ -904,6 +913,9 @@ impl State {
         });
         let anchor = !own_pending && self.input.borrow().raw.is_empty();
         self.bind(id, true);
+        if let Some(document) = &document {
+            document.accepted(id, key);
+        }
         {
             let mut input = self.input.borrow_mut();
             let navigation = matches!(
@@ -1025,6 +1037,7 @@ impl State {
                         });
                         if valid {
                             if let Some(doc) = binding.document {
+                                doc.settled(id, &input);
                                 // Queries for old prefixes need no intermediate rewrite.
                                 // Commits remain FIFO and always use their original document.
                                 if commit.is_some() || id == self.latest.get() {
@@ -1152,6 +1165,13 @@ impl State {
         }
         queued
     }
+    fn release_for_host(&self) {
+        let document = self.document.borrow().clone();
+        if let Some(document) = document {
+            document.release_for_host();
+        }
+        self.break_input_context();
+    }
     fn retire(self: &Rc<Self>) {
         self.cancel_sentence();
         self.set_focused(false);
@@ -1179,28 +1199,25 @@ impl State {
         });
     }
     fn attach(self: &Rc<Self>, context: &ITfContext) {
-        let same = self
-            .document
-            .borrow()
+        let previous = self.document.borrow().clone();
+        let retired = previous.as_ref().is_some_and(|d| d.terminated.get());
+        let same = previous
             .as_ref()
-            .is_some_and(|d| d.context.as_raw() == context.as_raw());
+            .is_some_and(|d| d.context.as_raw() == context.as_raw() && !d.terminated.get());
         if !same {
-            if !self.finish() {
+            if !retired && !self.finish() {
                 return;
             }
+            if retired {
+                self.input.borrow_mut().reset();
+            }
+            // Never revive a retired epoch: its asynchronous edit sessions may
+            // still be queued in the host while new input starts here.
             *self.document.borrow_mut() = Some(document::Document::new(
                 context.clone(),
                 self.client.get(),
                 Rc::downgrade(self),
             ));
-        }
-        if self
-            .document
-            .borrow()
-            .as_ref()
-            .is_some_and(|d| d.terminated.replace(false))
-        {
-            self.input.borrow_mut().reset();
         }
     }
     fn set_focused(&self, focused: bool) {
@@ -1446,6 +1463,10 @@ impl ITfKeyEventSink_Impl for Service_Impl {
                 state.cancel_composition();
                 return Ok(FALSE);
             }
+            let document = state.document.borrow().clone();
+            if let Some(document) = document {
+                document.observe_host();
+            }
             if (!state.input.borrow().english
                 && (bilingual_shortcut(key.0) || punctuation_shortcut(key.0)))
                 || panel::settings_shortcut(key.0)
@@ -1454,7 +1475,7 @@ impl ITfKeyEventSink_Impl for Service_Impl {
                 return Ok(TRUE);
             }
             if state.input.borrow().english || command_modifier() {
-                state.break_input_context();
+                state.release_for_host();
                 if !blocked(context)
                     && (updates::shortcut(key.0) || panel::settings_shortcut(key.0))
                 {
@@ -1463,6 +1484,7 @@ impl ITfKeyEventSink_Impl for Service_Impl {
                 return Ok(FALSE);
             }
             if !state.accepts_keys() {
+                state.release_for_host();
                 return Ok(FALSE);
             }
             let decoded = decode(
@@ -1475,7 +1497,7 @@ impl ITfKeyEventSink_Impl for Service_Impl {
                 } else if matches!(key.0, 0x10 | 0xA0 | 0xA1) {
                     state.cancel_memory();
                 } else {
-                    state.break_input_context();
+                    state.release_for_host();
                 }
             }
             Ok(decoded.is_some().into())

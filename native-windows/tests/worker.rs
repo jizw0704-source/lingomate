@@ -178,6 +178,36 @@ fn failed_engine_keeps_case_raw_return_and_literal_punctuation_without_postponin
 }
 
 #[test]
+fn unavailable_engine_pinyin_backspace_keeps_quotes_until_a_context_boundary() {
+    for (key, opening, closing) in [('"', "“", "”"), ('\'', "‘", "’")] {
+        let worker = Worker::start_with(|| Err(EngineFailure::Unavailable));
+        for (id, key, expected) in [
+            (1, Key::Punctuation(key), Some(opening)),
+            (2, Key::Letter('n'), None),
+            (3, Key::Backspace, None),
+            (4, Key::Punctuation(key), Some(closing)),
+        ] {
+            send(&worker, id, key);
+            let Reply::Update { input, commit, .. } =
+                worker.recv_timeout(Duration::from_secs(2)).unwrap()
+            else {
+                panic!("expected keyboard update")
+            };
+            assert_eq!(commit.as_deref(), expected);
+            assert_eq!(input.raw, if id == 2 { "n" } else { "" });
+        }
+        // A real editor boundary must still start a fresh quote pair.
+        worker.enqueue(Command::BreakContext).unwrap();
+        send(&worker, 5, Key::Punctuation(key));
+        let Reply::Update { commit, .. } = worker.recv_timeout(Duration::from_secs(2)).unwrap()
+        else {
+            panic!("expected keyboard update")
+        };
+        assert_eq!(commit.as_deref(), Some(opening));
+    }
+}
+
+#[test]
 fn queued_mixed_input_commits_fifo_and_preserves_uppercase() {
     let worker = real_worker(None);
     let mut keys = Vec::new();
@@ -289,6 +319,72 @@ fn rapid_commit_then_digit_uses_worker_composition_instead_of_late_ui_state() {
         }
     }
     assert_eq!(output, "我1");
+}
+
+#[test]
+fn literal_characters_follow_pending_pinyin_and_candidate_commits_in_fifo_order() {
+    for chinese in [false, true] {
+        let worker = real_worker(None);
+        send(&worker, 1, Key::Letter('w'));
+        send(&worker, 2, Key::Letter('o'));
+        let mut last = 3;
+        if chinese {
+            worker
+                .enqueue(Command::Keyboard {
+                    id: last,
+                    idle: Some(Key::Literal(' ')),
+                    composing: Some(Key::Space(false)),
+                })
+                .unwrap();
+            last += 1;
+        }
+        worker
+            .enqueue(Command::Keyboard {
+                id: last,
+                idle: Some(Key::Literal('6')),
+                composing: Some(Key::Literal('6')),
+            })
+            .unwrap();
+        let mut output = String::new();
+        for expected_id in 1..=last {
+            let (id, input, commit, _) = update(&worker);
+            assert_eq!(id, expected_id);
+            if let Some(commit) = commit {
+                output.push_str(&commit);
+            }
+            if id == last {
+                assert!(input.raw.is_empty());
+            }
+        }
+        assert_eq!(output, if chinese { "我6" } else { "wo6" });
+    }
+}
+
+#[test]
+fn unavailable_engine_literal_keeps_the_accepted_raw_prefix() {
+    let worker = Worker::start_with(|| Err(EngineFailure::Unavailable));
+    for (id, key, raw, expected) in [
+        (1, Key::Letter('W'), "W", None),
+        (2, Key::Letter('o'), "Wo", None),
+        (3, Key::Literal('6'), "", Some("Wo6")),
+        (4, Key::Literal('6'), "", Some("6")),
+    ] {
+        send(&worker, id, key);
+        let Reply::Update {
+            input,
+            commit,
+            study,
+            memory,
+            ..
+        } = worker.recv_timeout(Duration::from_secs(2)).unwrap()
+        else {
+            panic!("expected keyboard update")
+        };
+        assert_eq!(input.raw, raw);
+        assert_eq!(commit.as_deref(), expected);
+        assert!(study.is_none());
+        assert!(memory.is_none());
+    }
 }
 
 #[test]

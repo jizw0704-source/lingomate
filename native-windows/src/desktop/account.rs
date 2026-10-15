@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
+// The backend accepts at most 1 MB per POST. Count encoded UTF-8 bytes with headroom.
+const EVENT_BATCH_BYTES: usize = 900_000;
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Identity {
@@ -51,6 +54,29 @@ impl Event {
             && self.word().valid()
             && matches!(self.kind.as_str(), "study" | "mastered")
     }
+}
+fn event_batches(events: &[Event]) -> Result<Vec<&[Event]>, RemoteError> {
+    let mut batches = Vec::new();
+    let mut start = 0;
+    let mut size = 2; // JSON array brackets.
+    for (index, event) in events.iter().enumerate() {
+        let encoded = serde_json::to_vec(event)
+            .map_err(|_| RemoteError::Storage)?
+            .len();
+        if encoded + 2 > EVENT_BATCH_BYTES {
+            return Err(RemoteError::Storage);
+        }
+        if size + usize::from(index > start) + encoded > EVENT_BATCH_BYTES {
+            batches.push(&events[start..index]);
+            start = index;
+            size = 2;
+        }
+        size += usize::from(index > start) + encoded;
+    }
+    if start < events.len() {
+        batches.push(&events[start..]);
+    }
+    Ok(batches)
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -529,17 +555,17 @@ impl<V: Vault, H: Transport> Service<'_, V, H> {
                 )
             })?;
         }
-        if self.store.snapshot()?.active.as_ref() != Some(&account) {
-            return Err(RemoteError::Changed);
-        }
         let pending = snapshot
             .pending
             .get(&account.scope())
             .cloned()
             .unwrap_or_default();
         let mut acknowledged = BTreeSet::new();
-        if !pending.is_empty() {
-            let body = serde_json::to_value(&pending).map_err(|_| RemoteError::Storage)?;
+        for batch in event_batches(&pending)? {
+            if self.store.snapshot()?.active.as_ref() != Some(&account) {
+                return Err(RemoteError::Changed);
+            }
+            let body = serde_json::to_value(batch).map_err(|_| RemoteError::Storage)?;
             let bytes = self.request(
                 &account.project,
                 "v1/events",
@@ -548,11 +574,14 @@ impl<V: Vault, H: Transport> Service<'_, V, H> {
             )?;
             let ids: Vec<String> =
                 serde_json::from_slice(&bytes).map_err(|_| RemoteError::InvalidResponse)?;
-            if ids.len() > 5000 || ids.iter().any(|id| !valid_uuid(id)) {
+            if ids.len() > batch.len() || ids.iter().any(|id| !valid_uuid(id)) {
                 return Err(RemoteError::InvalidResponse);
             }
-            let sent: BTreeSet<_> = pending.iter().map(|e| e.id.clone()).collect();
-            acknowledged = ids.into_iter().filter(|id| sent.contains(id)).collect();
+            let sent: BTreeSet<_> = batch.iter().map(|e| &e.id).collect();
+            acknowledged.extend(ids.into_iter().filter(|id| sent.contains(id)));
+        }
+        if self.store.snapshot()?.active.as_ref() != Some(&account) {
+            return Err(RemoteError::Changed);
         }
         let bytes = self.request(&account.project, "v1/words", Some(&tokens.access), None)?;
         let words: Vec<Word> =
@@ -570,6 +599,8 @@ impl<V: Vault, H: Transport> Service<'_, V, H> {
             if data.active.as_ref() != Some(&account) {
                 return Err(RemoteError::Changed);
             }
+            // Retain all events until the final word snapshot is available. If a later batch
+            // or GET fails, retry with the same UUIDs; the backend applies each event only once.
             data.pending
                 .entry(account.scope())
                 .or_default()
@@ -678,6 +709,206 @@ mod tests {
             };
             Ok(Response { status: 200, bytes })
         }
+    }
+    #[derive(Default)]
+    struct BatchHTTP<'a> {
+        body_sizes: std::cell::RefCell<Vec<usize>>,
+        received: std::cell::RefCell<Vec<String>>,
+        accepted: std::cell::RefCell<BTreeSet<String>>,
+        words: std::cell::RefCell<BTreeMap<String, Word>>,
+        fail_on: std::cell::Cell<Option<usize>>,
+        fail_words: std::cell::Cell<bool>,
+        change: std::cell::RefCell<Option<Box<dyn FnOnce() + 'a>>>,
+    }
+    impl Transport for BatchHTTP<'_> {
+        fn request(
+            &self,
+            url: &str,
+            _method: &str,
+            _token: Option<&str>,
+            body: Option<&[u8]>,
+            _local: bool,
+            _limit: usize,
+        ) -> Result<Response, RemoteError> {
+            let bytes = if url.ends_with("/verify") {
+                tokens_response()
+            } else if url.ends_with("/events") {
+                let body = body.unwrap();
+                self.body_sizes.borrow_mut().push(body.len());
+                let attempt = self.body_sizes.borrow().len();
+                if body.len() > 1_000_000 {
+                    return Ok(Response {
+                        status: 400,
+                        bytes: b"{}".to_vec(),
+                    });
+                }
+                if self.fail_on.get() == Some(attempt) {
+                    return Err(RemoteError::Network);
+                }
+                let events: Vec<Event> = serde_json::from_slice(body).unwrap();
+                for event in &events {
+                    assert!(event.valid());
+                    self.received.borrow_mut().push(event.id.clone());
+                    if self.accepted.borrow_mut().insert(event.id.clone()) {
+                        let mut words = self.words.borrow_mut();
+                        let word = words
+                            .entry(event.word().id())
+                            .or_insert_with(|| event.word());
+                        if event.kind == "study" {
+                            word.uses += 1;
+                        } else {
+                            word.mastered = event.mastered;
+                        }
+                    }
+                }
+                let change = self.change.borrow_mut().take();
+                if let Some(change) = change {
+                    change();
+                }
+                serde_json::to_vec(&events.iter().map(|e| &e.id).collect::<Vec<_>>()).unwrap()
+            } else if url.ends_with("/words") {
+                if self.fail_words.replace(false) {
+                    return Err(RemoteError::Network);
+                }
+                serde_json::to_vec(&self.words.borrow().values().collect::<Vec<_>>()).unwrap()
+            } else {
+                panic!("unexpected account fixture request");
+            };
+            Ok(Response { status: 200, bytes })
+        }
+    }
+    fn seed_batch_pending(store: &Store, account: &Identity) -> Vec<Event> {
+        let events: Vec<_> = (0..5000)
+            .map(|index| Event {
+                id: uuid(),
+                english: "a".repeat(80),
+                chinese: "测".repeat(16),
+                pos: "n".repeat(24),
+                kind: if index == 4999 { "mastered" } else { "study" }.into(),
+                mastered: index == 4999,
+            })
+            .collect();
+        assert!(serde_json::to_vec(&events).unwrap().len() > 1_000_000);
+        store
+            .data
+            .transaction(true, |data| {
+                data.pending.insert(account.scope(), events.clone());
+                data.validate()
+            })
+            .unwrap();
+        events
+    }
+    #[test]
+    fn large_offline_queue_is_sent_in_byte_bounded_ordered_batches() {
+        let root = std::env::temp_dir().join(format!(
+            "lingomate-account-batches-{}",
+            crate::storage::nonce()
+        ));
+        let store = Store::isolated(root.clone());
+        let vault = MemoryVault::default();
+        let http = BatchHTTP::default();
+        let service = Service {
+            store: &store,
+            vault: &vault,
+            http: &http,
+        };
+        store.save_url("https://example.com").unwrap();
+        service.verify("fixture@example.com", "123456").unwrap();
+        let account = store.snapshot().unwrap().active.unwrap();
+        let events = seed_batch_pending(&store, &account);
+        service.sync().unwrap();
+        assert!(http.body_sizes.borrow().len() > 1);
+        assert!(http.body_sizes.borrow().iter().all(|size| *size <= 900_000));
+        assert_eq!(
+            *http.received.borrow(),
+            events.iter().map(|e| e.id.clone()).collect::<Vec<_>>()
+        );
+        let data = store.snapshot().unwrap();
+        assert!(data.pending[&account.scope()].is_empty());
+        let words = data.visible(&account);
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0].uses, 4999);
+        assert!(words[0].mastered);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn later_batch_or_word_snapshot_failure_retries_the_same_ids_without_double_counting() {
+        for fail_batch in [true, false] {
+            let root = std::env::temp_dir().join(format!(
+                "lingomate-account-batch-retry-{}",
+                crate::storage::nonce()
+            ));
+            let store = Store::isolated(root.clone());
+            let vault = MemoryVault::default();
+            let http = BatchHTTP::default();
+            http.fail_on.set(fail_batch.then_some(2));
+            http.fail_words.set(!fail_batch);
+            let service = Service {
+                store: &store,
+                vault: &vault,
+                http: &http,
+            };
+            store.save_url("https://example.com").unwrap();
+            service.verify("fixture@example.com", "123456").unwrap();
+            let account = store.snapshot().unwrap().active.unwrap();
+            let events = seed_batch_pending(&store, &account);
+            assert_eq!(service.sync(), Err(RemoteError::Network));
+            assert!(!http.accepted.borrow().is_empty());
+            assert_eq!(http.accepted.borrow().len() < events.len(), fail_batch);
+            assert_eq!(
+                store.snapshot().unwrap().pending[&account.scope()].len(),
+                events.len()
+            );
+            assert_eq!(store.snapshot().unwrap().visible(&account)[0].uses, 4999);
+            http.fail_on.set(None);
+            service.sync().unwrap();
+            let data = store.snapshot().unwrap();
+            assert!(data.pending[&account.scope()].is_empty());
+            assert_eq!(http.accepted.borrow().len(), events.len());
+            let words = data.visible(&account);
+            assert_eq!(words[0].uses, 4999);
+            assert!(words[0].mastered);
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+    #[test]
+    fn session_change_stops_before_the_next_batch_and_preserves_pending_events() {
+        let root = std::env::temp_dir().join(format!(
+            "lingomate-account-batch-session-{}",
+            crate::storage::nonce()
+        ));
+        let store = Store::isolated(root.clone());
+        let vault = MemoryVault::default();
+        let http = BatchHTTP::default();
+        let service = Service {
+            store: &store,
+            vault: &vault,
+            http: &http,
+        };
+        store.save_url("https://example.com").unwrap();
+        service.verify("fixture@example.com", "123456").unwrap();
+        let account = store.snapshot().unwrap().active.unwrap();
+        let events = seed_batch_pending(&store, &account);
+        let mut newer = account.clone();
+        newer.session = uuid();
+        let replacement = newer.clone();
+        let changing = &store;
+        *http.change.borrow_mut() = Some(Box::new(move || {
+            changing
+                .data
+                .transaction(true, |data| {
+                    data.active = Some(replacement);
+                    Ok(())
+                })
+                .unwrap();
+        }));
+        assert_eq!(service.sync(), Err(RemoteError::Changed));
+        assert_eq!(http.body_sizes.borrow().len(), 1);
+        let data = store.snapshot().unwrap();
+        assert_eq!(data.active, Some(newer.clone()));
+        assert_eq!(data.pending[&account.scope()].len(), events.len());
+        assert!(!data.words.contains_key(&account.scope()));
+        std::fs::remove_dir_all(root).unwrap();
     }
     struct DuringVerify<'a> {
         change: std::cell::RefCell<Option<Box<dyn FnOnce() + 'a>>>,
