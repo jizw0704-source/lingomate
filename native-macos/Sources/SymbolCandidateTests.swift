@@ -14,12 +14,55 @@ enum SymbolCandidateTests {
       settings.selectSymbols(false)
       precondition(!CandidatePreferences(store: preferences).showSymbols)
       settings.selectSymbols(true)
+      precondition(MathSymbols.entries.count == 171)
+      precondition(Set(MathSymbols.entries.map(\.category)).count == 14)
+      let mathAliases = MathSymbols.entries.flatMap(\.aliases)
+      precondition(mathAliases.count == 337 && Set(mathAliases).count == mathAliases.count)
+      for entry in MathSymbols.entries {
+        for alias in entry.aliases {
+          precondition(SymbolCandidates.outputs(for: alias) == entry.outputs)
+        }
+      }
+      let requiredMath = [
+        "jia": "+", "jian": "−", "cheng": "×", "chu": "÷", "dengyu": "=",
+        "dayu": ">", "xiaoyu": "<", "genhao": "√", "jifen": "∫", "qiuhe": "∑",
+        "shuyu": "∈", "luojiyu": "∧", "shangbiaoling": "⁰", "xiabiaojiu": "₉",
+      ]
+      for (alias, output) in requiredMath {
+        precondition(SymbolCandidates.outputs(for: alias).contains(output))
+        precondition(SymbolCandidates.outputs(for: alias.uppercased()).contains(output))
+      }
+      let invalidCatalogs = [
+        "{}",
+        "{\"version\":2,\"license\":\"GPL-3.0-or-later\",\"entries\":[]}",
+      ]
+      for invalid in invalidCatalogs {
+        do {
+          _ = try MathSymbols.decode(Data(invalid.utf8))
+          preconditionFailure("Malformed math catalog accepted")
+        } catch {}
+      }
       let engine = try EngineClient(resources: Bundle.main.resourceURL!, memoryURL: file)
       defer { engine.terminate() }
       for input in SymbolCandidates.entries.keys.sorted() {
         let original = try engine.request(EngineRequest(action: "query", input: input))
         let augmented = SymbolCandidates.augment(original, enabled: true)
         precondition(augmented.candidates.count <= 64)
+        if mathAliases.contains(input) {
+          var page = SessionState()
+          precondition(page.appendLetters(input))
+          page.frame = augmented
+          precondition(page.pageCount == (augmented.candidates.count + 4) / 5)
+          for (index, candidate) in augmented.candidates.enumerated() where candidate.symbol == true
+          {
+            precondition(index >= min(2, original.candidates.count) && index < 5)
+            page.active = index
+            precondition(page.indexOnPage(index % 5) == index)
+            precondition(
+              SymbolCandidates.output(page.candidate!, input: input, sense: nil) == candidate.text)
+          }
+          precondition(page.takeRawInput() == input && page.frame == nil)
+        }
         precondition(
           augmented.candidates.prefix(min(2, original.candidates.count)).map(\.text)
             == original.candidates.prefix(2).map(\.text))
@@ -83,7 +126,9 @@ enum SymbolCandidateTests {
           syllables: chosen.syllables, context: "symbols"))
       engine.confirmSelection(receipt, context: "symbols", chinese: true)
       let before = try Data(contentsOf: file)
-      for input in ["zan", "yumaoqiu", "shengluehao", "alpha"] + punctuation.keys.sorted() {
+      for input in ["zan", "yumaoqiu", "shengluehao", "alpha"] + punctuation.keys.sorted()
+        + mathAliases
+      {
         let frame = try engine.request(
           EngineRequest(action: "query", input: input, context: "symbols"))
         let enriched = SymbolCandidates.augment(frame, enabled: true)
@@ -92,6 +137,7 @@ enum SymbolCandidateTests {
         let after = try Data(contentsOf: file)
         precondition(after == before)
       }
+      print("PASS 数学覆盖：14类171项337别称，逐项普通候选优先、首屏数字/分页、英文原样确认与临时词库不变；畸形资源拒绝")
       print("PASS 表情符号：完整关键词、前两项中文优先、64项与页码、大小写/分音、开关持久化、拒绝过期/译词、原样回车及真实临时词库不变")
     } catch {
       fputs("表情与符号候选检查失败：\(error)\n", stderr)

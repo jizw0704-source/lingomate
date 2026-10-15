@@ -35,20 +35,8 @@ enum SymbolCandidates {
     add("shangjiantou", ["↑"])
     add("xiajiantou", ["↓"])
     add("shuangxiangjiantou", ["↔", "⇔"])
-    add("dayudengyu", ["≥"])
-    add("xiaoyudengyu", ["≤"])
-    add("budengyu", ["≠"])
-    add("yuedengyu", ["≈"])
-    add("zhengfuhao", ["±"])
-    add("chenghao", ["×"])
-    add("chuhao", ["÷"])
-    add("wuxian wuxianda", ["∞"])
     add("sheshidu", ["℃"])
     add("huashidu", ["℉"])
-    add("du", ["°"])
-    add("pingfang", ["²"])
-    add("lifang", ["³"])
-    add("gouhao", ["√"])
     add("alpha aerfa", ["α", "Α"])
     add("beta beita", ["β", "Β"])
     add("gamma gama", ["γ", "Γ"])
@@ -73,6 +61,9 @@ enum SymbolCandidates {
     add("chi", ["χ", "Χ"])
     add("psi puxi", ["ψ", "Ψ"])
     add("omega oumiga", ["ω", "Ω"])
+    for entry in MathSymbols.entries {
+      for alias in entry.aliases where result[alias] == nil { result[alias] = entry.outputs }
+    }
     return result
   }()
 
