@@ -677,9 +677,16 @@ impl State {
             .set(self.sentence_epoch.get().wrapping_add(1));
     }
     fn sentence_token(&self) -> Option<crate::sentence::CandidateToken> {
+        // Without an enabled service the panel keeps no sentence footer and starts no helper.
+        let available = self
+            .shared
+            .borrow()
+            .as_ref()
+            .is_some_and(crate::settings::Shared::sentence_available);
         let input = self.input.borrow();
         if self.preview
             || self.retiring.get()
+            || !available
             || !self.focused.get()
             || self.busy.get()
             || input.error
@@ -2016,5 +2023,37 @@ mod dispatch_tests {
         assert!(state.input.borrow().frame.candidates.is_empty());
         release.send(()).unwrap();
         drain(&state);
+    }
+
+    #[test]
+    fn sentence_translation_waits_for_an_enabled_service() {
+        let state = State::with_display_preferences(false);
+        state.focused.set(true);
+        {
+            let mut input = state.input.borrow_mut();
+            input.raw = "dsadd".into();
+            input.frame.candidates = vec![crate::bridge::Candidate {
+                text: "的撒丁岛".into(),
+                ..Default::default()
+            }];
+        }
+        assert!(state.sentence_token().is_none());
+        *state.shared.borrow_mut() = crate::settings::Shared::isolated();
+        assert!(state.sentence_token().is_none());
+        let report = |available| {
+            state
+                .shared
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .set_sentence_available(available)
+        };
+        report(false);
+        assert!(state.sentence_token().is_none());
+        report(true);
+        assert_eq!(
+            state.sentence_token().map(|token| token.source),
+            Some("的撒丁岛".to_owned())
+        );
     }
 }
