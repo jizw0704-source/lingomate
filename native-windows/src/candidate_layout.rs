@@ -83,22 +83,19 @@ impl Layout {
         let padding = scale(12);
         let gap = scale(4);
         let row = scale(44);
-        let estimated_width: i32 = lengths
-            .iter()
-            .map(|length| {
-                let glyphs = i32::try_from(length.saturating_add(2)).unwrap_or(i32::MAX);
-                let title_width = chinese_font.saturating_mul(glyphs);
-                title_width
-                    .saturating_add(padding * 2)
-                    .clamp(row, scale(140))
-            })
-            .sum();
-        let wanted = if compact && count < 5 {
-            (estimated_width + gap * count.saturating_sub(1) as i32 + padding * 2).max(scale(400))
+        // Reserve four full-width glyphs plus the number, highlight and
+        // insets. Keep each compact page's width stable across short words;
+        // prefer horizontal space before growing every candidate's row.
+        let wanted = if compact {
+            let cell = chinese_font.saturating_mul(4).saturating_add(scale(56));
+            (cell * count as i32 + gap * count.saturating_sub(1) as i32 + padding * 2)
+                .max(scale(if count < 5 { 400 } else { 560 }))
         } else {
             scale(560)
         };
-        let width = wanted.min(scale(560)).min(available.max(row));
+        let width = wanted
+            .min(scale(if compact { 800 } else { 560 }))
+            .min(available.max(row));
         let body_width = (width - padding * 2).max(row);
         let narrow = width < scale(500);
         let control_width = row * (1 + i32::from(details) + 2 * i32::from(paging))
@@ -163,6 +160,12 @@ impl Layout {
         // Full-width glyphs conservatively estimate wrapping. Include the local
         // number and button padding, with no line cap or candidate truncation.
         let text_height = |length: usize, width: i32| {
+            if compact
+                && length.saturating_mul(chinese_font as usize)
+                    <= width.saturating_sub(scale(54)).max(0) as usize
+            {
+                return row;
+            }
             let chars_per_line =
                 ((width - padding * 2).max(chinese_font) / chinese_font).max(1) as usize;
             let lines = length.saturating_add(2).div_ceil(chars_per_line).max(1);
@@ -502,6 +505,36 @@ mod tests {
                     assert_eq!(layout.sense_rect(5).height, 88 * dpi / 96);
                     assert_eq!(layout.footer_rect().height, 24 * dpi / 96);
                 }
+            }
+        }
+    }
+    #[test]
+    fn short_words_use_horizontal_space_before_adding_shared_blank_rows() {
+        for dpi in [96, 144, 192] {
+            for font in [16, 18, 20, 22, 32] {
+                let available = 1600 * dpi / 96;
+                let lengths = [1, 2, 3, 1, 2];
+                let layout = Layout::with_lengths(&lengths, 0, font, dpi, available);
+                assert!(layout.width() <= 800 * dpi / 96);
+                for slot in 0..5 {
+                    let r = layout.candidate_rect(slot, false);
+                    assert_eq!(
+                        r.height, layout.row,
+                        "three-character words should stay on one row at font {font}, dpi {dpi}"
+                    );
+                    assert_eq!(layout.hit(r.x + 1, r.y + 1), Some((slot, false)));
+                }
+                if font <= 22 {
+                    let four = Layout::with_lengths(&[4; 5], 0, font, dpi, available);
+                    assert_eq!(
+                        four.width(),
+                        layout.width(),
+                        "short words should not resize the panel while typing"
+                    );
+                    assert_eq!(four.candidate_rect(0, false).height, four.row);
+                }
+                let narrow = Layout::with_lengths(&lengths, 0, font, dpi, 320 * dpi / 96);
+                assert!(narrow.width() <= 320 * dpi / 96);
             }
         }
     }

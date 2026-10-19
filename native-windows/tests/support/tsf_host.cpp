@@ -734,7 +734,7 @@ public:
     }
     void hover_candidates(FixtureDocument& document) {
         // The fixture's wode result has five paired candidates. The compact
-        // layout uses a 560px candidate width and a 400px loading/empty width;
+        // layout uses a 680px candidate width and a 400px loading/empty width;
         // both states can have the same height. Width plus the fixture-owned
         // raw anchor therefore distinguishes a real worker reply from loading.
         const auto deadline = GetTickCount64() + 6000;
@@ -763,7 +763,7 @@ public:
             inset = static_cast<int>((8 * dpi + 48) / 96);
             body_separator = 2 * static_cast<int>((4 * dpi + 48) / 96)
                 + static_cast<int>((dpi + 48) / 96);
-            const auto loaded_width = static_cast<int>((560 * dpi + 48) / 96);
+            const auto loaded_width = static_cast<int>((680 * dpi + 48) / 96);
             // Allow only the native border's rounding tolerance. A 400px
             // loading frame must never satisfy this candidate-ready predicate.
             ready = client_rect.right >= loaded_width - 2 && client_rect.right <= loaded_width + 2;
