@@ -1,12 +1,12 @@
 # 灵果 · LingoMate · Windows 开发版
 
-当前开发版本为 **0.1.23**：模式图标直接显示“中／英”。MSVC 构建、完整本机检查、158 项 Rust 及三种隔离 TSF 宿主通过，已同步安装到本机 `%LOCALAPPDATA%\LingoMate\Windows\0.1.23-D7C83DFBBDF1`，文件、系统 COM 登记与 helper 版本核验通过；实体键盘和实际任务栏显示待用户正常重开应用后测试。下文各版本的测试数量、安装状态和未提交说明保留为当时的阶段记录，详见[QA](QA.md)。
+当前开发版本为 **0.1.23**：模式图标直接显示“中／英”。MSVC 构建、完整本机检查、158 项 Rust 及三种隔离 TSF 宿主通过，已同步安装到本机 `%LOCALAPPDATA%\LingoMate\Windows\0.1.23-D7C83DFBBDF1`，文件、系统 COM 登记与 helper 版本核验通过；已确认当前 ChatGPT／Codex 进程加载新版，用户手动选择灵果并按要求测试后反馈中／英切换可用；主题／DPI、鼠标点击与右键菜单仍待逐项验收。下文各版本的测试数量、安装状态和未提交说明保留为当时的阶段记录，详见[QA](QA.md)。
 
 ## 任务栏中英文状态图标 · 0.1.23 · 2026-10-19
 
 参考青简的原生 TSF 模式按钮做法，灵果模式图标本身随实际输入状态显示“中”或“英”，单击继续切换中英文，右键菜单与已有快捷键保留。状态变更通知 Windows 重读图标，避免固定“果”图标无法区分当前模式。图标沿用本项目的中性样式，由构建工具绘制多尺寸资源；输入法选择列表的品牌图标仍为“果”。
 
-这是 Windows 原生模式图标的调整，系统输入法选择入口由 Windows 保留；未修改全局输入指示器设置、增加独立常驻托盘进程或改动其他输入法。参考 [青简 ModeButton](https://github.com/qingjian-team/qingjian/blob/c97ff2b61933d6fcd845ee4f4f470faf3ea83bf6/apps/windows/tsf/src/com/mode/button.rs#L79-L101) 的状态选择方法，使用灵果自行生成的图标资源。构建、图标像素回归和本机安装结果见 [QA](QA.md)。
+这是 Windows 原生模式图标的调整，系统输入法选择入口由 Windows 保留；未修改全局输入指示器设置、增加独立常驻托盘进程或改动其他输入法。参考 [青简 ModeButton](https://github.com/qingjian-team/qingjian/blob/c97ff2b61933d6fcd845ee4f4f470faf3ea83bf6/apps/windows/tsf/src/com/mode/button.rs#L79-L101) 的状态选择方法，使用灵果自行生成的图标资源。当前 ChatGPT／Codex 实机加载与用户中英切换反馈已确认；本次无需重开宿主，选择灵果后即加载新版。构建、图标像素回归、本机安装及实机结果见 [QA](QA.md)。
 
 ## 输入边界与更新／同步修复 · 0.1.22 · 2026-10-15
 

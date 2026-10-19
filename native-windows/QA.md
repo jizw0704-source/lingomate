@@ -8,7 +8,17 @@
 
 本轮 MSVC x64 release、完整 `check.ps1 -SkipUpdates -WordNetSource runtime/wordnet-3.0-pinned.bin` 退出 0：格式、all-targets Clippy、158 项 Rust（Windows 144／共享 14）、49 项 Python 引擎／数据回归与 DLL 工厂检查通过。STA／MTA／COMLESS 三模式合计 6 次图标像素核验与 192 轮 hover 通过。移除夹具局部变量遮蔽后，最终 C++ 源码另以 `/W4 /WX` 无警告编译；没有改变测试行为。品牌／中／英三资源导出及浅色／深色／大字号／窄窗预览通过并人工查看中英图标；Obsidian 镜像脚本 3 项通过。本次未重新执行更新器检查，安装／更新核心未修改。
 
-已在无包身份 64 位进程经同账号 UAC 安装到 `%LOCALAPPDATA%\LingoMate\Windows\0.1.23-D7C83DFBBDF1`。14 项 manifest 文件全部通过校验，manifest SHA-256 为 `D7C83DFBBDF1430CEDAD9E792956DA6C92B5D390F37CCB6066246FE373649C93`，TSF DLL SHA-256 为 `9BFABFC8B6BDDEFD9150A48BE819E3D4C190C7B7CC8477BCD416F9EF0BBF98F5`。HKCU／HKLM 自有 CLSID 一致指向新版，profile 仍启用，14 个旧目录保留，安装回执指向前一版本 `0.1.22-17CA3AF04D8E`。独立系统 COM 创建实际加载新版，未激活或选择输入源；helper 回读 `unpacked=true`／`version=0.1.23`，安装目录 DLL 工厂检查通过。未停止用户应用、重启 ctfmon 或系统。原生模式图标和输入法选择标识是系统的两个位置，本轮不把改图标等同于隐藏或合并系统选择入口。实际任务栏显示、主题／DPI、Shift、点击切换与右键菜单仍须用户正常重开宿主后手测；合成宿主通过不代替真实应用验收。
+已在无包身份 64 位进程经同账号 UAC 安装到 `%LOCALAPPDATA%\LingoMate\Windows\0.1.23-D7C83DFBBDF1`。14 项 manifest 文件全部通过校验，manifest SHA-256 为 `D7C83DFBBDF1430CEDAD9E792956DA6C92B5D390F37CCB6066246FE373649C93`，TSF DLL SHA-256 为 `9BFABFC8B6BDDEFD9150A48BE819E3D4C190C7B7CC8477BCD416F9EF0BBF98F5`。HKCU／HKLM 自有 CLSID 一致指向新版，profile 仍启用，14 个旧目录保留，安装回执指向前一版本 `0.1.22-17CA3AF04D8E`。独立系统 COM 创建实际加载新版，未激活或选择输入源；helper 回读 `unpacked=true`／`version=0.1.23`，安装目录 DLL 工厂检查通过。未停止用户应用、重启 ctfmon 或系统。原生模式图标和输入法选择标识是系统的两个位置，本轮不把改图标等同于隐藏或合并系统选择入口。以下为本次后续实机验证；合成宿主通过不代替真实应用验收。
+
+### 当前 ChatGPT／Codex 实机确认 · 2026-10-19
+
+用户手动点击待测输入框、通过系统菜单选择灵果，并按要求单按／松开 Shift 往返切换后反馈“可以了”。随后只读模块元数据确认同一 ChatGPT／Codex 主进程（进程名 ChatGPT，PID 54656）已实际加载 `0.1.23-D7C83DFBBDF1` 下的 `lingomate_tsf.dll` 和 `lingomate_engine.dll`。TSF DLL 摘要与上述安装包一致；引擎 DLL SHA-256 为 `AF0D3AA5D4C3598D7BD4C488A9794EC96FDD7306BAE1F4D82908BC9224EE4D80`。不读取宿主正文、剪贴板、输入历史或个人词库。
+
+在选择前，ChatGPT／Codex 进程未加载灵果；用户选择后同一进程即加载新版，没有重装、关闭宿主、重启 ctfmon 或系统。前后结果支持此前该窗口尚未激活灵果，本次未复现登记或 DLL 加载故障；不据此认定所有宿主无需重开，也不据前台 Chrome 的元数据推断 ChatGPT 输入框状态。实机切换结论来自用户反馈，没有由助手自动操作聊天界面或自行观察其任务栏截图。
+
+针对同一已安装 14 文件包重新执行 `test_tsf_host.ps1 -Package <installed-0.1.23-directory>`，退出 0。STA／MTA／COMLESS 三种隔离宿主通过，中／英模式共 6 次实际 HICON 像素校验通过，并核对模式文字及系统 compartment 状态；每种模式 64 轮 hover，共 192 轮通过。隔离测试使用不可变临时副本和自有合成上下文，不选择用户输入源。原始模块摘要和测试日志只保存在忽略目录，不提交运行证据。
+
+本次实机通过范围为当前 ChatGPT／Codex 加载 0.1.23 及用户反馈中／英切换可用。主题／DPI 组合、鼠标点击切换、右键菜单、其他真实应用，以及 0.1.22 四项修复的完整实机用例仍须分别验收；不将本次反馈扩大为全部输入行为通过。
 
 ## 0.1.22 本机同步安装 · 2026-10-15
 
