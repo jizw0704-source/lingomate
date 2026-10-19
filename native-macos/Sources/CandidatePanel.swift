@@ -215,7 +215,7 @@ final class CandidatePanel: NSPanel {
         let chineseWidth = fullChinese ? bodyWidth - 32 : 128
         let chinese = fittedButton(
           candidate.text, width: chineseWidth, size: textSize(16),
-          label: "输出中文 \(candidate.text)"
+          label: "输出\(candidate.symbol == true ? "符号" : "中文") \(candidate.text)"
         ) { [weak self] in self?.onChinese?(index) }
         chinese.font = NativeTheme.font(textSize(16), weight: .medium)
         let chineseGroup = row([chinese])
@@ -257,7 +257,9 @@ final class CandidatePanel: NSPanel {
           } else {
             candidateRow = row([chineseRow, englishRow])
           }
-        } else if bilingual && index == state.active && state.sentence == .none {
+        } else if bilingual && candidate.symbol != true && index == state.active
+          && state.sentence == .none
+        {
           let status =
             candidate.text.count >= 3 || (candidate.personal == true && candidate.text.count >= 2)
             ? (index == state.active ? "当前候选的整句译文见下方" : "选中后可翻译整句") : "暂无英文译词"
@@ -351,7 +353,7 @@ final class CandidatePanel: NSPanel {
       let chinese = fittedButton(
         "\(slot) \(candidate.text)",
         width: columnWidth, size: textSize(18),
-        label: "输出中文 \(candidate.text)"
+        label: "输出\(candidate.symbol == true ? "符号" : "中文") \(candidate.text)"
       ) { [weak self] in self?.onChinese?(index) }
       chinese.toolTip = candidate.text
       chinese.horizontalPadding = 8
@@ -381,7 +383,7 @@ final class CandidatePanel: NSPanel {
         } else {
           let missing = NativeTheme.label("—", size: textSize(12), secondary: true)
           missing.heightAnchor.constraint(equalToConstant: 44).isActive = true
-          missing.toolTip = "此候选暂无词语译法；中文仍可选择"
+          missing.toolTip = candidate.symbol == true ? "表情或符号，选择后直接输出" : "此候选暂无词语译法；中文仍可选择"
           cell.addArrangedSubview(missing)
         }
       }

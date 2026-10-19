@@ -78,6 +78,211 @@ class MemoryTests(unittest.TestCase):
     def entries(self):
         return json.loads(self.path.read_text(encoding="utf-8"))["entries"]
 
+    def edited_selection(self, input_, word):
+        frame = self.commit(input_, word)
+        return self.confirm(frame, track_edits=True)["editToken"]
+
+    def trim(self, token, start, length, **kwargs):
+        return self.request(
+            action="edit-memory",
+            learning_token=token,
+            edit_start=start,
+            edit_length=length,
+            **kwargs,
+        )
+
+    def test_borrowed_word_trimming_persists_only_final_combination(self):
+        token = self.edited_selection("linghuo", "灵活")
+        token = self.trim(token, 1, 1)["editToken"]
+        token = self.edited_selection("guoshi", "果实")
+        token = self.trim(token, 2, 1)["editToken"]
+        self.assertFalse(any(e["text"] == "灵果" for e in self.entries()))
+        self.assertNotIn(
+            "error", self.request(action="finish-memory", learning_token=token)
+        )
+        self.assertTrue(
+            any(
+                e["text"] == "灵果" and e["syllables"] == ["ling", "guo"]
+                for e in self.entries()
+            )
+        )
+        self.assertFalse(
+            any(e["text"] in ["灵活果实", "灵果实"] for e in self.entries())
+        )
+        self.assertIn(
+            "error", self.request(action="finish-memory", learning_token=token)
+        )
+        self.restart()
+        self.assertEqual(self.request("lingguo")["candidates"][0]["text"], "灵果")
+        self.assertTrue(self.request("lingguo")["candidates"][0]["personal"])
+
+    def test_edits_require_confirmed_context_and_single_use_tokens(self):
+        frame = self.commit("linghuo", "灵活")
+        self.assertIn("error", self.trim(frame["learningToken"], 1, 1))
+        token = self.confirm(frame, track_edits=True)["editToken"]
+        self.assertIn("error", self.trim(token, 1, 1, context="other-editor"))
+        self.assertIn("error", self.trim(token, 0, 3))
+        self.assertIn("error", self.trim(token, 0, 0))
+        self.assertIn("error", self.trim(token, 2**64 - 1, 1))
+        self.assertIn("error", self.trim(token, -1, 1))
+        new_token = self.trim(token, 1, 1)["editToken"]
+        self.assertNotEqual(new_token, token)
+        self.assertIn("error", self.trim(token, 0, 1))
+        self.request(action="cancel")
+        self.assertIn("error", self.trim(new_token, 0, 1))
+
+    def test_prefix_deletion_preserves_polyphonic_reading_and_cancel_drops_run(self):
+        token = self.edited_selection("yinhang", "银行")
+        self.trim(token, 0, 1)
+        token = self.edited_selection("nie", "镍")
+        self.request(action="finish-memory", learning_token=token)
+        self.restart()
+        entry = next(e for e in self.entries() if e["text"] == "行镍")
+        self.assertEqual(entry["syllables"], ["hang", "nie"])
+        self.assertEqual(self.request("hangnie")["candidates"][0]["text"], "行镍")
+        token = self.edited_selection("linghuo", "灵活")
+        self.trim(token, 1, 1)
+        self.edited_selection("guoshi", "果实")
+        self.request(action="cancel")
+        self.assertFalse(any(e["text"] == "灵果实" for e in self.entries()))
+
+    def test_english_and_default_clients_never_join_an_edited_run(self):
+        token = self.edited_selection("linghuo", "灵活")
+        self.trim(token, 1, 1)
+        frame = self.commit("guoshi", "果实")
+        confirmed = self.confirm(frame, chinese_output=False, track_edits=True)
+        self.assertIsNone(confirmed.get("editToken"))
+        self.assertIn(
+            "error", self.request(action="finish-memory", learning_token=token)
+        )
+        token = self.edited_selection("linghuo", "灵活")
+        self.trim(token, 1, 1)
+        confirmed = self.confirm(self.commit("guoshi", "果实"))
+        self.assertIsNone(confirmed.get("editToken"))
+        self.assertFalse(any(e["text"] == "灵果实" for e in self.entries()))
+
+    def test_edited_known_word_can_keep_function_character(self):
+        token = self.edited_selection("didian", "地点")
+        self.trim(token, 1, 1)
+        token = self.edited_selection("qiuti", "球体")
+        token = self.trim(token, 2, 1)["editToken"]
+        self.assertNotIn(
+            "error", self.request(action="finish-memory", learning_token=token)
+        )
+        self.assertTrue(any(e["text"] == "地球" for e in self.entries()))
+
+    def test_editing_does_not_save_intermediate_character_pairs(self):
+        token = self.edited_selection("linghuo", "灵活")
+        self.trim(token, 1, 1)
+        self.edited_selection("guo", "果")
+        token = self.edited_selection("nie", "镍")
+        token = self.trim(token, 2, 1)["editToken"]
+        self.request(action="finish-memory", learning_token=token)
+        self.assertFalse(any(e["text"] in ["果镍", "灵果镍"] for e in self.entries()))
+        self.assertTrue(any(e["text"] == "灵果" for e in self.entries()))
+
+    def test_deleting_entire_borrowed_run_does_not_leak_into_next_word(self):
+        token = self.edited_selection("linghuo", "灵活")
+        self.assertIsNone(self.trim(token, 0, 2).get("editToken"))
+        self.assertIn(
+            "error", self.request(action="finish-memory", learning_token=token)
+        )
+        token = self.edited_selection("guoshi", "果实")
+        self.assertNotIn(
+            "error", self.request(action="finish-memory", learning_token=token)
+        )
+        self.assertEqual(
+            next(e["count"] for e in self.entries() if e["text"] == "果实"), 1
+        )
+        self.assertFalse(any(e["text"] == "灵活果实" for e in self.entries()))
+
+    def test_edit_requests_reject_composition_and_unrelated_payload_without_mutation(
+        self,
+    ):
+        token = self.edited_selection("linghuo", "灵活")
+        original = self.path.read_bytes()
+        for fields in [
+            {"input_": "linghuo"},
+            {"candidate": "灵活"},
+            {"syllables": ["ling", "huo"]},
+            {"english": "flexible"},
+            {"chinese_output": False},
+            {"track_edits": True},
+            {"deferred_output": True},
+        ]:
+            request = {
+                "action": "edit-memory",
+                "learning_token": token,
+                "edit_start": 1,
+                "edit_length": 1,
+                **fields,
+            }
+            self.assertIn("error", self.request(**request))
+            self.assertEqual(self.path.read_bytes(), original)
+        self.assertIn(
+            "error",
+            self.request(action="finish-memory", learning_token=token, edit_start=0),
+        )
+        self.assertIn(
+            "error",
+            self.request(action="finish-memory", learning_token=token, input_="shi"),
+        )
+        self.assertIn("editToken", self.trim(token, 1, 1))
+
+    def test_default_and_deferred_receipts_keep_legacy_response_shape(self):
+        confirmed = self.confirm(self.commit("linghuo", "灵活"))
+        self.assertNotIn("editToken", confirmed)
+        frame = self.commit("linghuo", "灵活", deferred_output=True)
+        confirmed = self.confirm(frame, track_edits=True)
+        self.assertIsNone(confirmed.get("editToken"))
+        self.assertIn("error", self.trim(frame["learningToken"], 1, 1))
+
+    def test_borrowed_word_integrates_with_management_and_normal_learning(self):
+        def manage(action="list", **fields):
+            response = subprocess.run(
+                [str(BRIDGE), "--vocabulary", str(self.path)],
+                input=json.dumps({"action": action, **fields}),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=5,
+                check=True,
+            )
+            self.assertEqual(response.stderr, "")
+            result = json.loads(response.stdout)
+            self.assertNotIn("error", result)
+            return result["words"]
+
+        token = self.edited_selection("linghuo", "灵活")
+        self.trim(token, 1, 1)
+        token = self.edited_selection("guoshi", "果实")
+        token = self.trim(token, 2, 1)["editToken"]
+        self.request(action="finish-memory", learning_token=token)
+        word = next(w for w in manage() if w["text"] == "灵果")
+        self.assertEqual(word["syllables"], ["ling", "guo"])
+        self.assertEqual(word["aliases"], ["lingguo"])
+        self.assertEqual(word["count"], 1)
+        words = manage(
+            "prioritize", text="灵果", syllables=["ling", "guo"], prioritized=True
+        )
+        self.assertTrue(next(w for w in words if w["text"] == "灵果")["prioritized"])
+        self.confirm(self.commit("xuexi", "学习"))
+        self.assertEqual(self.request("lingguo")["candidates"][0]["text"], "灵果")
+        self.assertTrue(next(w for w in manage() if w["text"] == "灵果")["prioritized"])
+        manage("prioritize", text="灵果", syllables=["ling", "guo"], prioritized=False)
+        words = manage("delete", text="灵果", syllables=["ling", "guo"])
+        self.assertFalse(any(w["text"] == "灵果" for w in words))
+        self.assertTrue(any(w["text"] == "学习" for w in words))
+        for restart in [False, True]:
+            if restart:
+                self.restart()
+            self.assertFalse(
+                any(
+                    c["text"] == "灵果" and c["personal"]
+                    for c in self.request("lingguo")["candidates"]
+                )
+            )
+
     def test_only_confirmed_selection_is_persisted_and_reordered_after_restart(self):
         baseline = self.request("shi")["candidates"]
         self.assertNotEqual(baseline[0]["text"], "市")

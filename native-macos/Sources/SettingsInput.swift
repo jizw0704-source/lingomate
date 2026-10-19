@@ -8,6 +8,7 @@ enum InputSetting {
   case remember(Bool)
   case showPOS(Bool)
   case fontSize(CandidateFontSize)
+  case capitalizeEnglish(Bool)
 
   var payload: [String: String] {
     switch self {
@@ -18,6 +19,8 @@ enum InputSetting {
     case .remember(let enabled): return ["setting": "remember", "value": enabled ? "on" : "off"]
     case .fontSize(let size): return ["setting": "fontSize", "value": String(size.rawValue)]
     case .showPOS(let enabled): return ["setting": "pos", "value": enabled ? "on" : "off"]
+    case .capitalizeEnglish(let enabled):
+      return ["setting": "englishCapitalization", "value": enabled ? "on" : "off"]
     }
   }
   init?(payload: [AnyHashable: Any]) {
@@ -33,6 +36,8 @@ enum InputSetting {
     case ("remember", "off"): self = .remember(false)
     case ("pos", "on"): self = .showPOS(true)
     case ("pos", "off"): self = .showPOS(false)
+    case ("englishCapitalization", "on"): self = .capitalizeEnglish(true)
+    case ("englishCapitalization", "off"): self = .capitalizeEnglish(false)
     case ("fontSize", _):
       guard let raw = Int(value), String(raw) == value, let size = CandidateFontSize(rawValue: raw)
       else { return nil }
@@ -51,6 +56,7 @@ enum InputSetting {
     case .remember(let value): Runtime.remember = value
     case .showPOS(let value): CandidatePreferences.current.select(value)
     case .fontSize(let value): CandidatePreferences.current.selectFont(value)
+    case .capitalizeEnglish(let value): EnglishInputPreferences.current.select(value)
     }
   }
 }
@@ -84,10 +90,12 @@ struct InputSettingsSnapshot {
   let remember: Bool
   let showPOS: Bool
   let fontSize: CandidateFontSize
+  let capitalizeEnglish: Bool
   init?(payload: [AnyHashable: Any]) {
     guard let mode = payload["typingMode"] as? String, ["chinese", "english"].contains(mode),
       let bilingual = payload["bilingual"] as? Bool, let remember = payload["remember"] as? Bool,
       let showPOS = payload["showPartOfSpeech"] as? Bool,
+      let capitalizeEnglish = payload["capitalizeEnglishFragments"] as? Bool,
       let fontRaw = payload["candidateFontSize"] as? Int,
       let fontSize = CandidateFontSize(rawValue: fontRaw),
       let raw = payload["punctuationMode"] as? Int, let punctuation = PunctuationMode(rawValue: raw)
@@ -97,6 +105,7 @@ struct InputSettingsSnapshot {
     self.remember = remember
     self.showPOS = showPOS
     self.fontSize = fontSize
+    self.capitalizeEnglish = capitalizeEnglish
     self.punctuation = punctuation
   }
 }
@@ -119,6 +128,7 @@ final class SettingsInputClient {
       case .remember: actual = value.remember ? "on" : "off"
       case .showPOS: actual = value.showPOS ? "on" : "off"
       case .fontSize: actual = String(value.fontSize.rawValue)
+      case .capitalizeEnglish: actual = value.capitalizeEnglish ? "on" : "off"
       }
       guard actual == setting.payload["value"] else { exit(1) }
       print("输入设置已应用并回读确认。")
@@ -158,7 +168,7 @@ final class SettingsInputClient {
         let snapshot = InputSettingsSnapshot(payload: payload)
       else { return }
       self.snapshot = snapshot
-      self.finish(message: "输入设置已连接；词性与字号会保存，其余选项在本次运行期间生效。")
+      self.finish(message: "输入设置已连接；词性、字号与英文大写选择会保存，其余选项本次生效。")
     }
     DistributedNotificationCenter.default().postNotificationName(
       setting == nil ? InputDiagnostics.request : RuntimeSettings.change,

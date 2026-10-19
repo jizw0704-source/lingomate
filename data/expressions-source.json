@@ -1,0 +1,29 @@
+{
+  "license": "CC-BY-SA-4.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "dictionary_source": "data/source.json",
+  "selection": "CC-CEDICT idiom-tagged Han-only expressions with 4-16 characters and matching readings",
+  "supplement": {
+    "name": "Chinese Wikipedia: 绕口令",
+    "authors": "Chinese Wikipedia contributors",
+    "revision": 94677104,
+    "official_url": "https://zh.wikipedia.org/w/index.php?title=绕口令&oldid=94677104",
+    "history_url": "https://zh.wikipedia.org/w/index.php?title=绕口令&action=history",
+    "snapshot_url": "https://zh.wikipedia.org/w/index.php?title=%E7%BB%95%E5%8F%A3%E4%BB%A4&oldid=94677104&action=raw",
+    "source_bytes": 10940,
+    "source_sha256": "95695a2f3152154ec1911360eed4513a92d3418cafdbab830734838d4372531e",
+    "license": "CC-BY-SA-4.0",
+    "license_evidence": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use/en#7._Licensing_of_Content",
+    "entries": [
+      {
+        "text": "吃葡萄不吐葡萄皮",
+        "syllables": ["chi", "pu", "tao", "bu", "tu", "pu", "tao", "pi"]
+      }
+    ],
+    "modifications": [
+      "Extract only the first clause of the cited tongue twister; do not redistribute the whole article",
+      "Add independently encoded lowercase tone-free Mandarin readings",
+      "Use baseline weight 1, not an invented corpus frequency"
+    ]
+  }
+}

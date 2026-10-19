@@ -24,6 +24,7 @@ struct EngineCandidate: Codable {
   let translations: [TranslationDetail]
   let hasDetails: Bool
   var personal: Bool? = nil
+  var symbol: Bool? = nil
 }
 
 struct EngineFrame: Codable {
@@ -32,6 +33,7 @@ struct EngineFrame: Codable {
   let candidates: [EngineCandidate]
   let committed: String?
   var learningToken: UInt64? = nil
+  var editToken: UInt64? = nil
   var memoryWarning: String? = nil
   // 本机管道会话标识，不来自引擎正文；阻止重启后数值回执被重复使用。
   var engineIdentity: UUID? = nil
@@ -46,11 +48,17 @@ struct EngineRequest: Encodable {
   var context: String? = nil
   var learningToken: UInt64? = nil
   var chineseOutput: Bool? = nil
+  var trackEdits: Bool? = nil
+  var editStart: Int? = nil
+  var editLength: Int? = nil
 
   enum CodingKeys: String, CodingKey {
     case action, input, candidate, syllables, english, context
     case learningToken = "learning_token"
     case chineseOutput = "chinese_output"
+    case trackEdits = "track_edits"
+    case editStart = "edit_start"
+    case editLength = "edit_length"
   }
 }
 

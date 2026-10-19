@@ -1,9 +1,23 @@
 //! Existing line-JSON entry point; native clients can use the same adapter in-process.
 use lingomate_engine::Adapter;
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, Read, Write};
 use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let arguments: Vec<_> = std::env::args().collect();
+    if arguments.get(1).map(String::as_str) == Some("--vocabulary") {
+        if arguments.len() != 3 {
+            return Err("vocabulary path required".into());
+        }
+        let mut input = String::new();
+        io::stdin().lock().take(4097).read_to_string(&mut input)?;
+        writeln!(
+            io::stdout().lock(),
+            "{}",
+            lingomate_engine::vocabulary::request(Path::new(&arguments[2]), &input)
+        )?;
+        return Ok(());
+    }
     let root = std::env::args()
         .nth(1)
         .ok_or("research root argument required")?;
@@ -11,6 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut arguments = std::env::args().skip(2);
     let mut memory = false;
     let mut focused = false;
+    let mut expressions = false;
     while let Some(flag) = arguments.next() {
         match flag.as_str() {
             "--memory" if !memory => {
@@ -21,6 +36,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--mac-candidates" if !focused => {
                 adapter.focus_candidates();
                 focused = true;
+            }
+            "--fixed-expressions" if !expressions => {
+                adapter.enable_fixed_expressions(Path::new(&root))?;
+                expressions = true;
             }
             _ => return Err("unsupported or duplicate bridge option".into()),
         }

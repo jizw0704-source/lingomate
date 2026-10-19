@@ -18,14 +18,17 @@ enum CandidateFontSize: Int, CaseIterable {
 
 final class CandidatePreferences {
   static let key = "showPartOfSpeech"
+  static let symbolsKey = "showSymbolCandidates"
   static let fontKey = "candidateFontSize"
   static var current = CandidatePreferences()
   private let store: UserDefaults?
   private(set) var showPartOfSpeech: Bool
+  private(set) var showSymbols: Bool
   private(set) var fontSize: CandidateFontSize
 
   init(store: UserDefaults? = nil) {
     self.store = store
+    showSymbols = store?.object(forKey: Self.symbolsKey) as? Bool ?? true
     showPartOfSpeech = store?.object(forKey: Self.key) as? Bool ?? true
     fontSize =
       (store?.object(forKey: Self.fontKey) as? Int).flatMap(CandidateFontSize.init(rawValue:))
@@ -33,6 +36,10 @@ final class CandidatePreferences {
   }
   static func configure(isolated: Bool) {
     current = CandidatePreferences(store: isolated ? nil : UserDefaults.standard)
+  }
+  func selectSymbols(_ enabled: Bool) {
+    showSymbols = enabled
+    store?.set(enabled, forKey: Self.symbolsKey)
   }
   func scaled(_ size: CGFloat) -> CGFloat { size * CGFloat(fontSize.rawValue) / 18 }
   func selectFont(_ size: CandidateFontSize) {
