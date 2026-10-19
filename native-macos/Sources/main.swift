@@ -3,6 +3,14 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if arguments.contains("--fixed-expression-test") {
+  FixedExpressionTests.run()
+  exit(0)
+}
+if arguments.contains("--english-fragment-test") {
+  EnglishFragmentTests.run()
+  exit(0)
+}
 if arguments.contains("--character-memory-test") {
   CharacterMemoryTests.run()
   exit(0)
@@ -170,6 +178,7 @@ let isPreview =
   || arguments.contains("--preview-paging") || arguments.contains("--preview-learning")
   || arguments.contains("--preview-punctuation")
   || arguments.contains("--preview-mixed")
+  || arguments.contains("--preview-expressions")
   || arguments.contains("--preview-typing") || arguments.contains("--account-preview")
   || arguments.contains("--ai-settings-preview")
   || arguments.contains("--settings-preview") || arguments.contains("--settings-test")
@@ -185,6 +194,7 @@ let previewTheme: AppearanceChoice? = {
 AppearanceSettings.configure(
   isolated: isPreview || arguments.contains("--isolated-appearance"), initial: previewTheme)
 CandidatePreferences.configure(isolated: isPreview)
+EnglishInputPreferences.configure(isolated: isPreview)
 if isPreview && arguments.contains("--preview-hide-pos") {
   CandidatePreferences.current.select(false)
 }

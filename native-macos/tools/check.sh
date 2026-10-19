@@ -21,12 +21,15 @@ export SDKROOT="$DEVELOPER_DIR/SDKs/MacOSX.sdk"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/test_prepare_lexicon.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/test_frequency.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/test_part_of_speech.py"
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/test_prepare_expressions.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/prepare_lexicon.py" --check --package "$NATIVE_DIR/build/BilingualCompanion.app/Contents/Resources"
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/prepare_expressions.py" --check --package "$NATIVE_DIR/build/BilingualCompanion.app/Contents/Resources"
 bash -n "$NATIVE_DIR/tools/build.sh" "$NATIVE_DIR/tools/check.sh" "$NATIVE_DIR/tools/package.sh"
 bash "$RESEARCH_DIR/prototype/tools/cargo.sh" fmt --all -- --check
 bash "$RESEARCH_DIR/prototype/tools/cargo.sh" clippy --release --locked --all-targets -- -D warnings
 bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/engine_test.py"
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/expressions_test.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/memory_test.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/ranking_test.py"
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --appearance-test
@@ -43,6 +46,8 @@ bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --update-window-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --engine-resilience-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --selftest
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --english-fragment-test
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --fixed-expression-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --punctuation-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --typing-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --sentence-state-test

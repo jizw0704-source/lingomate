@@ -1,5 +1,13 @@
 # 第三方代码、数据与资源
 
+## 固定表达联想数据
+
+新增开发版本的整句联想数据由 `tools/prepare_expressions.py` 单独再生成，不改变原有基础字典来源。提取固定 CC-CEDICT 中带 idiom 标记、纯汉字 4–16 字且读音与生成字典一致的 5,426 项表达，权重复用已有许可核对的字典数据，不添加虚构词频。
+
+绕口令示例“吃葡萄不吐葡萄皮”第一分句取自[中文维基百科《绕口令》修订 94677104](https://zh.wikipedia.org/w/index.php?title=绕口令&oldid=94677104)，署名为中文维基百科贡献者，并保留[贡献历史](https://zh.wikipedia.org/w/index.php?title=绕口令&action=history)。该页面页脚声明文字采用 CC BY-SA 4.0，[维基媒体使用条款第 7 节](https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use/en#7._Licensing_of_Content)记录署名与改编条件。只摘取上述第一分句，不复制整篇文章；另行编码无声调拼音，基线权重为 1，均在改编说明中记录。原始正文的 SHA-256 为 `95695a2f3152154ec1911360eed4513a92d3418cafdbab830734838d4372531e`、10,940 字节；缓存摘要变化即拒绝构建。
+
+全部 5,427 条固定表达数据按 CC BY-SA 4.0 提供，代码继续采用 GPL-3.0-or-later。`data/expressions-source.json` 保存固定来源、摘要及修改；生成目录与源快照不进入 Git。Mac 包中提供完整 `EXPRESSIONS-NOTICE.md`，含两方归属、固定链接、修改声明、既有词频来源说明和完整许可。此新来源仅用于明确列出的补充分句，不重新启用历史混合词库或无对应许可的语料。
+
 本文记录当前分发来源与旧版审计证据。**macOS 0.12.1、Windows 0.1.3 起，基础词库与英文释义统一改用固定 CC-CEDICT 数据；旧混合词库、语料词频及旧释义表不再作为构建输入。** 数据改编按 CC BY-SA 4.0 提供，代码仍为 GPL-3.0-or-later。第三方名称仅用于来源归属，不代表产品品牌或合作关系。
 
 | 来源 | 固定版本 | 用途 | 许可说明 |

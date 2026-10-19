@@ -11,6 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut arguments = std::env::args().skip(2);
     let mut memory = false;
     let mut focused = false;
+    let mut expressions = false;
     while let Some(flag) = arguments.next() {
         match flag.as_str() {
             "--memory" if !memory => {
@@ -21,6 +22,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--mac-candidates" if !focused => {
                 adapter.focus_candidates();
                 focused = true;
+            }
+            "--fixed-expressions" if !expressions => {
+                adapter.enable_fixed_expressions(Path::new(&root))?;
+                expressions = true;
             }
             _ => return Err("unsupported or duplicate bridge option".into()),
         }
