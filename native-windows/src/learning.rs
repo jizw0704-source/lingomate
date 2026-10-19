@@ -61,7 +61,7 @@ struct Data {
 // Recording from TSF runs in the helper (25-second outer deadline), never in a
 // keyboard callback. Allow a burst of durable saves to queue, while keeping
 // settings reads responsive and a genuinely held lock bounded.
-const WRITE_LOCK_WAIT: Duration = Duration::from_secs(5);
+const WRITE_LOCK_WAIT: Duration = Duration::from_secs(10);
 const READ_LOCK_WAIT: Duration = Duration::from_secs(1);
 
 fn acquire_lock(lock: &File, wait: Duration) -> std::io::Result<()> {
@@ -175,7 +175,12 @@ impl Store {
             }
             Ok(result)
         };
-        run().map_err(|_| "本地学习记录无法读取或保存，原文件已保留。请检查存储权限后刷新。".into())
+        run().map_err(|_error| {
+            // Unit tests use only isolated synthetic stores. Never log production records.
+            #[cfg(test)]
+            eprintln!("Isolated learning transaction failed: {_error}");
+            "本地学习记录无法读取或保存，原文件已保留。请检查存储权限后刷新。".into()
+        })
     }
     pub fn snapshot(&self) -> Result<Vec<Word>, String> {
         self.transaction(false, |d| {
