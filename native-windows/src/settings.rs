@@ -146,6 +146,8 @@ mod native {
     use windows::Win32::UI::WindowsAndMessaging::*;
     use windows::core::{HSTRING, PWSTR, w};
     const CHANNEL_MAGIC: u64 = 0x4c494e474f313701;
+    const SENTENCE_UNAVAILABLE: u64 = 1;
+    const SENTENCE_AVAILABLE: u64 = 2;
     #[repr(C)]
     struct Channel {
         magic: AtomicU64,
@@ -155,7 +157,8 @@ mod native {
         configuration: AtomicU64,
         window: AtomicU64,
         reserved: AtomicU64,
-        reserved2: AtomicU64,
+        // Zero until a helper reports; older helpers never write this field.
+        sentence: AtomicU64,
     }
     pub struct Shared {
         handle: HANDLE,
@@ -302,6 +305,20 @@ mod native {
         pub fn set_configuration(&self, value: u64) {
             self.data().configuration.store(value, Ordering::Release);
         }
+        /// Whether the helper reported an enabled sentence translation service.
+        pub fn sentence_available(&self) -> bool {
+            self.data().sentence.load(Ordering::Acquire) == SENTENCE_AVAILABLE
+        }
+        pub fn set_sentence_available(&self, available: bool) {
+            self.data().sentence.store(
+                if available {
+                    SENTENCE_AVAILABLE
+                } else {
+                    SENTENCE_UNAVAILABLE
+                },
+                Ordering::Release,
+            );
+        }
         pub fn account(&self) -> u64 {
             self.data().reserved.load(Ordering::Acquire)
         }
@@ -351,16 +368,40 @@ mod native {
         Snapshot::decode(result)
     }
     #[cfg(test)]
-    #[test]
-    fn shared_snapshot_contains_only_valid_enums_and_session_values() {
-        let name = HSTRING::from(format!(
-            "Local\\LingoMate.Settings.Test.{}.{}",
+    fn test_name() -> HSTRING {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        HSTRING::from(format!(
+            "Local\\LingoMate.Settings.Test.{}.{}.{}",
             std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()
-        ));
+        ))
+    }
+    #[cfg(test)]
+    impl Shared {
+        pub(crate) fn isolated() -> Option<Self> {
+            Self::open_named(&test_name())
+        }
+    }
+    #[cfg(test)]
+    #[test]
+    fn sentence_translation_is_unavailable_until_a_helper_reports_a_service() {
+        let name = test_name();
+        let first = Shared::open_named(&name).unwrap();
+        let second = Shared::open_named(&name).unwrap();
+        assert!(!second.sentence_available());
+        first.set_sentence_available(true);
+        assert!(second.sentence_available());
+        first.set_sentence_available(false);
+        assert!(!second.sentence_available());
+    }
+    #[cfg(test)]
+    #[test]
+    fn shared_snapshot_contains_only_valid_enums_and_session_values() {
+        let name = test_name();
         let first = Shared::open_named(&name).unwrap();
         let second = Shared::open_named(&name).unwrap();
         let mut value = first.snapshot().unwrap();

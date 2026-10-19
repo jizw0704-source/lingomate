@@ -34,7 +34,7 @@ try {
     $Exe = Join-Path $Temporary 'tsf_host.exe'
     $Object = Join-Path $Temporary 'tsf_host.obj'
     $Source = Join-Path (Split-Path $PSScriptRoot -Parent) 'tests/support/tsf_host.cpp'
-    & cl.exe /nologo /std:c++17 /EHsc /utf-8 /W4 $Source ('/Fe:' + $Exe) ('/Fo:' + $Object) /link ole32.lib oleaut32.lib user32.lib uuid.lib
+    & cl.exe /nologo /std:c++17 /EHsc /utf-8 /W4 $Source ('/Fe:' + $Exe) ('/Fo:' + $Object) /link ole32.lib oleaut32.lib user32.lib gdi32.lib uuid.lib
     if ($LASTEXITCODE -ne 0) { throw 'Synthetic TSF host compilation failed.' }
     foreach ($Apartment in $Apartments) {
         $LocalData = Join-Path $Temporary ('local-data-' + $Apartment)

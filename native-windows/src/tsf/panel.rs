@@ -1986,7 +1986,7 @@ fn preview_state(theme: crate::preferences::Theme, size: u32) -> Rc<State> {
         let mut input = state.input.borrow_mut();
         input.raw = "xuexi".into();
         input.expanded = true;
-        input.frame.candidates = ["学习", "学系", "学戏", "雪溪", "雪西"]
+        input.frame.candidates = ["学习", "学习者", "学习方法", "学系", "雪溪"]
             .iter()
             .map(|s| Candidate {
                 text: (*s).into(),

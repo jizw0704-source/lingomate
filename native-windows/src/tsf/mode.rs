@@ -482,8 +482,8 @@ impl ITfLangBarItemButton_Impl for ModeButton_Impl {
     }
     fn GetIcon(&self) -> Result<HICON> {
         guarded(|| {
-            // build.rs embeds the owned "果" icon as resource 101. Return a
-            // fresh icon: ITfLangBarItemButton's caller destroys this handle.
+            // Branding stays at resource 101; the mode icon itself reflects
+            // the current state. The caller owns and destroys each fresh HICON.
             let instance = HINSTANCE(MODULE.load(Ordering::SeqCst));
             if instance.0.is_null() {
                 return Err(E_FAIL.into());
@@ -491,7 +491,11 @@ impl ITfLangBarItemButton_Impl for ModeButton_Impl {
             let icon = unsafe {
                 LoadImageW(
                     Some(instance),
-                    PCWSTR(101usize as *const u16),
+                    PCWSTR(if self.data.english.get() {
+                        103usize
+                    } else {
+                        102usize
+                    } as *const u16),
                     IMAGE_ICON,
                     GetSystemMetrics(SM_CXSMICON),
                     GetSystemMetrics(SM_CYSMICON),
