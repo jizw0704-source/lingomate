@@ -83,19 +83,21 @@ impl Layout {
         let padding = scale(12);
         let gap = scale(4);
         let row = scale(44);
-        // Reserve four full-width glyphs plus the number, highlight and
-        // insets. Keep each compact page's width stable across short words;
-        // prefer horizontal space before growing every candidate's row.
+        // Reserve the page's longest word, at least four full-width glyphs,
+        // plus the number, highlight and insets. Short pages keep one stable
+        // width; longer words widen the panel up to the work area before any
+        // candidate's row grows.
         let wanted = if compact {
-            let cell = chinese_font.saturating_mul(4).saturating_add(scale(56));
+            let glyphs = lengths.iter().copied().max().unwrap_or(0).max(4) as i32;
+            let cell = chinese_font
+                .saturating_mul(glyphs)
+                .saturating_add(scale(56));
             (cell * count as i32 + gap * count.saturating_sub(1) as i32 + padding * 2)
                 .max(scale(if count < 5 { 400 } else { 560 }))
         } else {
             scale(560)
         };
-        let width = wanted
-            .min(scale(if compact { 800 } else { 560 }))
-            .min(available.max(row));
+        let width = wanted.min(available.max(row));
         let body_width = (width - padding * 2).max(row);
         let narrow = width < scale(500);
         let control_width = row * (1 + i32::from(details) + 2 * i32::from(paging))
@@ -515,7 +517,7 @@ mod tests {
                 let available = 1600 * dpi / 96;
                 let lengths = [1, 2, 3, 1, 2];
                 let layout = Layout::with_lengths(&lengths, 0, font, dpi, available);
-                assert!(layout.width() <= 800 * dpi / 96);
+                assert!(layout.width() <= available);
                 for slot in 0..5 {
                     let r = layout.candidate_rect(slot, false);
                     assert_eq!(
@@ -535,6 +537,31 @@ mod tests {
                 }
                 let narrow = Layout::with_lengths(&lengths, 0, font, dpi, 320 * dpi / 96);
                 assert!(narrow.width() <= 320 * dpi / 96);
+            }
+        }
+    }
+    #[test]
+    fn longer_compact_words_widen_the_panel_before_wrapping() {
+        for dpi in [96, 144, 192] {
+            for font in [16, 18, 20, 22] {
+                let available = 1900 * dpi / 96;
+                let short = Layout::with_lengths(&[2; 5], 0, font, dpi, available);
+                for lengths in [[7, 7, 7, 2, 2], [8; 5]] {
+                    let wide = Layout::with_lengths(&lengths, 0, font, dpi, available);
+                    assert!(wide.compact);
+                    assert!(wide.width() > short.width() && wide.width() <= available);
+                    for slot in 0..5 {
+                        assert_eq!(
+                            wide.candidate_rect(slot, false).height,
+                            wide.row,
+                            "{lengths:?} wrapped at font {font}, dpi {dpi} despite free width"
+                        );
+                    }
+                }
+                let limited = 700 * dpi / 96;
+                let wrapped = Layout::with_lengths(&[7, 7, 7, 2, 2], 0, font, dpi, limited);
+                assert!(wrapped.width() <= limited);
+                assert!(wrapped.candidate_rect(0, false).height > wrapped.row);
             }
         }
     }
