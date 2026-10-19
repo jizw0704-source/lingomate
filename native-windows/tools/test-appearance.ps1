@@ -25,17 +25,21 @@ public static class CandidatePreview {
 }
 '@
 $Dll = (Resolve-Path $Dll).Path
-$Large = New-Object IntPtr[] 1
-$Small = New-Object IntPtr[] 1
 $GroupCount = [CandidatePreview]::ExtractIconEx($Dll,-1,$null,$null,0)
-$Extracted = [CandidatePreview]::ExtractIconEx($Dll,0,$Large,$Small,1)
-Write-Output ("Embedded icon groups={0}; extracted={1}; large={2}; small={3}" -f $GroupCount,$Extracted,$Large[0],$Small[0])
-if ($GroupCount -ne 1 -or $Extracted -lt 1 -or $Extracted -eq [uint32]::MaxValue -or $Large[0] -eq [IntPtr]::Zero -or $Small[0] -eq [IntPtr]::Zero) { throw 'Embedded 果 icon could not be extracted from the installed DLL.' }
-try {
-    $Icon = [Drawing.Icon]::FromHandle($Large[0])
-    $Bitmap = $Icon.ToBitmap()
-    try { $Bitmap.Save((Join-Path $OutputDirectory 'input-icon.png'),[Drawing.Imaging.ImageFormat]::Png) } finally { $Bitmap.Dispose(); $Icon.Dispose() }
-} finally { [CandidatePreview]::DestroyIcon($Large[0]) | Out-Null; [CandidatePreview]::DestroyIcon($Small[0]) | Out-Null }
+if ($GroupCount -ne 3) { throw 'Expected branding, Chinese and English icon groups.' }
+$IconNames = @('input-icon', 'input-mode-chinese', 'input-mode-english')
+for ($Index = 0; $Index -lt $IconNames.Count; $Index++) {
+    $Large = New-Object IntPtr[] 1
+    $Small = New-Object IntPtr[] 1
+    $Extracted = [CandidatePreview]::ExtractIconEx($Dll,$Index,$Large,$Small,1)
+    Write-Output ("Embedded icon {0}: extracted={1}" -f $IconNames[$Index],$Extracted)
+    if ($Extracted -lt 1 -or $Extracted -eq [uint32]::MaxValue -or $Large[0] -eq [IntPtr]::Zero -or $Small[0] -eq [IntPtr]::Zero) { throw 'Embedded icon extraction failed.' }
+    try {
+        $Icon = [Drawing.Icon]::FromHandle($Large[0])
+        $Bitmap = $Icon.ToBitmap()
+        try { $Bitmap.Save((Join-Path $OutputDirectory ($IconNames[$Index]+'.png')),[Drawing.Imaging.ImageFormat]::Png) } finally { $Bitmap.Dispose(); $Icon.Dispose() }
+    } finally { [CandidatePreview]::DestroyIcon($Large[0]) | Out-Null; [CandidatePreview]::DestroyIcon($Small[0]) | Out-Null }
+}
 foreach ($Kind in @('light','dark','large','narrow')) {
     $Entry = switch ($Kind) { 'light' {'LingoMateCandidatePreviewW'} 'dark' {'LingoMateCandidateDarkPreviewW'} 'large' {'LingoMateCandidateLargePreviewW'} 'narrow' {'LingoMateCandidateNarrowPreviewW'} }
     $Process = Start-Process -FilePath (Join-Path $env:WINDIR 'System32/rundll32.exe') -ArgumentList ('"' + $Dll + '",' + $Entry) -PassThru

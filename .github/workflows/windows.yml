@@ -79,6 +79,14 @@ jobs:
       - name: Build native DLL and shared engine
         shell: pwsh
         run: ./native-windows/tools/build.ps1
+      - name: Stress isolated concurrent learning records
+        shell: pwsh
+        run: |
+          foreach ($Round in 1..20) {
+            Write-Host "Learning record stress round $Round/20"
+            cargo +1.96.0 test --manifest-path native-windows/Cargo.toml --locked --lib learning::tests:: -- --nocapture
+            if ($LASTEXITCODE -ne 0) { throw "Learning record stress failed in round $Round." }
+          }
       - name: Check scripts, formatting, lint, real engine and DLL lifetime
         env:
           LINGOMATE_CANDIDATE_PREVIEW_DIR: ${{ github.workspace }}/native-windows/package/recovery-previews
@@ -113,6 +121,7 @@ jobs:
             native-windows/package/learning-preview-*.png
             native-windows/package/candidate-preview-*.png
             native-windows/package/input-icon.png
+            native-windows/package/input-mode-*.png
             native-windows/package/recovery-previews/*.png
           retention-days: 7
       # Full dictionaries and local install packages are not published by this workflow.

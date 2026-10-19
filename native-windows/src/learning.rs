@@ -1,7 +1,7 @@
 //! Offline aggregate word records. No host context, account identity or input history.
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -58,6 +58,32 @@ struct Data {
     words: Vec<Word>,
 }
 
+// Recording from TSF runs in the helper (25-second outer deadline), never in a
+// keyboard callback. Allow a burst of durable saves to queue, while keeping
+// settings reads responsive and a genuinely held lock bounded.
+const WRITE_LOCK_WAIT: Duration = Duration::from_secs(10);
+const READ_LOCK_WAIT: Duration = Duration::from_secs(1);
+
+fn acquire_lock(lock: &File, wait: Duration) -> std::io::Result<()> {
+    let deadline = Instant::now() + wait;
+    loop {
+        match lock.try_lock() {
+            Ok(()) => return Ok(()),
+            Err(std::fs::TryLockError::WouldBlock) => {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "Learning record lock is busy",
+                    ));
+                }
+                std::thread::sleep(remaining.min(Duration::from_millis(10)));
+            }
+            Err(std::fs::TryLockError::Error(error)) => return Err(error),
+        }
+    }
+}
+
 pub struct Store {
     directory: PathBuf,
 }
@@ -78,16 +104,14 @@ impl Store {
                 .create(true)
                 .truncate(false)
                 .open(self.directory.join("words.lock"))?;
-            let deadline = Instant::now() + Duration::from_secs(1);
-            loop {
-                match lock.try_lock() {
-                    Ok(()) => break,
-                    Err(std::fs::TryLockError::WouldBlock) if Instant::now() < deadline => {
-                        std::thread::sleep(Duration::from_millis(10))
-                    }
-                    Err(error) => return Err(error.into()),
-                }
-            }
+            acquire_lock(
+                &lock,
+                if write {
+                    WRITE_LOCK_WAIT
+                } else {
+                    READ_LOCK_WAIT
+                },
+            )?;
             // Dropping the lock file releases the cross-process lock on all exit paths.
             let path = self.directory.join("words.json");
             let mut data = Data {
@@ -151,7 +175,12 @@ impl Store {
             }
             Ok(result)
         };
-        run().map_err(|_| "本地学习记录无法读取或保存，原文件已保留。请检查存储权限后刷新。".into())
+        run().map_err(|_error| {
+            // Unit tests use only isolated synthetic stores. Never log production records.
+            #[cfg(test)]
+            eprintln!("Isolated learning transaction failed: {_error}");
+            "本地学习记录无法读取或保存，原文件已保留。请检查存储权限后刷新。".into()
+        })
     }
     pub fn snapshot(&self) -> Result<Vec<Word>, String> {
         self.transaction(false, |d| {
@@ -379,14 +408,19 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
     fn temp() -> PathBuf {
-        std::env::temp_dir().join(format!(
-            "lingomate-learning-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ))
+        let root =
+            std::env::temp_dir().join(format!("lingomate-learning-{}", crate::storage::nonce()));
+        fs::create_dir(&root).unwrap();
+        root
+    }
+    #[test]
+    fn parallel_test_stores_use_distinct_directories() {
+        let workers: Vec<_> = (0..32).map(|_| std::thread::spawn(temp)).collect();
+        let paths: Vec<_> = workers.into_iter().map(|w| w.join().unwrap()).collect();
+        assert_eq!(paths.iter().collect::<HashSet<_>>().len(), paths.len());
+        for path in paths {
+            fs::remove_dir(path).unwrap();
+        }
     }
     fn word() -> Word {
         Word::new("learn".into(), "学习".into(), "v.".into())
@@ -419,6 +453,72 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
+    fn held_lock_times_out_without_mutating_records_and_recovers_after_release() {
+        let root = temp();
+        let store = Store::new(root.clone());
+        store.record(word()).unwrap();
+        let before = fs::read(root.join("words.json")).unwrap();
+        let holder = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(root.join("words.lock"))
+            .unwrap();
+        holder.try_lock().unwrap();
+        let contender = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(root.join("words.lock"))
+            .unwrap();
+        let started = Instant::now();
+        let result = acquire_lock(&contender, Duration::from_millis(40));
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::TimedOut);
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert_eq!(fs::read(root.join("words.json")).unwrap(), before);
+        drop(holder);
+        drop(contender);
+        // The failed waiter does not retain the lock or poison subsequent saves.
+        store.record(word()).unwrap();
+        assert_eq!(store.snapshot().unwrap()[0].uses, 2);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn burst_writes_wait_for_contended_lock_without_losing_counts() {
+        use std::sync::{Arc, Barrier};
+        let root = temp();
+        let store = Store::new(root.clone());
+        store.record(word()).unwrap();
+        store.mastered(&word().id(), true).unwrap();
+        let barrier = Arc::new(Barrier::new(21));
+        let workers: Vec<_> = (0..20)
+            .map(|_| {
+                let root = root.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    Store::new(root).transaction(true, |data| {
+                        // Model a slow durable save while holding the real file lock.
+                        std::thread::sleep(Duration::from_millis(75));
+                        data.words[0].uses += 1;
+                        Ok(())
+                    })
+                })
+            })
+            .collect();
+        barrier.wait();
+        // Join every writer before checking outcomes or removing its temporary store.
+        let results: Vec<_> = workers.into_iter().map(|w| w.join().unwrap()).collect();
+        assert!(
+            results.iter().all(Result::is_ok),
+            "write outcomes: {results:?}"
+        );
+        let words = store.snapshot().unwrap();
+        assert_eq!(words[0].uses, 21);
+        assert!(words[0].mastered);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn concurrent_counts_preserve_mastery_and_corruption_is_not_overwritten() {
         let root = temp();
         let store = Store::new(root.clone());
@@ -430,9 +530,8 @@ mod tests {
                 std::thread::spawn(move || Store::new(root).record(word()).unwrap())
             })
             .collect();
-        for worker in workers {
-            worker.join().unwrap();
-        }
+        let results: Vec<_> = workers.into_iter().map(|worker| worker.join()).collect();
+        assert!(results.iter().all(Result::is_ok));
         let words = store.snapshot().unwrap();
         assert_eq!(words[0].uses, 21);
         assert!(words[0].mastered);

@@ -41,6 +41,20 @@ impl Configuration {
         }
         Ok(())
     }
+    /// Whether `translate` has a service to use: enabled AI or enabled local translation.
+    fn sentence_enabled(&self) -> bool {
+        self.ai.as_ref().is_some_and(|v| v.enabled)
+            || self.local.as_ref().is_some_and(|v| v.enabled)
+    }
+    fn fingerprint(&self) -> Result<u64, RemoteError> {
+        if self.ai.is_none() && self.local.is_none() {
+            Ok(0)
+        } else {
+            Ok(crate::storage::fingerprint(
+                &serde_json::to_vec(self).map_err(|_| RemoteError::Storage)?,
+            ))
+        }
+    }
     fn key_scope(&self, endpoint: &str) -> String {
         self.key_revisions.get(endpoint).map_or_else(
             || format!("ai/{endpoint}"),
@@ -124,14 +138,14 @@ impl Store {
         Ok(())
     }
     pub fn fingerprint(&self) -> Result<u64, RemoteError> {
+        self.load()?.fingerprint()
+    }
+    /// The TSF never reads this configuration; it only sees the revision and availability.
+    pub fn publish(&self, shared: &crate::settings::Shared) -> Result<(), RemoteError> {
         let value = self.load()?;
-        if value.ai.is_none() && value.local.is_none() {
-            Ok(0)
-        } else {
-            Ok(crate::storage::fingerprint(
-                &serde_json::to_vec(&value).map_err(|_| RemoteError::Storage)?,
-            ))
-        }
+        shared.set_sentence_available(value.sentence_enabled());
+        shared.set_configuration(value.fingerprint()?);
+        Ok(())
     }
     pub fn save_ai(
         &self,
@@ -197,7 +211,7 @@ impl Store {
         if self.1
             && let Some(shared) = crate::settings::Shared::open()
         {
-            shared.set_configuration(self.fingerprint()?);
+            self.publish(&shared)?;
         }
         Ok(())
     }
@@ -399,6 +413,37 @@ mod tests {
         store.disable_ai().unwrap();
         assert!(!store.load().unwrap().ai.unwrap().enabled);
         assert!(vault.read(&first_scope).unwrap().is_some());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn sentence_service_is_published_only_while_ai_or_local_is_enabled() {
+        let root =
+            std::env::temp_dir().join(format!("lingomate-ai-sentence-{}", crate::storage::nonce()));
+        let store = Store::isolated(root.clone());
+        let vault = MemoryVault::default();
+        let shared = crate::settings::Shared::isolated().unwrap();
+        let published = |available| {
+            store.publish(&shared).unwrap();
+            assert_eq!(shared.sentence_available(), available);
+            assert_eq!(shared.configuration(), store.fingerprint().unwrap());
+        };
+        published(false);
+        store
+            .save_ai(AIConfiguration::minimax(false), "fixture-secret", &vault)
+            .unwrap();
+        published(true);
+        store.disable_ai().unwrap();
+        published(false);
+        store
+            .save_local(AIConfiguration {
+                version: 1,
+                enabled: false,
+                endpoint: "http://127.0.0.1:11434/v1/chat/completions".into(),
+                model: "fixture".into(),
+                revision: String::new(),
+            })
+            .unwrap();
+        published(true);
         std::fs::remove_dir_all(root).unwrap();
     }
     #[test]

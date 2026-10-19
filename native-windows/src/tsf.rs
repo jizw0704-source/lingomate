@@ -677,9 +677,16 @@ impl State {
             .set(self.sentence_epoch.get().wrapping_add(1));
     }
     fn sentence_token(&self) -> Option<crate::sentence::CandidateToken> {
+        // Without an enabled service the panel keeps no sentence footer and starts no helper.
+        let available = self
+            .shared
+            .borrow()
+            .as_ref()
+            .is_some_and(crate::settings::Shared::sentence_available);
         let input = self.input.borrow();
         if self.preview
             || self.retiring.get()
+            || !available
             || !self.focused.get()
             || self.busy.get()
             || input.error
@@ -1256,10 +1263,40 @@ struct Service {
 #[derive(Clone, Copy)]
 struct ShiftPress {
     at: Instant,
-    point: POINT,
     mouse_revision: u64,
 }
 impl Service_Impl {
+    fn note_shift_down(&self, key: usize, flags: LPARAM) {
+        if !matches!(key, 0x10 | 0xA0 | 0xA1) || command_modifier() || (down(0xA0) && down(0xA1)) {
+            self.shift.set(None);
+            return;
+        }
+        // TSF may report generic or side-specific Shift before the queue's
+        // keyboard-state bytes reflect this key. The event itself arms the tap.
+        // A repeated key cannot rearm a tap cancelled by another key or focus.
+        if flags.0 & (1 << 30) == 0 && self.shift.get().is_none() {
+            self.shift.set(Some(ShiftPress {
+                at: Instant::now(),
+                mouse_revision: self.state.borrow().mouse_revision.get(),
+            }));
+        }
+    }
+    fn note_shift_up(&self, context: Ref<ITfContext>, key: usize) {
+        if !matches!(key, 0x10 | 0xA0 | 0xA1) {
+            return;
+        }
+        let state = self.state.borrow().clone();
+        if let Some(press) = self.shift.take()
+            && self.thread_focused.get()
+            && press.at.elapsed() <= Duration::from_millis(700)
+            && press.mouse_revision == state.mouse_revision.get()
+            && !command_modifier()
+            && context.ok().is_ok_and(|c| !blocked(c))
+        {
+            let english = !state.input.borrow().english;
+            state.english(english);
+        }
+    }
     fn attach_focus(&self) {
         let manager = self.manager.borrow().clone();
         if let Some(manager) = manager
@@ -1435,27 +1472,13 @@ impl ITfKeyEventSink_Impl for Service_Impl {
             Ok(())
         })
     }
-    fn OnTestKeyDown(&self, context: Ref<ITfContext>, key: WPARAM, _flags: LPARAM) -> Result<BOOL> {
+    fn OnTestKeyDown(&self, context: Ref<ITfContext>, key: WPARAM, flags: LPARAM) -> Result<BOOL> {
         guarded(|| {
             if !self.thread_focused.get() {
                 return Ok(FALSE);
             }
             let state = self.state.borrow().clone();
-            if key.0 == 0x10 && !command_modifier() && down(0xA0) != down(0xA1) {
-                if self.shift.get().is_none() {
-                    let mut point = POINT::default();
-                    let _ = unsafe {
-                        windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point)
-                    };
-                    self.shift.set(Some(ShiftPress {
-                        at: Instant::now(),
-                        point,
-                        mouse_revision: state.mouse_revision.get(),
-                    }));
-                }
-            } else {
-                self.shift.set(None);
-            }
+            self.note_shift_down(key.0, flags);
             let Ok(context) = context.ok() else {
                 return Ok(FALSE);
             };
@@ -1508,6 +1531,7 @@ impl ITfKeyEventSink_Impl for Service_Impl {
             if !self.thread_focused.get() {
                 return Ok(FALSE);
             }
+            self.note_shift_down(key.0, flags);
             let state = self.state.borrow().clone();
             let context = context.ok()?;
             if !blocked(context) && panel::settings_shortcut(key.0) {
@@ -1555,30 +1579,17 @@ impl ITfKeyEventSink_Impl for Service_Impl {
     }
     fn OnTestKeyUp(&self, context: Ref<ITfContext>, key: WPARAM, _flags: LPARAM) -> Result<BOOL> {
         guarded(|| {
-            let state = self.state.borrow().clone();
-            if key.0 == 0x10
-                && self.thread_focused.get()
-                && let Some(press) = self.shift.take()
-                && press.at.elapsed() <= Duration::from_millis(700)
-                && press.mouse_revision == state.mouse_revision.get()
-                && {
-                    let mut point = POINT::default();
-                    let _ = unsafe {
-                        windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point)
-                    };
-                    point.x == press.point.x && point.y == press.point.y
-                }
-                && !command_modifier()
-                && context.ok().is_ok_and(|c| !blocked(c))
-            {
-                let english = !state.input.borrow().english;
-                state.english(english);
-            }
+            self.note_shift_up(context, key.0);
             Ok(FALSE)
         })
     }
-    fn OnKeyUp(&self, _context: Ref<ITfContext>, _key: WPARAM, _flags: LPARAM) -> Result<BOOL> {
-        guarded(|| Ok(FALSE))
+    fn OnKeyUp(&self, context: Ref<ITfContext>, key: WPARAM, _flags: LPARAM) -> Result<BOOL> {
+        guarded(|| {
+            // Hosts may deliver either path or both. Taking the pending press
+            // makes duplicate test/delivery notifications toggle only once.
+            self.note_shift_up(context, key.0);
+            Ok(FALSE)
+        })
     }
     fn OnPreservedKey(&self, _context: Ref<ITfContext>, _guid: *const GUID) -> Result<BOOL> {
         guarded(|| Ok(FALSE))
@@ -2012,5 +2023,37 @@ mod dispatch_tests {
         assert!(state.input.borrow().frame.candidates.is_empty());
         release.send(()).unwrap();
         drain(&state);
+    }
+
+    #[test]
+    fn sentence_translation_waits_for_an_enabled_service() {
+        let state = State::with_display_preferences(false);
+        state.focused.set(true);
+        {
+            let mut input = state.input.borrow_mut();
+            input.raw = "dsadd".into();
+            input.frame.candidates = vec![crate::bridge::Candidate {
+                text: "的撒丁岛".into(),
+                ..Default::default()
+            }];
+        }
+        assert!(state.sentence_token().is_none());
+        *state.shared.borrow_mut() = crate::settings::Shared::isolated();
+        assert!(state.sentence_token().is_none());
+        let report = |available| {
+            state
+                .shared
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .set_sentence_available(available)
+        };
+        report(false);
+        assert!(state.sentence_token().is_none());
+        report(true);
+        assert_eq!(
+            state.sentence_token().map(|token| token.source),
+            Some("的撒丁岛".to_owned())
+        );
     }
 }

@@ -49,11 +49,66 @@ namespace LingoMate {
     }
     return [LingoMate.ProcessPackage]::HasIdentity()
 }
-function Get-LingoMateInstallRoot([scriptblock]$Packaged = { Test-LingoMatePackagedProcess }) {
+function Get-LingoMatePhysicalPath([string]$Path) {
+    if (-not ('LingoMate.PhysicalPath' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+namespace LingoMate {
+    public static class PhysicalPath {
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr attributes, uint disposition, uint flags, IntPtr template);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetFinalPathNameByHandleW(SafeFileHandle handle, StringBuilder name, uint length, uint flags);
+        public static string Resolve(string path) {
+            using (var handle = CreateFileW(path, 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero)) {
+                if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
+                var name = new StringBuilder(32768);
+                uint length = GetFinalPathNameByHandleW(handle, name, (uint)name.Capacity, 0);
+                if (length == 0) throw new Win32Exception(Marshal.GetLastWin32Error());
+                if (length >= name.Capacity) throw new InvalidOperationException("Resolved path is too long.");
+                string value = name.ToString();
+                if (value.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) return @"\\" + value.Substring(8);
+                return value.StartsWith(@"\\?\", StringComparison.Ordinal) ? value.Substring(4) : value;
+            }
+        }
+    }
+}
+'@
+    }
+    return [LingoMate.PhysicalPath]::Resolve($Path)
+}
+function Assert-LingoMatePhysicalPath([string]$Path, [scriptblock]$Resolve = { param($Value) Get-LingoMatePhysicalPath $Value }) {
+    # Package identity can be absent while an inherited desktop silo still
+    # redirects files and HKCU. Verify an actual handle, including on retries.
+    $Existing = [IO.Path]::GetFullPath($Path)
+    while (-not (Test-Path -LiteralPath $Existing)) {
+        $Parent = Split-Path $Existing -Parent
+        if (-not $Parent -or $Parent -eq $Existing) { throw '无法核验灵果安装位置。' }
+        $Existing = $Parent
+    }
+    $Physical = & $Resolve $Existing
+    if (-not $Physical -or [IO.Path]::GetFullPath($Physical).TrimEnd('\', '/') -ine $Existing.TrimEnd('\', '/')) {
+        throw '灵果安装路径被重定向到其他物理位置，即使进程没有应用包身份也不能继续。请从 Windows 桌面打开普通 PowerShell 再安装，避免只修改应用私有文件和登记。'
+    }
+}
+function Get-LingoMateInstallRoot([scriptblock]$Packaged = { Test-LingoMatePackagedProcess }, [scriptblock]$Physical = { param($Path) Assert-LingoMatePhysicalPath $Path }) {
     # MSIX desktop apps redirect new LOCALAPPDATA files and HKCU writes of their
     # child processes into the package, where no other application can load them.
     if (& $Packaged) { throw '当前进程运行在 MSIX 应用包内，灵果文件和用户登记会被重定向到该应用的私有位置，其他应用无法加载。请在普通 PowerShell 窗口中安装，或从其他应用打开灵果更新。' }
-    return (Join-Path $env:LOCALAPPDATA 'LingoMate/Windows')
+    $Root = Join-Path $env:LOCALAPPDATA 'LingoMate/Windows'
+    & $Physical $Root
+    # An existing parent directory may be shared while its newer children are
+    # redirected. Check the actual owned DLL as well, not just the root handle.
+    $Key = 'HKCU:\Software\Classes\CLSID\{078A5202-3F7A-4DD5-89CC-322A9011DF81}\InprocServer32'
+    if (Test-Path -LiteralPath $Key) {
+        $Dll = (Get-Item -LiteralPath $Key).GetValue('')
+        if ($Dll -and (Test-Path -LiteralPath $Dll -PathType Leaf)) { & $Physical $Dll }
+    }
+    return $Root
 }
 function Get-LingoMateRegisteredDirectory {
     $Key = 'HKCU:\Software\Classes\CLSID\{078A5202-3F7A-4DD5-89CC-322A9011DF81}\InprocServer32'
@@ -66,6 +121,7 @@ function Assert-LingoMateOwnedDll([string]$Dll, [string]$Root) {
     $Allowed = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
     $Full = [IO.Path]::GetFullPath($Dll)
     if (-not $Full.StartsWith($Allowed, [StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetFileName($Full) -cne 'lingomate_tsf.dll' -or -not (Test-Path -LiteralPath $Full -PathType Leaf)) { throw '输入法登记路径不属于灵果，操作已停止。' }
+    Assert-LingoMatePhysicalPath $Full
 }
 function Assert-LingoMateUrl([string]$Url, [switch]$Redirect) {
     $Uri = [Uri]$Url
@@ -502,7 +558,8 @@ function Invoke-LingoMateRegistration([string]$Dll, [bool]$Remove = $false, [str
         throw '输入法登记失败，原用户和机器 COM 映射已恢复，文件已保留。'
     }
 }
-function Install-LingoMatePackage([string]$Package, [string]$InstallRoot, [string]$PreviousDll, [scriptblock]$Register = { param($Dll, $Remove, $Force) Invoke-LingoMateRegistration $Dll $Remove -ForceRegistration:$Force }, [scriptblock]$Profile = { param($Operation, $State) Invoke-LingoMateInputProfile $Operation $State }) {
+function Install-LingoMatePackage([string]$Package, [string]$InstallRoot, [string]$PreviousDll, [scriptblock]$Register = { param($Dll, $Remove, $Force) Invoke-LingoMateRegistration $Dll $Remove -ForceRegistration:$Force }, [scriptblock]$Profile = { param($Operation, $State) Invoke-LingoMateInputProfile $Operation $State }, [scriptblock]$Physical = { param($Path) Assert-LingoMatePhysicalPath $Path }) {
+    & $Physical $InstallRoot
     $Manifest = Test-LingoMatePackage $Package
     $Config = Read-LingoMateJson (Join-Path $Package 'version.json')
     if ($PreviousDll) {
@@ -515,15 +572,18 @@ function Install-LingoMatePackage([string]$Package, [string]$InstallRoot, [strin
     $Destination = Join-Path $InstallRoot ($Config.version + '-' + $Digest.Substring(0, 12))
     if (-not (Test-Path -LiteralPath $Destination)) {
         New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
+        & $Physical $InstallRoot
         $Staging = Join-Path $InstallRoot ('.staging-' + [Guid]::NewGuid().ToString('N'))
         try {
             New-Item -ItemType Directory -Path $Staging | Out-Null
+            & $Physical $Staging
             foreach ($Name in @($Manifest.PSObject.Properties.Name) + 'manifest.json') { Copy-Item -LiteralPath (Join-Path $Package $Name) -Destination (Join-Path $Staging $Name) }
             Test-LingoMatePackage $Staging | Out-Null
             [IO.Directory]::Move($Staging, $Destination)
         } finally { if (Test-Path -LiteralPath $Staging) { Remove-Item -LiteralPath $Staging -Recurse -Force } }
     } else { Test-LingoMatePackage $Destination | Out-Null }
     $Dll = Join-Path $Destination 'lingomate_tsf.dll'
+    & $Physical $Dll
     $SameDll = $PreviousDll -and [IO.Path]::GetFullPath($PreviousDll) -ieq [IO.Path]::GetFullPath($Dll)
     # Retry both COM mappings even for the same immutable package, preserving
     # the original rollback receipt. Already-consistent mappings need no UAC.

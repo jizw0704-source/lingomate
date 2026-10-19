@@ -7,32 +7,35 @@ fn main() {
         return;
     }
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    let icon = out.join("lingomate.ico");
-    assert!(
-        Command::new("powershell.exe")
-            .args([
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                "tools/make-input-icon.ps1",
-                "-Output"
-            ])
-            .arg(&icon)
-            .status()
-            .unwrap()
-            .success(),
-        "icon generation failed"
-    );
-    let rc = out.join("lingomate.rc");
-    std::fs::write(
-        &rc,
-        format!(
-            "#pragma code_page(65001)\n101 ICON \"{}\"\n",
+    // Keep branding first (profile icon index 0); mode icons are separate.
+    let mut resources = String::from("#pragma code_page(65001)\n");
+    for (id, kind) in [(101, "brand"), (102, "chinese"), (103, "english")] {
+        let icon = out.join(format!("lingomate-{kind}.ico"));
+        assert!(
+            Command::new("powershell.exe")
+                .args([
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    "tools/make-input-icon.ps1",
+                    "-Kind",
+                    kind,
+                    "-Output",
+                ])
+                .arg(&icon)
+                .status()
+                .unwrap()
+                .success(),
+            "icon generation failed: {kind}"
+        );
+        resources.push_str(&format!(
+            "{id} ICON \"{}\"\n",
             icon.to_string_lossy().replace('\\', "\\\\")
-        ),
-    )
-    .unwrap();
+        ));
+    }
+    let rc = out.join("lingomate.rc");
+    std::fs::write(&rc, resources).unwrap();
     let res = out.join("lingomate.res");
     let mut compiler = PathBuf::from("rc.exe");
     if Command::new(&compiler).arg("/?").output().is_err() {
