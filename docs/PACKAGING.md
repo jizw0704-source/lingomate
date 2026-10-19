@@ -4,6 +4,21 @@
 
 2026-10-14源码审核：用户要求先推送Windows 0.1.21开发源码并请求合并。以下“未提交／推送”属于产包时的阶段记录，安装包仍只保存在本地；本次PR不公开二进制、更新源、真实配置或凭据，也不代表安装／实机验收完成。
 
+## Windows 0.1.27–0.1.28 钉钉验收本地包 · 2026-10-19
+
+两个包都用 `build.ps1 -WordNetSource runtime/wordnet-3.0-pinned.bin` 生成，并在已确认为真实视图的终端中用 `install.ps1` 安装。安装后核对：14 个文件、句柄物理路径、HKCU／HKLM 登记都一致，旧版本目录保留。
+
+- 0.1.27：没有启用整句翻译服务时，不发请求，也不显示整句区块。
+- 0.1.28：在 0.1.27 基础上，让 5 到 8 字的紧凑候选横向加宽、不折行。
+
+钉钉实机验收见 [Windows QA](../native-windows/QA.md)。两个包都只在本机，没有制作或上传 Setup EXE，也没有发布。
+
+| 产物 | 0.1.27 SHA-256 | 0.1.28 SHA-256 |
+| --- | --- | --- |
+| 14文件 `manifest.json` | `C0B40A21FFBDCBE7CC9C05B23ACCB9EE2705E3C8725879DFD4F70A60673E72E3` | `83EDAC0B7018770DC68A2B09FE9B4460D72516A81C1EF41EC5D3E207024CC2FB` |
+| `lingomate_tsf.dll` | `89F5AF28084459BD44CDA3F75CB1084AF542FD88671FF74C08B1FE12D6097FB0` | `8B2BFDE28B630E24754BED198CEDA4AE7A6C87FDC2BC04FC229B699B285816AF` |
+| `lingomate-desktop.exe` | `4A5223F67A64ED72C56CB71E1AA00D211DF2350B6A22B09B5B9D5FEEDB41CF5D` | `E9CED2FD0D34A72CCFA99D7AA9EE652346B4B18853E4AFE0A909831AEF0B641C` |
+
 ## Windows 0.1.21 API反馈与候选重试本地包 · 2026-10-14
 
 最终包包含API密钥保存掩码、待保存状态与独立连接测试，以及候选翻译队列繁忙后的等待重试、helper异常独立提示。已有凭据与旧版本保留。0.1.20中间安装包保留；0.1.21尚未安装／登记、提交／推送或发布。126项Windows Rust、格式／all-targets Clippy、MSVC及14文件manifest校验通过，真实设置按钮单次MiniMax检查2.6秒成功；实际候选／截图故障及既有COMLESS未通过的边界见[Windows QA](../native-windows/QA.md)。

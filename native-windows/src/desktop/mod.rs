@@ -64,8 +64,7 @@ pub fn main() {
                 snapshot.display = crate::preferences::display();
                 snapshot.show_pos = crate::preferences::load();
                 shared.set_display(snapshot);
-                let revision = translation::Store::new(data_root()?).fingerprint()?;
-                shared.set_configuration(revision);
+                translation::Store::new(data_root()?).publish(&shared)?;
                 shared.set_account(
                     account::Store::new(data_root()?)
                         .snapshot()?

@@ -21,6 +21,23 @@
 #include <vector>
 using Microsoft::WRL::ComPtr;
 
+// Inspect only bitmaps from fixture-owned icon handles.
+static std::vector<BYTE> icon_pixels(HICON icon) {
+    ICONINFO info{};
+    if (!GetIconInfo(icon, &info)) throw std::runtime_error("Read owned icon bitmap");
+    BITMAP bitmap{};
+    const bool measured = GetObjectW(info.hbmColor, static_cast<int>(sizeof(bitmap)), &bitmap) == static_cast<int>(sizeof(bitmap));
+    std::vector<BYTE> bytes;
+    if (measured) {
+        bytes.resize(static_cast<size_t>(bitmap.bmWidthBytes) * bitmap.bmHeight);
+        if (GetBitmapBits(info.hbmColor, static_cast<LONG>(bytes.size()), bytes.data()) != static_cast<LONG>(bytes.size())) bytes.clear();
+    }
+    DeleteObject(info.hbmColor);
+    DeleteObject(info.hbmMask);
+    if (bytes.empty()) throw std::runtime_error("Read owned icon pixels");
+    return bytes;
+}
+
 static void check(HRESULT hr, const char* stage) {
     if (FAILED(hr)) {
         char message[160];
@@ -597,7 +614,7 @@ public:
         require(integer, "Owned thread mode must have an integer value");
         return result;
     }
-    void click_mode(bool english, LONG preserved_conversion_flags) {
+    void check_mode(bool english, LONG preserved_conversion_flags, bool click = false) {
         ComPtr<ITfLangBarItemMgr> manager;
         check(owned.As(&manager), "Owned language-bar manager");
         ComPtr<ITfLangBarItem> item;
@@ -611,7 +628,7 @@ public:
         check(item.As(&button), "Owned input-mode language-bar button");
         const POINT point{};
         const RECT area{};
-        check(button->OnClick(TF_LBI_CLK_LEFT, point, &area), "Synthetic left click on owned input-mode button");
+        if (click) check(button->OnClick(TF_LBI_CLK_LEFT, point, &area), "Synthetic left click on owned input-mode button");
         pump(20);
         const LONG open = thread_compartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE);
         const LONG conversion = thread_compartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION);
@@ -624,6 +641,47 @@ public:
         const bool correct_text = text && std::wstring(text, SysStringLen(text)) == (english ? L"英" : L"中");
         SysFreeString(text);
         require(correct_text, "Owned language-bar text must show the actual system mode");
+        require(module != nullptr, "Find the fixture-owned TIP module");
+        HICON actual = nullptr;
+        check(button->GetIcon(&actual), "Read actual owned input-mode icon");
+        HICON expected = static_cast<HICON>(LoadImageW(module, MAKEINTRESOURCEW(english ? 103 : 102),
+            IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0));
+        HICON other = static_cast<HICON>(LoadImageW(module, MAKEINTRESOURCEW(english ? 102 : 103),
+            IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0));
+        require(actual && expected && other, "Both mode icon resources must exist");
+        const bool correct_icon = icon_pixels(actual) == icon_pixels(expected)
+            && icon_pixels(actual) != icon_pixels(other);
+        DestroyIcon(actual); DestroyIcon(expected); DestroyIcon(other);
+        require(correct_icon, "Mode icon pixels must change with the actual system mode");
+        std::cout << "PASS actual mode icon pixels match " << (english ? "English" : "Chinese") << '\n';
+
+    }
+    void release_shift(FixtureDocument& document, WPARAM code, bool test_release = true) {
+        BYTE keyboard[256]{};
+        require(SetKeyboardState(keyboard) != FALSE, "Set owned Shift release state");
+        BOOL eaten = FALSE;
+        if (test_release) {
+            check(owned->keys->OnTestKeyUp(document.context.Get(), code, 0, &eaten), "Test owned Shift release");
+            require(!eaten, "Test Shift release must remain available to the host");
+        }
+        check(owned->keys->OnKeyUp(document.context.Get(), code, 0, &eaten), "Deliver owned Shift release");
+        require(!eaten, "Shift release must remain available to the host");
+        pump(20);
+    }
+    void tap_shift(FixtureDocument& document, WPARAM code, bool state_ready = true, bool test_release = true) {
+        BYTE keyboard[256]{};
+        if (state_ready) keyboard[VK_SHIFT] = keyboard[code == VK_RSHIFT ? VK_RSHIFT : VK_LSHIFT] = 0x80;
+        require(SetKeyboardState(keyboard) != FALSE, "Set owned Shift down state");
+        BOOL eaten = FALSE;
+        check(owned->keys->OnTestKeyDown(document.context.Get(), code, 0, &eaten), "Test owned Shift down");
+        require(!eaten, "Shift must remain available for host shortcuts");
+        release_shift(document, code, test_release);
+    }
+    void repeat_shift(FixtureDocument& document) {
+        BOOL eaten = FALSE;
+        check(owned->keys->OnTestKeyDown(document.context.Get(), VK_SHIFT, LPARAM(1LL << 30), &eaten),
+            "An auto-repeat after focus cancellation must not rearm Shift");
+        require(!eaten, "Repeated Shift must remain available to the host");
     }
     void thread_focus(bool focused) {
         require(active && owned->thread_focus, "Thread focus fixture requires active subscription");
@@ -676,7 +734,7 @@ public:
     }
     void hover_candidates(FixtureDocument& document) {
         // The fixture's wode result has five paired candidates. The compact
-        // layout uses a 560px candidate width and a 400px loading/empty width;
+        // layout uses a 680px candidate width and a 400px loading/empty width;
         // both states can have the same height. Width plus the fixture-owned
         // raw anchor therefore distinguishes a real worker reply from loading.
         const auto deadline = GetTickCount64() + 6000;
@@ -705,7 +763,7 @@ public:
             inset = static_cast<int>((8 * dpi + 48) / 96);
             body_separator = 2 * static_cast<int>((4 * dpi + 48) / 96)
                 + static_cast<int>((dpi + 48) / 96);
-            const auto loaded_width = static_cast<int>((560 * dpi + 48) / 96);
+            const auto loaded_width = static_cast<int>((680 * dpi + 48) / 96);
             // Allow only the native border's rounding tolerance. A 400px
             // loading frame must never satisfy this candidate-ready predicate.
             ready = client_rect.right >= loaded_width - 2 && client_rect.right <= loaded_width + 2;
@@ -896,9 +954,47 @@ static void scenarios(Host& host) {
     constexpr LONG preserved_conversion = TF_CONVERSIONMODE_FULLSHAPE | TF_CONVERSIONMODE_SYMBOL;
     host.thread_compartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION,
         preserved_conversion | TF_CONVERSIONMODE_NATIVE);
-    host.click_mode(true, preserved_conversion);
+    auto& shift_modes = host.make_document(); host.focus(shift_modes);
+    host.tap_shift(shift_modes, VK_LSHIFT);
+    require(!host.key(shift_modes, 'W'), "Left Shift tap must switch actual typing to English passthrough");
+    host.check_mode(true, preserved_conversion);
+    host.tap_shift(shift_modes, VK_RSHIFT);
+    host.check_mode(false, preserved_conversion);
+    host.type(shift_modes, "wo"); require(host.key(shift_modes, VK_SPACE), "Right Shift tap must restore actual Chinese input");
+    host.expect(shift_modes, L"我", "left and right Shift switch actual input both ways");
+    host.tap_shift(shift_modes, VK_SHIFT, false, false);
+    require(!host.key(shift_modes, 'W'), "Generic Shift before key state update and delivery-only release must switch English");
+    host.check_mode(true, preserved_conversion);
+    host.tap_shift(shift_modes, VK_SHIFT, false);
+    host.check_mode(false, preserved_conversion);
+    host.type(shift_modes, "wo"); require(host.key(shift_modes, VK_SPACE), "Generic Shift must restore Chinese input");
+    host.expect(shift_modes, L"我我", "generic Shift and duplicate release notifications toggle once");
+    host.key(shift_modes, VK_SHIFT, true);
+    host.key(shift_modes, 'A', true);
+    host.release_shift(shift_modes, VK_SHIFT);
+    host.check_mode(false, preserved_conversion);
+    require(host.key(shift_modes, VK_ESCAPE), "Cancel owned shifted-letter composition");
+    host.key(shift_modes, VK_SHIFT, true);
+    host.thread_focus(false); host.thread_focus(true);
+    host.release_shift(shift_modes, VK_SHIFT);
+    host.check_mode(false, preserved_conversion);
+    host.repeat_shift(shift_modes);
+    host.release_shift(shift_modes, VK_SHIFT);
+    host.check_mode(false, preserved_conversion);
+    auto& pending_shift = host.make_document(); host.focus(pending_shift);
+    host.type(pending_shift, "wo");
+    host.tap_shift(pending_shift, VK_SHIFT);
+    host.expect_finished_raw(pending_shift, L"wo", "Shift preserves pending Pinyin exactly once before English passthrough");
+    require(!host.key(pending_shift, 'W'), "Shift during pending Pinyin must leave subsequent letters to the host");
+    host.check_mode(true, preserved_conversion);
+    host.tap_shift(pending_shift, VK_SHIFT);
+    host.type(pending_shift, "wo"); require(host.key(pending_shift, VK_SPACE), "Shift after pending Pinyin restores Chinese");
+    host.expect(pending_shift, L"wo我", "Shift round trip does not lose or replay pending Pinyin");
+    host.check_mode(false, preserved_conversion);
+    host.focus(modes);
+    host.check_mode(true, preserved_conversion, true);
     require(!host.key(modes, 'W'), "Language-bar English mode must leave alphabet keys to the host");
-    host.click_mode(false, preserved_conversion);
+    host.check_mode(false, preserved_conversion, true);
     host.type(modes, "wo"); require(host.key(modes, VK_SPACE), "Space after language-bar Chinese restoration");
     host.expect(modes, L"我我我", "language-bar left click synchronizes compartments and restores Chinese input");
     require(modes.store->count(L"我") == 3, "Language-bar toggles must not replay earlier commits");
