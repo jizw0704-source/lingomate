@@ -1,5 +1,15 @@
 # Windows 验证记录
 
+## 中英文模式图标 · 0.1.23 · 2026-10-19
+
+参考青简 `c97ff2b61933d6fcd845ee4f4f470faf3ea83bf6` 的 Windows `ModeButton`，在 `GetIcon` 按当前中英文状态返回不同 HICON，并由既有 `TF_LBI_ICON` 通知刷新。资源 101 的品牌“果”及 profile icon index 0 保留；新增 102“中”、103“英”，沿用本项目生成器和系统字体，包含 16–256 像素多尺寸版本。每次返回独立 HICON，由 TSF 调用方销毁，避免共享句柄重复释放。
+
+自有 TSF 宿主新增实际 HICON 位图核验：单击切换后与对应中文／英文资源像素一致，并与另一状态图标不同；同步核对显示文字、open/close 和 conversion mode，同时保留其他 conversion 位。外观检查导出品牌及两种模式图标，CI 保存 `input-mode-*.png`。不在用户应用注入键盘或修改全局语言栏偏好。
+
+本轮 MSVC x64 release、完整 `check.ps1 -SkipUpdates -WordNetSource runtime/wordnet-3.0-pinned.bin` 退出 0：格式、all-targets Clippy、158 项 Rust（Windows 144／共享 14）、49 项 Python 引擎／数据回归与 DLL 工厂检查通过。STA／MTA／COMLESS 三模式合计 6 次图标像素核验与 192 轮 hover 通过。移除夹具局部变量遮蔽后，最终 C++ 源码另以 `/W4 /WX` 无警告编译；没有改变测试行为。品牌／中／英三资源导出及浅色／深色／大字号／窄窗预览通过并人工查看中英图标；Obsidian 镜像脚本 3 项通过。本次未重新执行更新器检查，安装／更新核心未修改。
+
+已在无包身份 64 位进程经同账号 UAC 安装到 `%LOCALAPPDATA%\LingoMate\Windows\0.1.23-D7C83DFBBDF1`。14 项 manifest 文件全部通过校验，manifest SHA-256 为 `D7C83DFBBDF1430CEDAD9E792956DA6C92B5D390F37CCB6066246FE373649C93`，TSF DLL SHA-256 为 `9BFABFC8B6BDDEFD9150A48BE819E3D4C190C7B7CC8477BCD416F9EF0BBF98F5`。HKCU／HKLM 自有 CLSID 一致指向新版，profile 仍启用，14 个旧目录保留，安装回执指向前一版本 `0.1.22-17CA3AF04D8E`。独立系统 COM 创建实际加载新版，未激活或选择输入源；helper 回读 `unpacked=true`／`version=0.1.23`，安装目录 DLL 工厂检查通过。未停止用户应用、重启 ctfmon 或系统。原生模式图标和输入法选择标识是系统的两个位置，本轮不把改图标等同于隐藏或合并系统选择入口。实际任务栏显示、主题／DPI、Shift、点击切换与右键菜单仍须用户正常重开宿主后手测；合成宿主通过不代替真实应用验收。
+
 ## 0.1.22 本机同步安装 · 2026-10-15
 
 用户明确授权安装后，在无 MSIX 包身份的 64 位 PowerShell 中运行可信 `install.ps1`，完成同账号 UAC 登记。当前本机目录为 `%LOCALAPPDATA%\LingoMate\Windows\0.1.22-17CA3AF04D8E`，14 项 manifest 文件、版本及完整摘要与下节最终测试包一致。HKCU／HKLM 自有 CLSID 的默认 DLL 路径均指向新版，ThreadingModel 为 Apartment；自有 TSF profile 已登记，启用状态保持 true。

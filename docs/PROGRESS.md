@@ -1,5 +1,9 @@
 # 灵果 · 开发进展
 
+## Windows 中英文状态图标 · 0.1.23 · 2026-10-19
+
+用户指定参考青简，模式图标改为随实际输入状态显示“中／英”，保留点击切换、右键菜单、快捷键和系统输入法选择入口。参考固定提交 `c97ff2b61933d6fcd845ee4f4f470faf3ea83bf6` 的 `apps/windows/tsf/src/com/mode/button.rs`；灵果自行生成状态图标并继续使用已有模式通知与线程生命周期，不改共享引擎、协议、数据或 Mac 客户端。MSVC、完整本机检查、158 项 Rust、49 项 Python 引擎／数据回归及三种 TSF 模式通过，包含 6 次图标像素核验与 192 轮 hover；独立外观导出和最终夹具 `/W4 /WX` 编译通过。已安装到本机 `0.1.23-D7C83DFBBDF1`，文件、系统 COM 和 helper 版本核验通过，旧版本保留。新增实际图标像素回归和 CI 导出，结果见 [Windows QA](../native-windows/QA.md)。Obsidian vault 未配置，只同步仓库镜像源。
+
 ## Windows 0.1.22 本机安装 · 2026-10-15
 
 用户在源码 PR 提交后明确要求同步安装以便手测。通过无包身份 64 位 PowerShell 和同账号 UAC 安装至 `%LOCALAPPDATA%\LingoMate\Windows\0.1.22-17CA3AF04D8E`；14 项文件摘要与最终测试包匹配，HKCU／HKLM 自有 COM 路径一致，profile 仍启用。独立系统 COM 创建实际加载新版 DLL，工厂检查和 helper `unpacked=true`／`version=0.1.22` 回读通过。13 个旧版本目录及安装前自有登记快照保留。

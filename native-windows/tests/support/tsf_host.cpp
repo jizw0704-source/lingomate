@@ -21,6 +21,23 @@
 #include <vector>
 using Microsoft::WRL::ComPtr;
 
+// Inspect only bitmaps from fixture-owned icon handles.
+static std::vector<BYTE> icon_pixels(HICON icon) {
+    ICONINFO info{};
+    if (!GetIconInfo(icon, &info)) throw std::runtime_error("Read owned icon bitmap");
+    BITMAP bitmap{};
+    const bool measured = GetObjectW(info.hbmColor, static_cast<int>(sizeof(bitmap)), &bitmap) == static_cast<int>(sizeof(bitmap));
+    std::vector<BYTE> bytes;
+    if (measured) {
+        bytes.resize(static_cast<size_t>(bitmap.bmWidthBytes) * bitmap.bmHeight);
+        if (GetBitmapBits(info.hbmColor, static_cast<LONG>(bytes.size()), bytes.data()) != static_cast<LONG>(bytes.size())) bytes.clear();
+    }
+    DeleteObject(info.hbmColor);
+    DeleteObject(info.hbmMask);
+    if (bytes.empty()) throw std::runtime_error("Read owned icon pixels");
+    return bytes;
+}
+
 static void check(HRESULT hr, const char* stage) {
     if (FAILED(hr)) {
         char message[160];
@@ -624,6 +641,20 @@ public:
         const bool correct_text = text && std::wstring(text, SysStringLen(text)) == (english ? L"英" : L"中");
         SysFreeString(text);
         require(correct_text, "Owned language-bar text must show the actual system mode");
+        require(module != nullptr, "Find the fixture-owned TIP module");
+        HICON actual = nullptr;
+        check(button->GetIcon(&actual), "Read actual owned input-mode icon");
+        HICON expected = static_cast<HICON>(LoadImageW(module, MAKEINTRESOURCEW(english ? 103 : 102),
+            IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0));
+        HICON other = static_cast<HICON>(LoadImageW(module, MAKEINTRESOURCEW(english ? 102 : 103),
+            IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0));
+        require(actual && expected && other, "Both mode icon resources must exist");
+        const bool correct_icon = icon_pixels(actual) == icon_pixels(expected)
+            && icon_pixels(actual) != icon_pixels(other);
+        DestroyIcon(actual); DestroyIcon(expected); DestroyIcon(other);
+        require(correct_icon, "Mode icon pixels must change with the actual system mode");
+        std::cout << "PASS actual mode icon pixels match " << (english ? "English" : "Chinese") << '\n';
+
     }
     void thread_focus(bool focused) {
         require(active && owned->thread_focus, "Thread focus fixture requires active subscription");

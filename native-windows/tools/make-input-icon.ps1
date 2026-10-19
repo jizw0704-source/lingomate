@@ -1,8 +1,12 @@
-﻿param([Parameter(Mandatory=$true)][string]$Output)
+﻿param(
+    [Parameter(Mandatory=$true)][string]$Output,
+    [ValidateSet("brand", "chinese", "english")][string]$Kind = "brand"
+)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $Sizes = @(16,20,24,32,40,48,64,128,256)
 $Images = @()
+$Glyph = switch ($Kind) { "chinese" { "中" } "english" { "英" } default { "果" } }
 foreach ($Size in $Sizes) {
     $Bitmap = New-Object Drawing.Bitmap($Size,$Size)
     $Graphics = [Drawing.Graphics]::FromImage($Bitmap)
@@ -23,7 +27,7 @@ foreach ($Size in $Sizes) {
     $Format = New-Object Drawing.StringFormat
     $Format.Alignment = [Drawing.StringAlignment]::Center
     $Format.LineAlignment = [Drawing.StringAlignment]::Center
-    $Graphics.DrawString('果',$Font,[Drawing.Brushes]::White,[Drawing.RectangleF]::new(0,-1,$Size,$Size),$Format)
+    $Graphics.DrawString($Glyph,$Font,[Drawing.Brushes]::White,[Drawing.RectangleF]::new(0,-1,$Size,$Size),$Format)
     $Stream = New-Object IO.MemoryStream
     $Bitmap.Save($Stream,[Drawing.Imaging.ImageFormat]::Png)
     $Images += ,$Stream.ToArray()

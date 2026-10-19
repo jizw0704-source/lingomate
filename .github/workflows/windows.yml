@@ -113,6 +113,7 @@ jobs:
             native-windows/package/learning-preview-*.png
             native-windows/package/candidate-preview-*.png
             native-windows/package/input-icon.png
+            native-windows/package/input-mode-*.png
             native-windows/package/recovery-previews/*.png
           retention-days: 7
       # Full dictionaries and local install packages are not published by this workflow.
