@@ -14,6 +14,9 @@ final class BilingualInputController: IMKInputController {
   private var shiftTap = ShiftTap()
   private var modeNotice = UUID()
   private var textClient: IMKTextInput?
+  private var wordEdit = WordEditState()
+  private var wordEditReceipt: EngineFrame?
+  private var wordEditNotice = UUID()
   private let learningContext = UUID().uuidString
   private let sentenceTranslator = SentenceTranslator()
   private lazy var panel: CandidatePanel = {
@@ -70,10 +73,16 @@ final class BilingualInputController: IMKInputController {
       InputDiagnostics.controller = self
       guard let event, let client = sender as? IMKTextInput else {
         InputDiagnostics.rejectedClients += 1
+        endLearning()
         return false
       }
-      if (textClient as AnyObject?) !== (client as AnyObject?) { englishFragment.reset() }
+      if (textClient as AnyObject?) !== (client as AnyObject?) {
+        endLearning()
+        englishFragment.reset()
+      }
       textClient = client
+      if wordEdit.expired() { endLearning() }
+      if state.input.isEmpty, !IsSecureEventInputEnabled() { synchronizeWordEdit() }
       if IsSecureEventInputEnabled() {
         InputDiagnostics.secureRejections += 1
         discard()
@@ -99,6 +108,7 @@ final class BilingualInputController: IMKInputController {
       guard event.type == .keyDown else { return false }
       // Every normal key, including punctuation and shortcuts, belongs to the host in English.
       guard Runtime.typingMode == .chinese else {
+        if wordEdit.start != nil || wordEditReceipt != nil { endLearning() }
         englishFragment.reset()
         InputDiagnostics.englishPassThroughs += 1
         return false
@@ -111,6 +121,7 @@ final class BilingualInputController: IMKInputController {
         return true
       }
       if flags.contains(.command) || flags.contains(.control) || flags.contains(.option) {
+        endLearning()
         rawCommit()
         punctuation.resetContext()
         englishFragment.reset()
@@ -123,17 +134,22 @@ final class BilingualInputController: IMKInputController {
       guard Runtime.engine != nil else { return false }
       switch event.keyCode {
       case 51:
-        Runtime.engine?.cancelLearning(context: learningContext)
         guard !state.input.isEmpty else {
           punctuation.resetContext()
           englishFragment.reset()
+          if Runtime.remember, wordEdit.prepareBackspace(selection: client.selectedRange()) {
+            scheduleWordEditEnd()
+          } else {
+            endLearning()
+          }
           return false
         }
+        endLearning()
         state.removeLastLetter()
         refresh()
         return true
       case 53:
-        if state.input.isEmpty { Runtime.engine?.cancelLearning(context: learningContext) }
+        if state.input.isEmpty { endLearning() }
         punctuation.resetContext()
         if state.expanded {
           state.expanded = false
@@ -144,7 +160,7 @@ final class BilingualInputController: IMKInputController {
         discard()
         return true
       case 125, 126:
-        if state.input.isEmpty { Runtime.engine?.cancelLearning(context: learningContext) }
+        if state.input.isEmpty { endLearning() }
         guard !state.input.isEmpty else {
           punctuation.resetContext()
           englishFragment.reset()
@@ -156,6 +172,7 @@ final class BilingualInputController: IMKInputController {
         return true
       case 116, 121:
         guard !state.input.isEmpty else {
+          endLearning()
           englishFragment.reset()
           return false
         }
@@ -178,7 +195,10 @@ final class BilingualInputController: IMKInputController {
         return true
       case 49:
         punctuation.clearLiteral()
-        guard !state.input.isEmpty else { return false }
+        guard !state.input.isEmpty else {
+          endLearning(saveEdited: true)
+          return false
+        }
         if !event.isARepeat {
           submit(
             index: state.active,
@@ -186,7 +206,7 @@ final class BilingualInputController: IMKInputController {
         }
         return true
       case 36, 76:
-        Runtime.engine?.cancelLearning(context: learningContext)
+        endLearning(saveEdited: state.input.isEmpty)
         punctuation.resetContext()
         guard !state.input.isEmpty else {
           englishFragment.reset()
@@ -196,8 +216,12 @@ final class BilingualInputController: IMKInputController {
         // 英文确认后重新进入拼音；英文片段及标点语言保留至实际输出边界。
         punctuation.clearLiteral()
         return true
-      case 115, 117, 119, 123, 124:
-        Runtime.engine?.cancelLearning(context: learningContext)
+      case 123 where state.input.isEmpty, 124 where state.input.isEmpty:
+        punctuation.resetContext()
+        englishFragment.reset()
+        return false
+      case 115, 119, 123, 124, 117:
+        endLearning()
         punctuation.resetContext()
         englishFragment.reset()
         guard !state.input.isEmpty else { return false }
@@ -208,11 +232,13 @@ final class BilingualInputController: IMKInputController {
       }
       guard let characters = event.characters, !characters.isEmpty else {
         InputDiagnostics.emptyCharacterEvents += 1
+        endLearning()
         return false
       }
       if state.input.isEmpty, punctuation.isLatinLiteral,
         characters.utf8.allSatisfy({ (33...126).contains($0) })
       {
+        endLearning()
         punctuation.observeLiteral(characters)
         englishFragment.observe(characters)
         return false
@@ -250,6 +276,66 @@ final class BilingualInputController: IMKInputController {
 
   override func recognizedEvents(_ sender: Any!) -> Int { Int(ShiftTap.events.rawValue) }
 
+  private func synchronizeWordEdit() {
+    guard wordEdit.start != nil, let textClient else { return }
+    switch wordEdit.reconcile(selection: textClient.selectedRange()) {
+    case .unchanged: break
+    case .invalid: endLearning()
+    case .deleted(let deletion):
+      guard let receipt = wordEditReceipt, let token = receipt.editToken,
+        let engine = Runtime.engine
+      else {
+        endLearning()
+        return
+      }
+      do {
+        wordEditReceipt = try engine.request(
+          EngineRequest(
+            action: "edit-memory", input: "", context: learningContext,
+            learningToken: token, editStart: deletion.offset, editLength: deletion.length),
+          expectedIdentity: receipt.engineIdentity)
+        if wordEditReceipt?.editToken == nil { endLearning() }
+      } catch {
+        // 不确定删除是否成功或引擎已重启时，放弃本轮组合，不回放修改。
+        endLearning()
+      }
+    }
+  }
+
+  private func endLearning(saveEdited: Bool = false) {
+    if saveEdited, state.input.isEmpty, Runtime.remember, Runtime.typingMode == .chinese,
+      !IsSecureEventInputEnabled()
+    {
+      synchronizeWordEdit()
+      if let textClient, wordEdit.isAtEnd(textClient.selectedRange()),
+        let receipt = wordEditReceipt, let token = receipt.editToken
+      {
+        do {
+          let frame = try Runtime.engine?.request(
+            EngineRequest(
+              action: "finish-memory", input: "", context: learningContext, learningToken: token),
+            expectedIdentity: receipt.engineIdentity)
+          Runtime.memoryWarning = frame?.memoryWarning
+        } catch {
+          Runtime.memoryWarning = "已结束词组输入，本次借词组词暂未保存。"
+        }
+      }
+    }
+    wordEdit.reset()
+    wordEditReceipt = nil
+    wordEditNotice = UUID()
+    Runtime.engine?.cancelLearning(context: learningContext)
+  }
+
+  private func scheduleWordEditEnd() {
+    let notice = UUID()
+    wordEditNotice = notice
+    DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+      guard let self, self.wordEditNotice == notice else { return }
+      self.endLearning(saveEdited: self.state.input.isEmpty)
+    }
+  }
+
   private func changePage(_ delta: Int) {
     guard state.changePage(delta) else { return }
     updateSentenceTranslation()
@@ -270,6 +356,11 @@ final class BilingualInputController: IMKInputController {
       guard let engine = Runtime.engine else { throw EngineFailure.unavailable }
       state.frame = try engine.request(
         EngineRequest(action: "query", input: state.input, context: learningContext))
+      if wordEdit.discardIfGenerationChanged(
+        previous: wordEditReceipt?.engineIdentity, current: state.frame?.engineIdentity)
+      {
+        endLearning()
+      }
       Runtime.failure = nil
       Runtime.memoryWarning = state.frame?.memoryWarning
       let marked = state.markedInput
@@ -370,6 +461,15 @@ final class BilingualInputController: IMKInputController {
       let remaining = state.rawRemainder(for: next.input)
       state.clear()
       sentenceTranslator.cancel()
+      let insertionStart: Int
+      if Runtime.remember, sense == nil, next.input.isEmpty {
+        let markedRange = textClient.markedRange()
+        insertionStart =
+          markedRange.location == NSNotFound
+          ? textClient.selectedRange().location : markedRange.location
+      } else {
+        insertionStart = NSNotFound
+      }
       let original = sentenceEnglish ?? committed
       let output =
         sense == nil
@@ -385,9 +485,32 @@ final class BilingualInputController: IMKInputController {
           candidate.translations[sense], chinese: candidate.text, account: account)
       }
       if Runtime.remember {
-        engine.confirmSelection(next, context: learningContext, chinese: sense == nil)
+        let count = candidate.text.count
+        let eligible =
+          sense == nil && committed == candidate.text && next.input.isEmpty
+          && candidate.syllables.count == count
+          && candidate.text.unicodeScalars.allSatisfy { (0x3400...0x9FFF).contains($0.value) }
+        let selectionAfter = eligible ? textClient.selectedRange() : noReplacement
+        let trackEdits =
+          eligible && wordEdit.canAppend(at: insertionStart, count: count)
+          && selectionAfter
+            == NSRange(
+              location: insertionStart == NSNotFound ? NSNotFound : insertionStart + count,
+              length: 0)
+        let confirmation = engine.confirmSelection(
+          next, context: learningContext, chinese: sense == nil, trackEdits: trackEdits)
+        if trackEdits, let confirmation, confirmation.editToken != nil,
+          wordEdit.record(at: insertionStart, count: count, selectionAfter: selectionAfter)
+        {
+          wordEditReceipt = confirmation
+          scheduleWordEditEnd()
+        } else {
+          wordEdit.reset()
+          wordEditReceipt = nil
+          wordEditNotice = UUID()
+        }
       } else {
-        engine.cancelLearning(context: learningContext)
+        endLearning()
       }
       state.replaceInput(next.input, original: remaining)
       state.frame = next
@@ -413,17 +536,18 @@ final class BilingualInputController: IMKInputController {
     case .symbol: break
     }
     guard let symbol = punctuation.render(key, mode: Runtime.punctuationMode) else { return false }
+    endLearning(saveEdited: true)
     if let textClient {
       textClient.insertText(symbol, replacementRange: noReplacement)
       englishFragment.observe(symbol)
       InputDiagnostics.insertCalls += 1
     }
-    Runtime.engine?.cancelLearning(context: learningContext)
+    endLearning()
     return true
   }
 
   private func rawCommit(confirmedEnglish: Bool = false) {
-    Runtime.engine?.cancelLearning(context: learningContext)
+    endLearning()
     sentenceTranslator.cancel()
     let raw = state.takeRawInput()
     panel.orderOut(nil)
@@ -440,7 +564,7 @@ final class BilingualInputController: IMKInputController {
   }
 
   private func discard() {
-    Runtime.engine?.cancelLearning(context: learningContext)
+    endLearning()
     sentenceTranslator.cancel()
     state.clear()
     panel.orderOut(nil)
@@ -455,7 +579,7 @@ final class BilingualInputController: IMKInputController {
       shiftTap.reset()
       let nextClient = (sender as? IMKTextInput) ?? client()
       if !isSessionActive || (textClient as AnyObject?) !== (nextClient as AnyObject?) {
-        Runtime.engine?.cancelLearning(context: learningContext)
+        endLearning()
         englishFragment.reset()
       }
       textClient = nextClient
@@ -482,7 +606,7 @@ final class BilingualInputController: IMKInputController {
     mainSync {
       if let client = sender as? IMKTextInput {
         if (textClient as AnyObject?) !== (client as AnyObject?) {
-          Runtime.engine?.cancelLearning(context: learningContext)
+          endLearning()
           englishFragment.reset()
         }
         textClient = client
@@ -546,6 +670,10 @@ final class BilingualInputController: IMKInputController {
         title: "AI 翻译设置…", action: #selector(openAISettings(_:)), keyEquivalent: "")
       ai.target = self
       menu.addItem(ai)
+      let vocabulary = NSMenuItem(
+        title: "个人词库…", action: #selector(openPersonalVocabulary(_:)), keyEquivalent: "")
+      vocabulary.target = self
+      menu.addItem(vocabulary)
       let localLearning = NSMenuItem(
         title: "本地学习记录…", action: #selector(openLocalLearning(_:)), keyEquivalent: "")
       localLearning.target = self
@@ -584,6 +712,12 @@ final class BilingualInputController: IMKInputController {
     }
   }
 
+  @objc private func openPersonalVocabulary(_ sender: Any?) {
+    mainSync {
+      rawCommit()
+      SettingsWindow.launch(section: .vocabulary)
+    }
+  }
   @objc private func openLocalLearning(_ sender: Any?) {
     mainSync {
       rawCommit()
@@ -618,6 +752,7 @@ final class BilingualInputController: IMKInputController {
         return
       default: break
       }
+      if case .remember(false) = setting { endLearning() }
       if IsSecureEventInputEnabled() { discard() } else { rawCommit() }
       shiftTap.reset()
       modeNotice = UUID()
@@ -689,7 +824,7 @@ final class BilingualInputController: IMKInputController {
   @objc private func toggleMemory(_ sender: Any?) {
     mainSync {
       Runtime.remember.toggle()
-      Runtime.engine?.cancelLearning(context: learningContext)
+      endLearning()
     }
   }
 

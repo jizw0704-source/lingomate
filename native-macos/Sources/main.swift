@@ -3,6 +3,10 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if arguments.contains("--word-edit-memory-test") {
+  WordEditMemoryTests.run()
+  exit(0)
+}
 if arguments.contains("--fixed-expression-test") {
   FixedExpressionTests.run()
   exit(0)
@@ -183,6 +187,8 @@ let isPreview =
   || arguments.contains("--ai-settings-preview")
   || arguments.contains("--settings-preview") || arguments.contains("--settings-test")
   || arguments.contains("--local-learning-preview") || arguments.contains("--local-learning-test")
+  || arguments.contains("--personal-vocabulary-preview")
+  || arguments.contains("--personal-vocabulary-test")
   || arguments.contains("--update-preview") || arguments.contains("--update-window-test")
 if let previewDuration { PreviewLifecycle.start(seconds: previewDuration) }
 let previewTheme: AppearanceChoice? = {
@@ -258,15 +264,27 @@ if arguments.contains("--local-learning-preview") {
   try? FileManager.default.removeItem(at: learningDirectory)
   exit(0)
 }
+if arguments.contains("--personal-vocabulary-test") {
+  PersonalVocabularyTests.run()
+  try? FileManager.default.removeItem(at: learningDirectory)
+  try? FileManager.default.removeItem(at: aiDirectory)
+  exit(0)
+}
 if arguments.contains("--settings") || arguments.contains("--settings-preview")
+  || arguments.contains("--personal-vocabulary-preview")
   || arguments.contains("--settings-test")
 {
   if arguments.contains("--settings-test") {
     SettingsTests.run()
   } else {
     SettingsWindow.start(
-      preview: isPreview, section: arguments.contains("--local-learning") ? .learning : .account)
+      preview: isPreview,
+      section:
+        arguments.contains("--personal-vocabulary")
+        || arguments.contains("--personal-vocabulary-preview")
+        ? .vocabulary : arguments.contains("--local-learning") ? .learning : .account)
     app.run()
+    SettingsWindow.controller?.cleanupVocabulary()
   }
   if isPreview { try? FileManager.default.removeItem(at: learningDirectory) }
   if isPreview { try? FileManager.default.removeItem(at: aiDirectory) }
