@@ -50,7 +50,14 @@ try {
     Check ((Assert-LingoMateUrl 'https://release-assets.githubusercontent.com/test' -Redirect).Scheme -eq 'https') 'approved CDN redirect'
     Check ((Test-LingoMatePackagedProcess) -is [bool]) 'package identity query is available'
     Reject { Get-LingoMateInstallRoot { $true } } 'MSIX package context cannot derive the shared install root'
-    Check ((Get-LingoMateInstallRoot { $false }) -eq (Join-Path $env:LOCALAPPDATA 'LingoMate/Windows')) 'unpackaged process uses the real LOCALAPPDATA install root'
+    Check ((Get-LingoMateInstallRoot { $false } { param($Path) }) -eq (Join-Path $env:LOCALAPPDATA 'LingoMate/Windows')) 'unpackaged process derives the expected install root after physical validation'
+    Reject { Get-LingoMateInstallRoot { $false } { param($Path) throw 'synthetic redirected view' } } 'missing package identity does not bypass physical view validation'
+    Assert-LingoMatePhysicalPath $Temporary
+    $PhysicalTemporary = Get-LingoMatePhysicalPath $Temporary
+    Check ($PhysicalTemporary -ieq [IO.Path]::GetFullPath($Temporary)) 'real directory handle resolves to the expected test directory'
+    Reject { Assert-LingoMatePhysicalPath $Temporary { param($Path) Join-Path $Path 'private-view' } } 'redirected directory handle is rejected'
+    Reject { Assert-LingoMatePhysicalPath $Temporary { param($Path) '' } } 'missing physical path is rejected'
+    Reject { Assert-LingoMatePhysicalPath (Join-Path $Temporary 'not-created/child') { param($Path) Join-Path $Path 'private-view' } } 'missing destination checks its existing ancestor'
     $Empty = [pscustomobject]@{schema=1; platform="windows"; arch="x64"; channel="preview"; minimum_windows_build=22000; status="unpublished"}
     Check ($null -eq (Assert-LingoMateUpdate $Empty "0.1.1")) "unpublished feed is an empty state"
     $Package = Join-Path $Temporary 'package'
@@ -124,6 +131,12 @@ try {
         }
     }.GetNewClosure()
     $MockRegister = { param($Dll, $Remove) $Calls.Add("$Dll|$Remove"); $ProfileFixtureState.Registered = -not $Remove; $ProfileFixtureState.Enabled = -not $Remove }.GetNewClosure()
+    $RedirectedRoot = Join-Path $Temporary 'redirected-install'
+    $RejectStaging = { param($Path) if ((Split-Path $Path -Leaf).StartsWith('.staging-')) { throw 'synthetic child redirected despite shared parent' }; Assert-LingoMatePhysicalPath $Path }
+    Reject { Install-LingoMatePackage $Package $RedirectedRoot $null $MockRegister $MockProfile -Physical $RejectStaging } 'redirected staging cannot proceed to registration'
+    Check ($Calls.Count -eq 0 -and ($ProfileCalls -join ',') -eq 'Snapshot') 'redirected staging changes no COM or profile state'
+    Check (@(Get-ChildItem -LiteralPath $RedirectedRoot -Force).Count -eq 0) 'rejected redirected staging leaves no receipt or version files'
+    $ProfileCalls.Clear()
     $New = Install-LingoMatePackage $Package $Root $OldDll $MockRegister $MockProfile
     Check ($Calls.Count -eq 1 -and $Calls[0] -eq ((Join-Path $New 'lingomate_tsf.dll') + '|False')) 'only owned new registration attempted'
     Check (Test-Path $OldDll) 'old version retained'
