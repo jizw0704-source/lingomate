@@ -34,6 +34,17 @@ enum InputPresentation {
       panel.orderOut(nil)
       precondition(!panel.isVisible)
     }
+    for appearance in [AppearanceChoice.light, .dark] {
+      AppearanceSettings.current.select(appearance)
+      for mode in [TypingMode.chinese, .english] {
+        panel.showTypingMode(mode, anchor: NSRect(x: 100, y: 200, width: 1, height: 20))
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        precondition(panel.isVisible && panel.frame.width == 360 && panel.frame.height == 68)
+        precondition(!panel.isKeyWindow && !panel.isMainWindow && app.keyWindow == nil)
+        precondition(NSWorkspace.shared.frontmostApplication?.processIdentifier == foreground)
+        panel.orderOut(nil)
+      }
+    }
     print("PASS 输入服务窗口模式：560/440宽候选可见、可隐藏、不抢前台/键盘焦点；独立词库")
   }
 }

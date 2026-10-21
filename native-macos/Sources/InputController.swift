@@ -79,6 +79,7 @@ final class BilingualInputController: IMKInputController {
       if (textClient as AnyObject?) !== (client as AnyObject?) {
         endLearning()
         englishFragment.reset()
+        shiftTap.reset()
       }
       textClient = client
       if wordEdit.expired() { endLearning() }
@@ -106,6 +107,11 @@ final class BilingualInputController: IMKInputController {
         toggleTyping(nil)
       }
       guard event.type == .keyDown else { return false }
+      // A mode reminder must disappear as soon as typing resumes, without consuming the key.
+      if Runtime.typingMode == .english {
+        modeNotice = UUID()
+        panel.orderOut(nil)
+      }
       // Every normal key, including punctuation and shortcuts, belongs to the host in English.
       guard Runtime.typingMode == .chinese else {
         if wordEdit.start != nil || wordEditReceipt != nil { endLearning() }
@@ -593,9 +599,12 @@ final class BilingualInputController: IMKInputController {
     mainSync {
       InputDiagnostics.activations += 1
       InputDiagnostics.controller = self
-      shiftTap.reset()
       let nextClient = (sender as? IMKTextInput) ?? client()
-      if !isSessionActive || (textClient as AnyObject?) !== (nextClient as AnyObject?) {
+      let sameSession =
+        isSessionActive && nextClient != nil
+        && (textClient as AnyObject?) === (nextClient as AnyObject?)
+      shiftTap.activate(sameSession: sameSession)
+      if !sameSession {
         endLearning()
         englishFragment.reset()
       }
@@ -603,6 +612,9 @@ final class BilingualInputController: IMKInputController {
       isSessionActive = true
       // 每次激活明确指定会话的字母布局；不切换系统输入源或修改全局键盘设置。
       textClient?.overrideKeyboard(withKeyboardNamed: "com.apple.keylayout.ABC")
+      if !sameSession, Runtime.typingMode == .english, !IsSecureEventInputEnabled() {
+        showTypingNotice()
+      }
     }
   }
 
@@ -820,19 +832,23 @@ final class BilingualInputController: IMKInputController {
       Runtime.typingMode = Runtime.typingMode.next
       punctuation.resetContext()
       punctuation.confirm(Runtime.typingMode == .english ? .english : .chinese)
-      let notice = UUID()
-      modeNotice = notice
-      guard let client = textClient else { return }
-      var anchor = NSRect.zero
-      _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &anchor)
-      if anchor == .zero {
-        anchor = NSRect(origin: NSEvent.mouseLocation, size: NSSize(width: 1, height: 20))
-      }
-      panel.showTypingMode(Runtime.typingMode, anchor: anchor)
-      DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-        guard let self, self.modeNotice == notice else { return }
-        self.panel.orderOut(nil)
-      }
+      showTypingNotice()
+    }
+  }
+
+  private func showTypingNotice() {
+    let notice = UUID()
+    modeNotice = notice
+    guard let client = textClient else { return }
+    var anchor = NSRect.zero
+    _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &anchor)
+    if anchor == .zero {
+      anchor = NSRect(origin: NSEvent.mouseLocation, size: NSSize(width: 1, height: 20))
+    }
+    panel.showTypingMode(Runtime.typingMode, anchor: anchor)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+      guard let self, self.modeNotice == notice else { return }
+      self.panel.orderOut(nil)
     }
   }
 

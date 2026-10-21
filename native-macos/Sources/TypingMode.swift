@@ -17,6 +17,11 @@ struct ShiftTap {
   private var started: TimeInterval?
   private var eligible = false
 
+  // Repeated activation callbacks in the same editor must not lose a pending Shift release.
+  mutating func activate(sameSession: Bool) {
+    if !sameSession { reset() }
+  }
+
   mutating func reset() {
     held.removeAll()
     started = nil
