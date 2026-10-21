@@ -354,8 +354,10 @@ final class BilingualInputController: IMKInputController {
     }
     do {
       guard let engine = Runtime.engine else { throw EngineFailure.unavailable }
-      state.frame = try engine.request(
-        EngineRequest(action: "query", input: state.input, context: learningContext))
+      state.frame = SymbolCandidates.augment(
+        try engine.request(
+          EngineRequest(action: "query", input: state.input, context: learningContext)),
+        enabled: CandidatePreferences.current.showSymbols)
       if wordEdit.discardIfGenerationChanged(
         previous: wordEditReceipt?.engineIdentity, current: state.frame?.engineIdentity)
       {
@@ -380,7 +382,7 @@ final class BilingualInputController: IMKInputController {
 
   private func updateSentenceTranslation(force: Bool = false) {
     guard Runtime.bilingual, !state.input.isEmpty, let candidate = state.candidate,
-      candidate.translations.isEmpty,
+      candidate.translations.isEmpty, candidate.symbol != true,
       candidate.text.count >= 3 || (candidate.personal == true && candidate.text.count >= 2)
     else {
       sentenceTranslator.cancel()
@@ -427,6 +429,21 @@ final class BilingualInputController: IMKInputController {
       return false
     }
     let candidate = candidates[index]
+    if candidate.symbol == true {
+      guard CandidatePreferences.current.showSymbols,
+        let output = SymbolCandidates.output(candidate, input: state.input, sense: sense)
+      else { return false }
+      // Discard both pending receipts and word chains before literal insertion.
+      endLearning()
+      state.clear()
+      sentenceTranslator.cancel()
+      textClient.insertText(output, replacementRange: noReplacement)
+      InputDiagnostics.insertCalls += 1
+      englishFragment.reset()
+      punctuation.clearLiteral()
+      refresh()
+      return true
+    }
     let account = LearningRuntime.account()
     var request = EngineRequest(
       action: "commit", input: state.input, candidate: candidate.text,
@@ -662,6 +679,11 @@ final class BilingualInputController: IMKInputController {
       punctuationItem.submenu = choices
       punctuationItem.isEnabled = Runtime.typingMode == .chinese
       menu.addItem(punctuationItem)
+      let symbols = NSMenuItem(
+        title: "表情与符号候选", action: #selector(toggleSymbols(_:)), keyEquivalent: "")
+      symbols.target = self
+      symbols.state = CandidatePreferences.current.showSymbols ? .on : .off
+      menu.addItem(symbols)
       let appearance = NSMenuItem(title: "外观", action: nil, keyEquivalent: "")
       appearance.submenu = AppearanceSettings.current.menu(
         target: self, action: #selector(setAppearance(_:)))
@@ -771,6 +793,14 @@ final class BilingualInputController: IMKInputController {
 
   @objc private func setAppearance(_ sender: NSMenuItem) {
     mainSync { AppearanceSettings.current.choose(sender) }
+  }
+
+  @objc private func toggleSymbols(_ sender: Any?) {
+    mainSync {
+      CandidatePreferences.current.selectSymbols(!CandidatePreferences.current.showSymbols)
+      state.resetSelection()
+      refresh()
+    }
   }
 
   @objc private func toggleMode(_ sender: Any?) {

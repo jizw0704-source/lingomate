@@ -3,6 +3,10 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if arguments.contains("--symbol-candidate-test") {
+  SymbolCandidateTests.run()
+  exit(0)
+}
 if arguments.contains("--word-edit-memory-test") {
   WordEditMemoryTests.run()
   exit(0)
@@ -178,7 +182,8 @@ if arguments.contains("--sentence-state-test") || arguments.contains("--sentence
   exit(0)
 }
 let isPreview =
-  arguments.contains("--preview") || arguments.contains("--preview-sentence")
+  arguments.contains("--preview") || arguments.contains("--preview-symbols")
+  || arguments.contains("--preview-sentence")
   || arguments.contains("--preview-paging") || arguments.contains("--preview-learning")
   || arguments.contains("--preview-punctuation")
   || arguments.contains("--preview-mixed")

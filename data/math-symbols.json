@@ -1,0 +1,1916 @@
+{
+  "version": 1,
+  "license": "GPL-3.0-or-later",
+  "source": "Independently curated project mappings; Unicode text only, no artwork or font files.",
+  "entries": [
+    {
+      "category": "四则与运算",
+      "name": "加号",
+      "aliases": [
+        "jia",
+        "jiahao",
+        "jiafa",
+        "xiangjia",
+        "zhenghao",
+        "plus",
+        "jiashang"
+      ],
+      "outputs": [
+        "+",
+        "＋"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "减号",
+      "aliases": [
+        "jian",
+        "jianhao",
+        "jianfa",
+        "jianqu",
+        "fuhao",
+        "minus",
+        "xiangjian"
+      ],
+      "outputs": [
+        "−",
+        "-",
+        "－"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "乘号",
+      "aliases": [
+        "cheng",
+        "chenghao",
+        "chengfa",
+        "chengyi",
+        "multiply",
+        "times",
+        "xiangcheng"
+      ],
+      "outputs": [
+        "×",
+        "*",
+        "·"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "除号",
+      "aliases": [
+        "chu",
+        "chuhao",
+        "chufa",
+        "chuyi",
+        "divide",
+        "xiangchu"
+      ],
+      "outputs": [
+        "÷",
+        "/",
+        "∕"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "正负号",
+      "aliases": [
+        "zhengfu",
+        "zhengfuhao"
+      ],
+      "outputs": [
+        "±"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "负正号",
+      "aliases": [
+        "fuzheng",
+        "fuzhenghao"
+      ],
+      "outputs": [
+        "∓"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "点乘",
+      "aliases": [
+        "diancheng",
+        "dianchenghao"
+      ],
+      "outputs": [
+        "·",
+        "⋅"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "叉乘",
+      "aliases": [
+        "chacheng",
+        "chachenghao"
+      ],
+      "outputs": [
+        "×"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "阶乘",
+      "aliases": [
+        "jiecheng",
+        "jiechenghao"
+      ],
+      "outputs": [
+        "!"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "等于",
+      "aliases": [
+        "deng",
+        "dengyu",
+        "denghao",
+        "equal",
+        "equals"
+      ],
+      "outputs": [
+        "=",
+        "＝"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "不等于",
+      "aliases": [
+        "budeng",
+        "budengyu",
+        "budenghao",
+        "budengyuhao"
+      ],
+      "outputs": [
+        "≠"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "大于",
+      "aliases": [
+        "dayu",
+        "dayuhao",
+        "greaterthan"
+      ],
+      "outputs": [
+        ">",
+        "＞"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "小于",
+      "aliases": [
+        "xiaoyu",
+        "xiaoyuhao",
+        "lessthan"
+      ],
+      "outputs": [
+        "<",
+        "＜"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "大于等于",
+      "aliases": [
+        "dayudengyu",
+        "dayuhuodengyu",
+        "buxiaoyu",
+        "dayudengyuhao"
+      ],
+      "outputs": [
+        "≥"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "小于等于",
+      "aliases": [
+        "xiaoyudengyu",
+        "xiaoyuhuodengyu",
+        "budayu",
+        "xiaoyudengyuhao"
+      ],
+      "outputs": [
+        "≤"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "约等于",
+      "aliases": [
+        "yuedeng",
+        "yuedengyu",
+        "yuedenghao",
+        "jinsidengyu",
+        "jinsihao",
+        "yuedengyuhao",
+        "dayue",
+        "yuedengyufuhao"
+      ],
+      "outputs": [
+        "≈"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "恒等于",
+      "aliases": [
+        "hengdeng",
+        "hengdengyu",
+        "hengdenghao",
+        "hengdengyuhao"
+      ],
+      "outputs": [
+        "≡"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "不恒等于",
+      "aliases": [
+        "buhengdengyu"
+      ],
+      "outputs": [
+        "≢"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "远大于",
+      "aliases": [
+        "yuandayu",
+        "yuandayuhao"
+      ],
+      "outputs": [
+        "≫"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "远小于",
+      "aliases": [
+        "yuanxiaoyu",
+        "yuanxiaoyuhao"
+      ],
+      "outputs": [
+        "≪"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "正比",
+      "aliases": [
+        "zhengbi",
+        "zhengbihao",
+        "chengzhengbi"
+      ],
+      "outputs": [
+        "∝"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "定义等于",
+      "aliases": [
+        "dingyidengyu",
+        "dingyiwei"
+      ],
+      "outputs": [
+        "≔",
+        "≝"
+      ]
+    },
+    {
+      "category": "乘方与根式",
+      "name": "乘方",
+      "aliases": [
+        "cifang",
+        "chengfang"
+      ],
+      "outputs": [
+        "^"
+      ]
+    },
+    {
+      "category": "乘方与根式",
+      "name": "平方",
+      "aliases": [
+        "pingfang",
+        "ercifang"
+      ],
+      "outputs": [
+        "²"
+      ]
+    },
+    {
+      "category": "乘方与根式",
+      "name": "立方",
+      "aliases": [
+        "lifang",
+        "sancifang"
+      ],
+      "outputs": [
+        "³"
+      ]
+    },
+    {
+      "category": "乘方与根式",
+      "name": "平方根",
+      "aliases": [
+        "genhao",
+        "gouhao",
+        "kaifang",
+        "pingfanggen",
+        "sqrt",
+        "kaigenhao",
+        "ercifanggen"
+      ],
+      "outputs": [
+        "√"
+      ]
+    },
+    {
+      "category": "乘方与根式",
+      "name": "立方根",
+      "aliases": [
+        "lifanggen",
+        "kailifang"
+      ],
+      "outputs": [
+        "∛"
+      ]
+    },
+    {
+      "category": "乘方与根式",
+      "name": "四次方根",
+      "aliases": [
+        "sicifanggen"
+      ],
+      "outputs": [
+        "∜"
+      ]
+    },
+    {
+      "category": "乘方与根式",
+      "name": "指数",
+      "aliases": [
+        "ncifang",
+        "ndecifang"
+      ],
+      "outputs": [
+        "ⁿ"
+      ]
+    },
+    {
+      "category": "比例与百分数",
+      "name": "百分号",
+      "aliases": [
+        "baifen",
+        "baifenhao",
+        "baifenbi",
+        "percent"
+      ],
+      "outputs": [
+        "%"
+      ]
+    },
+    {
+      "category": "比例与百分数",
+      "name": "千分号",
+      "aliases": [
+        "qianfen",
+        "qianfenhao",
+        "qianfenbi",
+        "permille"
+      ],
+      "outputs": [
+        "‰"
+      ]
+    },
+    {
+      "category": "比例与百分数",
+      "name": "万分号",
+      "aliases": [
+        "wanfen",
+        "wanfenhao",
+        "wanfenbi"
+      ],
+      "outputs": [
+        "‱"
+      ]
+    },
+    {
+      "category": "比例与百分数",
+      "name": "比例号",
+      "aliases": [
+        "bilihao",
+        "bihao"
+      ],
+      "outputs": [
+        "∶",
+        ":"
+      ]
+    },
+    {
+      "category": "常用分数",
+      "name": "二分之一",
+      "aliases": [
+        "erfenzhiyi",
+        "yiban"
+      ],
+      "outputs": [
+        "½"
+      ]
+    },
+    {
+      "category": "常用分数",
+      "name": "三分之一",
+      "aliases": [
+        "sanfenzhiyi"
+      ],
+      "outputs": [
+        "⅓"
+      ]
+    },
+    {
+      "category": "常用分数",
+      "name": "三分之二",
+      "aliases": [
+        "sanfenzhier"
+      ],
+      "outputs": [
+        "⅔"
+      ]
+    },
+    {
+      "category": "常用分数",
+      "name": "四分之一",
+      "aliases": [
+        "sifenzhiyi"
+      ],
+      "outputs": [
+        "¼"
+      ]
+    },
+    {
+      "category": "常用分数",
+      "name": "四分之三",
+      "aliases": [
+        "sifenzhisan"
+      ],
+      "outputs": [
+        "¾"
+      ]
+    },
+    {
+      "category": "常用分数",
+      "name": "八分之一",
+      "aliases": [
+        "bafenzhiyi"
+      ],
+      "outputs": [
+        "⅛"
+      ]
+    },
+    {
+      "category": "常用分数",
+      "name": "八分之三",
+      "aliases": [
+        "bafenzhisan"
+      ],
+      "outputs": [
+        "⅜"
+      ]
+    },
+    {
+      "category": "常用分数",
+      "name": "八分之五",
+      "aliases": [
+        "bafenzhiwu"
+      ],
+      "outputs": [
+        "⅝"
+      ]
+    },
+    {
+      "category": "常用分数",
+      "name": "八分之七",
+      "aliases": [
+        "bafenzhiqi"
+      ],
+      "outputs": [
+        "⅞"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "无穷大",
+      "aliases": [
+        "wuqiong",
+        "wuqiongda",
+        "wuqiongdahao",
+        "wuxian",
+        "wuxianda",
+        "infinity"
+      ],
+      "outputs": [
+        "∞"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "求和",
+      "aliases": [
+        "qiuhe",
+        "qiuhehao",
+        "zonghehao",
+        "sum"
+      ],
+      "outputs": [
+        "∑"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "连乘",
+      "aliases": [
+        "liancheng",
+        "lianchenghao",
+        "qiuji"
+      ],
+      "outputs": [
+        "∏"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "积分",
+      "aliases": [
+        "jifen",
+        "jifenhao",
+        "integral"
+      ],
+      "outputs": [
+        "∫"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "二重积分",
+      "aliases": [
+        "erchongjifen"
+      ],
+      "outputs": [
+        "∬"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "三重积分",
+      "aliases": [
+        "sanchongjifen",
+        "tijifen"
+      ],
+      "outputs": [
+        "∭"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "围道积分",
+      "aliases": [
+        "weidaojifen",
+        "biquxianjifen"
+      ],
+      "outputs": [
+        "∮"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "闭曲面积分",
+      "aliases": [
+        "biqumianjifen",
+        "fengbimianjifen"
+      ],
+      "outputs": [
+        "∯"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "体积分记号",
+      "aliases": [
+        "tijifenhao"
+      ],
+      "outputs": [
+        "∰"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "偏导",
+      "aliases": [
+        "piandao",
+        "piandaoshu",
+        "pianweifen"
+      ],
+      "outputs": [
+        "∂"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "微分",
+      "aliases": [
+        "weifen",
+        "weifenhao"
+      ],
+      "outputs": [
+        "d",
+        "ⅆ"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "梯度",
+      "aliases": [
+        "tidu",
+        "tidufu",
+        "nabla",
+        "daosanjiao"
+      ],
+      "outputs": [
+        "∇"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "一阶导记号",
+      "aliases": [
+        "daoshu",
+        "yijiedaoshu"
+      ],
+      "outputs": [
+        "′"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "二阶导记号",
+      "aliases": [
+        "erjiedaoshu"
+      ],
+      "outputs": [
+        "″"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "三阶导记号",
+      "aliases": [
+        "sanjiedaoshu"
+      ],
+      "outputs": [
+        "‴"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "属于",
+      "aliases": [
+        "shuyu",
+        "shuyuhao"
+      ],
+      "outputs": [
+        "∈"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "不属于",
+      "aliases": [
+        "bushuyu",
+        "bushuyuhao"
+      ],
+      "outputs": [
+        "∉"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "包含元素",
+      "aliases": [
+        "baohanyuansu",
+        "hanyou"
+      ],
+      "outputs": [
+        "∋"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "空集",
+      "aliases": [
+        "kongji",
+        "kongjihao"
+      ],
+      "outputs": [
+        "∅"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "子集",
+      "aliases": [
+        "ziji",
+        "zijihao"
+      ],
+      "outputs": [
+        "⊆"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "真子集",
+      "aliases": [
+        "zhenziji",
+        "zhenzijihao"
+      ],
+      "outputs": [
+        "⊊",
+        "⊂"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "超集",
+      "aliases": [
+        "chaoji",
+        "baohan"
+      ],
+      "outputs": [
+        "⊇"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "真超集",
+      "aliases": [
+        "zhenchaoji",
+        "zhenbaohan"
+      ],
+      "outputs": [
+        "⊋",
+        "⊃"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "并集",
+      "aliases": [
+        "bingji",
+        "bingjihao"
+      ],
+      "outputs": [
+        "∪"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "交集",
+      "aliases": [
+        "jiaoji",
+        "jiaojihao"
+      ],
+      "outputs": [
+        "∩"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "差集",
+      "aliases": [
+        "chaji",
+        "chajihao"
+      ],
+      "outputs": [
+        "∖",
+        "\\"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "补集",
+      "aliases": [
+        "buji",
+        "bujihao"
+      ],
+      "outputs": [
+        "∁"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "自然数集",
+      "aliases": [
+        "ziranshu",
+        "ziranshuji",
+        "ziranshujihe"
+      ],
+      "outputs": [
+        "ℕ"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "整数集",
+      "aliases": [
+        "zhengshu",
+        "zhengshuji",
+        "zhengshujihe"
+      ],
+      "outputs": [
+        "ℤ"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "有理数集",
+      "aliases": [
+        "youlishu",
+        "youlishuji"
+      ],
+      "outputs": [
+        "ℚ"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "实数集",
+      "aliases": [
+        "shishu",
+        "shishuji",
+        "shishujihe"
+      ],
+      "outputs": [
+        "ℝ"
+      ]
+    },
+    {
+      "category": "集合与数系",
+      "name": "复数集",
+      "aliases": [
+        "fushu",
+        "fushuji",
+        "fushujihe"
+      ],
+      "outputs": [
+        "ℂ"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "任意",
+      "aliases": [
+        "renyi",
+        "renyihao",
+        "quanchengliangci"
+      ],
+      "outputs": [
+        "∀"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "存在",
+      "aliases": [
+        "cunzai",
+        "cunzaihao"
+      ],
+      "outputs": [
+        "∃"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "不存在",
+      "aliases": [
+        "bucunzai"
+      ],
+      "outputs": [
+        "∄"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "逻辑非",
+      "aliases": [
+        "luojifei",
+        "fouding"
+      ],
+      "outputs": [
+        "¬"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "逻辑与",
+      "aliases": [
+        "luojiyu",
+        "hequ"
+      ],
+      "outputs": [
+        "∧"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "逻辑或",
+      "aliases": [
+        "luojihuo",
+        "xiqu"
+      ],
+      "outputs": [
+        "∨"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "异或",
+      "aliases": [
+        "yihuo",
+        "yihuohao"
+      ],
+      "outputs": [
+        "⊕"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "推出",
+      "aliases": [
+        "tuichu",
+        "yunhan"
+      ],
+      "outputs": [
+        "⇒"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "等价",
+      "aliases": [
+        "dengjia",
+        "dengjiahao",
+        "dangqiejindang"
+      ],
+      "outputs": [
+        "⇔"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "因为",
+      "aliases": [
+        "yinwei"
+      ],
+      "outputs": [
+        "∵"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "所以",
+      "aliases": [
+        "suoyi"
+      ],
+      "outputs": [
+        "∴"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "角",
+      "aliases": [
+        "jiao",
+        "jiaohao"
+      ],
+      "outputs": [
+        "∠"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "直角",
+      "aliases": [
+        "zhijiao",
+        "zhijiaohao"
+      ],
+      "outputs": [
+        "∟"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "角度",
+      "aliases": [
+        "jiaodu",
+        "du",
+        "dushu"
+      ],
+      "outputs": [
+        "°"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "角分",
+      "aliases": [
+        "jiaofen"
+      ],
+      "outputs": [
+        "′"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "角秒",
+      "aliases": [
+        "jiaomiao"
+      ],
+      "outputs": [
+        "″"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "垂直",
+      "aliases": [
+        "chuizhi",
+        "chuizhihao"
+      ],
+      "outputs": [
+        "⊥"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "平行",
+      "aliases": [
+        "pingxing",
+        "pingxinghao"
+      ],
+      "outputs": [
+        "∥"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "不平行",
+      "aliases": [
+        "bupingxing"
+      ],
+      "outputs": [
+        "∦"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "三角形",
+      "aliases": [
+        "sanjiaoxing"
+      ],
+      "outputs": [
+        "△"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "圆",
+      "aliases": [
+        "yuan",
+        "yuanxing"
+      ],
+      "outputs": [
+        "○"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "圆周率",
+      "aliases": [
+        "yuanzhoulv"
+      ],
+      "outputs": [
+        "π"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "相似",
+      "aliases": [
+        "xiangsi",
+        "xiangsihao"
+      ],
+      "outputs": [
+        "∽",
+        "~"
+      ]
+    },
+    {
+      "category": "几何与角度",
+      "name": "全等",
+      "aliases": [
+        "quandeng",
+        "quandenghao"
+      ],
+      "outputs": [
+        "≌",
+        "≅"
+      ]
+    },
+    {
+      "category": "统计与概率",
+      "name": "总体均值",
+      "aliases": [
+        "zongtijunzhi",
+        "zongtipingjunzhi"
+      ],
+      "outputs": [
+        "μ"
+      ]
+    },
+    {
+      "category": "统计与概率",
+      "name": "样本均值",
+      "aliases": [
+        "yangbenjunzhi",
+        "yangbenpingjunzhi",
+        "pingjunzhi"
+      ],
+      "outputs": [
+        "x̄"
+      ]
+    },
+    {
+      "category": "统计与概率",
+      "name": "标准差",
+      "aliases": [
+        "biaozhuncha"
+      ],
+      "outputs": [
+        "σ"
+      ]
+    },
+    {
+      "category": "统计与概率",
+      "name": "方差",
+      "aliases": [
+        "fangcha"
+      ],
+      "outputs": [
+        "σ²",
+        "s²"
+      ]
+    },
+    {
+      "category": "统计与概率",
+      "name": "样本方差",
+      "aliases": [
+        "yangbenfangcha"
+      ],
+      "outputs": [
+        "s²"
+      ]
+    },
+    {
+      "category": "统计与概率",
+      "name": "总体方差",
+      "aliases": [
+        "zongtifangcha"
+      ],
+      "outputs": [
+        "σ²"
+      ]
+    },
+    {
+      "category": "统计与概率",
+      "name": "概率",
+      "aliases": [
+        "gailv"
+      ],
+      "outputs": [
+        "P"
+      ]
+    },
+    {
+      "category": "统计与概率",
+      "name": "数学期望",
+      "aliases": [
+        "shuxueqiwang",
+        "qiwangzhi",
+        "qiwang"
+      ],
+      "outputs": [
+        "E"
+      ]
+    },
+    {
+      "category": "统计与概率",
+      "name": "相关系数",
+      "aliases": [
+        "xiangguanxishu"
+      ],
+      "outputs": [
+        "r",
+        "ρ"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "圆括号",
+      "aliases": [
+        "kuohao",
+        "yuankuohao",
+        "xiaokuohao"
+      ],
+      "outputs": [
+        "（）",
+        "()"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "左圆括号",
+      "aliases": [
+        "zuokuohao",
+        "zuoyuankuohao"
+      ],
+      "outputs": [
+        "（",
+        "("
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "右圆括号",
+      "aliases": [
+        "youkuohao",
+        "youyuankuohao"
+      ],
+      "outputs": [
+        "）",
+        ")"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "方括号",
+      "aliases": [
+        "fangkuohao",
+        "zhongkuohao"
+      ],
+      "outputs": [
+        "[]",
+        "［］"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "左方括号",
+      "aliases": [
+        "zuofangkuohao"
+      ],
+      "outputs": [
+        "[",
+        "［"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "右方括号",
+      "aliases": [
+        "youfangkuohao"
+      ],
+      "outputs": [
+        "]",
+        "］"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "花括号",
+      "aliases": [
+        "huakuohao",
+        "dakuohao"
+      ],
+      "outputs": [
+        "{}",
+        "｛｝"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "左花括号",
+      "aliases": [
+        "zuohuakuohao"
+      ],
+      "outputs": [
+        "{",
+        "｛"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "右花括号",
+      "aliases": [
+        "youhuakuohao"
+      ],
+      "outputs": [
+        "}",
+        "｝"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "绝对值界符",
+      "aliases": [
+        "jueduizhi",
+        "jueduizhihao"
+      ],
+      "outputs": [
+        "|",
+        "｜"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "范数界符",
+      "aliases": [
+        "fanshu",
+        "fanshuhao"
+      ],
+      "outputs": [
+        "‖"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "向上取整",
+      "aliases": [
+        "xiangshangquzheng"
+      ],
+      "outputs": [
+        "⌈⌉"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "向下取整",
+      "aliases": [
+        "xiangxiaquzheng"
+      ],
+      "outputs": [
+        "⌊⌋"
+      ]
+    },
+    {
+      "category": "数学省略记号",
+      "name": "横向省略",
+      "aliases": [
+        "hengxiangshenglue",
+        "shulieshenglue"
+      ],
+      "outputs": [
+        "⋯"
+      ]
+    },
+    {
+      "category": "数学省略记号",
+      "name": "纵向省略",
+      "aliases": [
+        "zongxiangshenglue",
+        "shuxiangshenglue",
+        "shuzhishengluehao"
+      ],
+      "outputs": [
+        "⋮"
+      ]
+    },
+    {
+      "category": "数学省略记号",
+      "name": "斜向省略",
+      "aliases": [
+        "xiexiangshenglue"
+      ],
+      "outputs": [
+        "⋱",
+        "⋰"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "上标零",
+      "aliases": [
+        "shangbiaoling"
+      ],
+      "outputs": [
+        "⁰"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "上标一",
+      "aliases": [
+        "shangbiaoyi"
+      ],
+      "outputs": [
+        "¹"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "上标二",
+      "aliases": [
+        "shangbiaoer"
+      ],
+      "outputs": [
+        "²"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "上标三",
+      "aliases": [
+        "shangbiaosan"
+      ],
+      "outputs": [
+        "³"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "上标四",
+      "aliases": [
+        "shangbiaosi"
+      ],
+      "outputs": [
+        "⁴"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "上标五",
+      "aliases": [
+        "shangbiaowu"
+      ],
+      "outputs": [
+        "⁵"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "上标六",
+      "aliases": [
+        "shangbiaoliu"
+      ],
+      "outputs": [
+        "⁶"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "上标七",
+      "aliases": [
+        "shangbiaoqi"
+      ],
+      "outputs": [
+        "⁷"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "上标八",
+      "aliases": [
+        "shangbiaoba"
+      ],
+      "outputs": [
+        "⁸"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "上标九",
+      "aliases": [
+        "shangbiaojiu"
+      ],
+      "outputs": [
+        "⁹"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "下标零",
+      "aliases": [
+        "xiabiaoling"
+      ],
+      "outputs": [
+        "₀"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "下标一",
+      "aliases": [
+        "xiabiaoyi"
+      ],
+      "outputs": [
+        "₁"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "下标二",
+      "aliases": [
+        "xiabiaoer"
+      ],
+      "outputs": [
+        "₂"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "下标三",
+      "aliases": [
+        "xiabiaosan"
+      ],
+      "outputs": [
+        "₃"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "下标四",
+      "aliases": [
+        "xiabiaosi"
+      ],
+      "outputs": [
+        "₄"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "下标五",
+      "aliases": [
+        "xiabiaowu"
+      ],
+      "outputs": [
+        "₅"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "下标六",
+      "aliases": [
+        "xiabiaoliu"
+      ],
+      "outputs": [
+        "₆"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "下标七",
+      "aliases": [
+        "xiabiaoqi"
+      ],
+      "outputs": [
+        "₇"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "下标八",
+      "aliases": [
+        "xiabiaoba"
+      ],
+      "outputs": [
+        "₈"
+      ]
+    },
+    {
+      "category": "上下标",
+      "name": "下标九",
+      "aliases": [
+        "xiabiaojiu"
+      ],
+      "outputs": [
+        "₉"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "曲线积分",
+      "aliases": [
+        "quxianjifen"
+      ],
+      "outputs": [
+        "∫"
+      ]
+    },
+    {
+      "category": "微积分与无穷",
+      "name": "面积分",
+      "aliases": [
+        "mianjifen"
+      ],
+      "outputs": [
+        "∬"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "取模",
+      "aliases": [
+        "qumo",
+        "quyu",
+        "moyunsuan"
+      ],
+      "outputs": [
+        "mod",
+        "%"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "复合运算",
+      "aliases": [
+        "fuheyunsuan",
+        "fuhehao"
+      ],
+      "outputs": [
+        "∘"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "渐近等于",
+      "aliases": [
+        "jianjindengyu"
+      ],
+      "outputs": [
+        "≃"
+      ]
+    },
+    {
+      "category": "逻辑与推理",
+      "name": "唯一存在",
+      "aliases": [
+        "weiyicunzai"
+      ],
+      "outputs": [
+        "∃!"
+      ]
+    },
+    {
+      "category": "比较与关系",
+      "name": "不约等于",
+      "aliases": [
+        "buyuedengyu",
+        "buyuedenghao"
+      ],
+      "outputs": [
+        "≉"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "增量",
+      "aliases": [
+        "zengliang",
+        "bianhualiang"
+      ],
+      "outputs": [
+        "Δ"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "张量积",
+      "aliases": [
+        "zhangliangji",
+        "keluoneikeji"
+      ],
+      "outputs": [
+        "⊗"
+      ]
+    },
+    {
+      "category": "四则与运算",
+      "name": "直和",
+      "aliases": [
+        "zhihe",
+        "zhihehao"
+      ],
+      "outputs": [
+        "⊕"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "尖括号",
+      "aliases": [
+        "jiankuohao"
+      ],
+      "outputs": [
+        "⟨⟩"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "左尖括号",
+      "aliases": [
+        "zuojiankuohao"
+      ],
+      "outputs": [
+        "⟨"
+      ]
+    },
+    {
+      "category": "括号与定界",
+      "name": "右尖括号",
+      "aliases": [
+        "youjiankuohao"
+      ],
+      "outputs": [
+        "⟩"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "对数",
+      "aliases": [
+        "duishu"
+      ],
+      "outputs": [
+        "log"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "自然对数",
+      "aliases": [
+        "ziranduishu"
+      ],
+      "outputs": [
+        "ln"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "常用对数",
+      "aliases": [
+        "changyongduishu"
+      ],
+      "outputs": [
+        "lg"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "指数函数",
+      "aliases": [
+        "zhishuhanshu"
+      ],
+      "outputs": [
+        "exp"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "极限",
+      "aliases": [
+        "jixian"
+      ],
+      "outputs": [
+        "lim"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "正弦",
+      "aliases": [
+        "zhengxian"
+      ],
+      "outputs": [
+        "sin"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "余弦",
+      "aliases": [
+        "yuxian"
+      ],
+      "outputs": [
+        "cos"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "正切",
+      "aliases": [
+        "zhengqie"
+      ],
+      "outputs": [
+        "tan"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "余切",
+      "aliases": [
+        "yuqie"
+      ],
+      "outputs": [
+        "cot"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "正割",
+      "aliases": [
+        "zhengge"
+      ],
+      "outputs": [
+        "sec"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "余割",
+      "aliases": [
+        "yuge"
+      ],
+      "outputs": [
+        "csc"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "最大值",
+      "aliases": [
+        "zuidazhi"
+      ],
+      "outputs": [
+        "max"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "最小值",
+      "aliases": [
+        "zuixiaozhi"
+      ],
+      "outputs": [
+        "min"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "最大公约数",
+      "aliases": [
+        "zuidagongyueshu"
+      ],
+      "outputs": [
+        "gcd"
+      ]
+    },
+    {
+      "category": "常用函数记号",
+      "name": "最小公倍数",
+      "aliases": [
+        "zuixiaogongbeishu"
+      ],
+      "outputs": [
+        "lcm"
+      ]
+    }
+  ]
+}

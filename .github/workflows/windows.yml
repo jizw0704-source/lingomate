@@ -14,6 +14,13 @@ on:
       - 'prototype/tests/engine_test.py'
       - 'prototype/tests/memory_test.py'
       - 'prototype/tests/ranking_test.py'
+      - 'prototype/tests/expressions_test.py'
+      - 'prototype/tests/vocabulary_test.py'
+      - 'tools/prepare_expressions.py'
+      - 'tools/test_prepare_expressions.py'
+      - 'tools/check_math_symbols.py'
+      - 'data/expressions-source.json'
+      - 'data/math-symbols.json'
       - 'updates/**'
       - 'docs/licenses/**'
       - 'data/source.json'
@@ -40,6 +47,13 @@ on:
       - 'prototype/tests/engine_test.py'
       - 'prototype/tests/memory_test.py'
       - 'prototype/tests/ranking_test.py'
+      - 'prototype/tests/expressions_test.py'
+      - 'prototype/tests/vocabulary_test.py'
+      - 'tools/prepare_expressions.py'
+      - 'tools/test_prepare_expressions.py'
+      - 'tools/check_math_symbols.py'
+      - 'data/expressions-source.json'
+      - 'data/math-symbols.json'
       - 'updates/**'
       - 'docs/licenses/**'
       - 'data/source.json'
@@ -79,6 +93,22 @@ jobs:
       - name: Build native DLL and shared engine
         shell: pwsh
         run: ./native-windows/tools/build.ps1
+      - name: Check expression, vocabulary and math tools without Python UTF-8 mode
+        env:
+          PYTHONUTF8: '0'
+          PYTHONIOENCODING: utf-8
+        shell: pwsh
+        run: |
+          $env:LINGOMATE_TEST_BRIDGE = "$PWD/native-windows/package/windows-x64/bilingual-ime-bridge.exe"
+          $env:LINGOMATE_TEST_RESOURCES = "$PWD"
+          python -c "import locale, sys; print('Default encoding:', locale.getencoding()); assert not sys.flags.utf8_mode"
+          if ($LASTEXITCODE -ne 0) { throw 'Default Python encoding mode check failed.' }
+          python tools/prepare_expressions.py
+          if ($LASTEXITCODE -ne 0) { throw 'Expression generation failed.' }
+          foreach ($Script in @('tools/prepare_expressions.py', 'tools/test_prepare_expressions.py', 'prototype/tests/expressions_test.py', 'prototype/tests/vocabulary_test.py', 'tools/check_math_symbols.py')) {
+            if ($Script -eq 'tools/prepare_expressions.py') { python $Script --check } else { python $Script }
+            if ($LASTEXITCODE -ne 0) { throw "Shared UTF-8 regression failed: $Script" }
+          }
       - name: Stress isolated concurrent learning records
         shell: pwsh
         run: |

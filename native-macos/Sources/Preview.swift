@@ -17,6 +17,7 @@ enum Preview {
   static let punctuationPreview = CommandLine.arguments.contains("--preview-punctuation")
   static let typingPreview = CommandLine.arguments.contains("--preview-typing")
   static let mixedPreview = CommandLine.arguments.contains("--preview-mixed")
+  static let symbolsPreview = CommandLine.arguments.contains("--preview-symbols")
   static let expressionsPreview = CommandLine.arguments.contains("--preview-expressions")
   static var shiftTap = ShiftTap()
   static var eventMonitor: Any?
@@ -85,6 +86,7 @@ enum Preview {
     if expressionsPreview {
       label.stringValue = "固定表达联想：chiputao → 吃葡萄不吐葡萄皮。候选需点击确认；本窗口仅使用隔离引擎。"
     }
+    if symbolsPreview { label.stringValue = "表情与符号候选：保留普通候选优先，点击符号直接输出；预览不读写个人词库。" }
     if fixture != nil { label.stringValue = "界面状态样例，内容为测试数据；不代表真实翻译结果。" }
     label.font = NativeTheme.font(13)
     label.textColor = NativeTheme.muted
@@ -110,6 +112,10 @@ enum Preview {
     panel = CandidatePanel()
     if mixedPreview {
       state.clear()
+    } else if symbolsPreview {
+      let args = CommandLine.arguments
+      let keyword = args.firstIndex(of: "--symbol-keyword")
+      state.input = keyword.flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil } ?? "yumaoqiu"
     } else if expressionsPreview {
       state.input = "chiputao"
     } else if CommandLine.arguments.contains("--preview-paging") || learningDirectory != nil {
@@ -120,6 +126,9 @@ enum Preview {
         ? "wojintianxiangxuexiyingyu" : "xuexi"
     }
     state.frame = try? Runtime.engine?.request(EngineRequest(action: "query", input: state.input))
+    if symbolsPreview, let frame = state.frame {
+      state.frame = SymbolCandidates.augment(frame, enabled: true)
+    }
     panel?.onLearning = {
       window.orderOut(nil)
       panel?.orderOut(nil)
@@ -199,7 +208,7 @@ enum Preview {
     draw()
   }
   static func translateSentence() {
-    if mixedPreview || expressionsPreview {
+    if mixedPreview || expressionsPreview || symbolsPreview {
       sentenceTranslator.cancel()
       state.sentence = .none
       return
@@ -330,6 +339,9 @@ enum Preview {
   static func refreshMixed() {
     if !state.input.isEmpty {
       state.frame = try? Runtime.engine?.request(EngineRequest(action: "query", input: state.input))
+      if symbolsPreview, let frame = state.frame {
+        state.frame = SymbolCandidates.augment(frame, enabled: true)
+      }
     }
     draw()
   }

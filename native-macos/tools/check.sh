@@ -16,6 +16,9 @@ export SDKROOT="$DEVELOPER_DIR/SDKs/MacOSX.sdk"
   -framework AppKit -framework InputMethodKit -framework Carbon -framework Translation -framework SwiftUI
 "$RESEARCH_DIR/runtime/python/bin/ruff" format --check "$NATIVE_DIR/tools"
 "$RESEARCH_DIR/runtime/python/bin/ruff" check "$NATIVE_DIR/tools"
+"$RESEARCH_DIR/runtime/python/bin/ruff" format --check "$RESEARCH_DIR/tools/check_math_symbols.py"
+"$RESEARCH_DIR/runtime/python/bin/ruff" check "$RESEARCH_DIR/tools/check_math_symbols.py"
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/check_math_symbols.py"
 "$RESEARCH_DIR/runtime/python/bin/python" -m compileall -q "$NATIVE_DIR/tools"
 "$RESEARCH_DIR/runtime/python/bin/python" "$NATIVE_DIR/tools/test_install.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/test_prepare_lexicon.py"
@@ -33,6 +36,7 @@ bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/memory_test.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/vocabulary_test.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/ranking_test.py"
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --symbol-candidate-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --appearance-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --local-learning-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --personal-vocabulary-test

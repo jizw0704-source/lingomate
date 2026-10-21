@@ -6,6 +6,7 @@ export DEVELOPER_DIR=/Library/Developer/CommandLineTools
 export SDKROOT="$DEVELOPER_DIR/SDKs/MacOSX.sdk"
 export MACOSX_DEPLOYMENT_TARGET=13.0
 APP="$NATIVE_DIR/build/BilingualCompanion.app"
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/check_math_symbols.py"
 bash "$RESEARCH_DIR/prototype/tools/cargo.sh" build --release --locked
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/prepare_expressions.py"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/zh-Hans.lproj" "$APP/Contents/Resources/en.lproj"
@@ -21,6 +22,7 @@ iconutil --convert icns "$NATIVE_DIR/build/input-icons/GuoApp.iconset" --output 
 cp "$RESEARCH_DIR/upstream/qingjian/target/release/bilingual-ime-bridge" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/data/generated/dict.tsv" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/data/generated/glossary-en.tsv" "$APP/Contents/Resources/"
+cp "$RESEARCH_DIR/data/math-symbols.json" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/prototype/data/details.json" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/prototype/LICENSE" "$APP/Contents/Resources/LICENSE"
 cp "$RESEARCH_DIR/data/generated/GLOSSARY-NOTICE.md" "$APP/Contents/Resources/"

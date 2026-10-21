@@ -24,6 +24,7 @@ struct EngineCandidate: Codable {
   let translations: [TranslationDetail]
   let hasDetails: Bool
   var personal: Bool? = nil
+  var symbol: Bool? = nil
 }
 
 struct EngineFrame: Codable {
