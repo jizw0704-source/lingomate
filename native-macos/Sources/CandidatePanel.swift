@@ -522,7 +522,9 @@ final class CandidatePanel: NSPanel {
     symbol.widthAnchor.constraint(equalToConstant: 32).isActive = true
     let title = column([
       NativeTheme.label(mode.title, size: 16, weight: .medium),
-      NativeTheme.label("单按 Shift 随时切换", size: 11, secondary: true),
+      NativeTheme.label(
+        mode == .english ? "字母直接输出 · 单按 Shift 回中文" : "空格选中文 · 回车输出原样字母",
+        size: 11, secondary: true),
     ])
     let toggle = ActionButton(mode == .english ? "切回中文" : "切到英文") { [weak self] in
       self?.onTypingMode?()

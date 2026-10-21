@@ -48,6 +48,9 @@ enum Preview {
     Runtime.engine = try EngineClient(resources: resources, memoryURL: file)
   }
   static func start() {
+    if typingPreview, CommandLine.arguments.contains("--preview-english-mode") {
+      Runtime.typingMode = .english
+    }
     NSApplication.shared.setActivationPolicy(.regular)
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 660, height: 180),

@@ -25,6 +25,15 @@ enum TypingTests {
       _ = tap.observe(type: .flagsChanged, key: UInt16(kVK_Shift), flags: .shift, time: 2)
       precondition(tap.observe(type: .flagsChanged, key: UInt16(kVK_Shift), flags: [], time: 2.1))
     }
+    for sameSession in [true, false] {
+      var activationTap = ShiftTap()
+      _ = activationTap.observe(
+        type: .flagsChanged, key: UInt16(kVK_Shift), flags: .shift, time: 1)
+      activationTap.activate(sameSession: sameSession)
+      precondition(
+        activationTap.observe(
+          type: .flagsChanged, key: UInt16(kVK_Shift), flags: [], time: 1.1) == sameSession)
+    }
     var tap = ShiftTap()
     _ = tap.observe(type: .flagsChanged, key: UInt16(kVK_Shift), flags: .shift, time: 1)
     precondition(!tap.observe(type: .flagsChanged, key: UInt16(kVK_Shift), flags: [], time: 2))
