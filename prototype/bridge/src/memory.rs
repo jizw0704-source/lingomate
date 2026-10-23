@@ -146,6 +146,13 @@ impl Memory {
     }
 
     /// Usage age measures subsequent confirmed choices, not wall-clock time.
+    pub fn has_sentence_preference(&self, input: &str) -> bool {
+        let key = normalize(input);
+        self.data.entries.iter().any(|e| {
+            e.count >= 2 && (2..=8).contains(&e.syllables.len()) && key.contains(&e.pinyin)
+        })
+    }
+
     pub fn preferences(&self, input: &str) -> Preferences {
         let key = normalize(input);
         self.data
