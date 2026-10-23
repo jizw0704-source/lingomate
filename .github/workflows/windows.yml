@@ -21,6 +21,7 @@ on:
       - 'tools/check_math_symbols.py'
       - 'data/expressions-source.json'
       - 'data/math-symbols.json'
+      - 'prototype/tests/mac_accuracy_test.py'
       - 'updates/**'
       - 'docs/licenses/**'
       - 'data/source.json'
@@ -54,6 +55,7 @@ on:
       - 'tools/check_math_symbols.py'
       - 'data/expressions-source.json'
       - 'data/math-symbols.json'
+      - 'prototype/tests/mac_accuracy_test.py'
       - 'updates/**'
       - 'docs/licenses/**'
       - 'data/source.json'
@@ -122,6 +124,13 @@ jobs:
           LINGOMATE_CANDIDATE_PREVIEW_DIR: ${{ github.workspace }}/native-windows/package/recovery-previews
         shell: pwsh
         run: ./native-windows/tools/check.ps1 -SkipUpdates
+      - name: Check opt-in Mac learning without changing Windows defaults
+        shell: pwsh
+        run: |
+          $env:LINGOMATE_TEST_RESOURCES = Join-Path $PWD 'native-windows/package/windows-x64'
+          $env:LINGOMATE_TEST_BRIDGE = Join-Path $env:LINGOMATE_TEST_RESOURCES 'bilingual-ime-bridge.exe'
+          python prototype/tests/mac_accuracy_test.py
+          if ($LASTEXITCODE -ne 0) { throw 'Mac opt-in learning regression failed.' }
       - name: Check embedded icon and render isolated candidate windows
         shell: pwsh
         run: |

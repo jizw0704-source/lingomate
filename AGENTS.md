@@ -46,6 +46,8 @@ runtime/python/bin/python tools/test_part_of_speech.py
 runtime/python/bin/python tools/test_prepare_expressions.py
 runtime/python/bin/python prototype/tests/expressions_test.py
 runtime/python/bin/python prototype/tests/ranking_test.py
+runtime/python/bin/python prototype/tests/mac_accuracy_test.py
+runtime/python/bin/python native-macos/tools/test_evaluate_candidates.py
 runtime/python/bin/python tools/prepare_lexicon.py --check
 runtime/python/bin/ruff format --check backend
 runtime/python/bin/ruff check backend

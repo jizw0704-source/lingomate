@@ -2,10 +2,13 @@
 use crate::memory::{Memory, normalize};
 use qingjian_core::candidate::Candidate;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 pub struct Ranking {
     weights: HashMap<(String, String), u32>,
+    sentences: OnceLock<Option<crate::learned_sentence::Words>>,
+    dictionary_path: PathBuf,
 }
 
 impl Ranking {
@@ -31,7 +34,30 @@ impl Ranking {
         if weights.is_empty() {
             return Err("empty ranking dictionary".into());
         }
-        Ok(Self { weights })
+        Ok(Self {
+            weights,
+            sentences: OnceLock::new(),
+            dictionary_path: path.to_owned(),
+        })
+    }
+
+    pub fn learned_sentence(
+        &self,
+        input: &str,
+        query: Option<&qingjian_core::engine::Query>,
+        memory: &Memory,
+    ) -> Option<Candidate> {
+        if !memory.has_sentence_preference(input) {
+            return None;
+        }
+        self.sentences
+            .get_or_init(|| {
+                std::fs::read_to_string(&self.dictionary_path)
+                    .ok()
+                    .map(|source| crate::learned_sentence::Words::new(&self.weights, &source))
+            })
+            .as_ref()?
+            .candidate(input, query, memory)
     }
 
     fn weight(&self, candidate: &Candidate) -> Option<u32> {
@@ -117,9 +143,18 @@ impl Ranking {
                 let Some(&(count, age)) = selected[i] else {
                     return base;
                 };
-                let freshness = 1.0 - (age.min(256) as f64 / 256.0);
-                base + ((maximum - base).max(0.0) + 0.8 * f64::from(count.min(20)).ln_1p())
-                    * freshness
+                let freshness = if frequency && count >= 2 {
+                    // Repeated choices fade gradually rather than disappear at choice 256.
+                    1.0 / (1.0 + age as f64 / 256.0)
+                } else {
+                    1.0 - (age.min(256) as f64 / 256.0)
+                };
+                if frequency && count >= 2 {
+                    maximum + 0.8 * f64::from(count.min(20)).ln_1p() * freshness
+                } else {
+                    base + ((maximum - base).max(0.0) + 0.8 * f64::from(count.min(20)).ln_1p())
+                        * freshness
+                }
             };
             let mut choices: Vec<_> = indices
                 .iter()
