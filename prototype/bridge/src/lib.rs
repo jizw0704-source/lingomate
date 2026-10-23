@@ -1,6 +1,6 @@
 //! Local experimental adapter over Qingjian, GPL-3.0-or-later.
 use qingjian_core::Engine;
-use qingjian_core::candidate::{Candidate, Language, Sense, Translation};
+use qingjian_core::candidate::{Candidate, CandidateKind, Language, Sense, Translation};
 use qingjian_dictionary::Dictionary;
 use qingjian_translate::Glossary;
 use serde::{Deserialize, Serialize};
@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 mod expressions;
 pub mod ffi;
 mod focused_candidates;
+mod learned_sentence;
 mod memory;
 mod part_of_speech;
 mod ranking;
@@ -176,6 +177,23 @@ impl Adapter {
         }
         items.retain(|c| !self.expressions.is_completion(input, c));
         if self.focused_candidates {
+            if let Some(candidate) =
+                self.ranking
+                    .learned_sentence(input, query.as_ref(), &self.memory)
+            {
+                if let Some(index) = items
+                    .iter()
+                    .position(|c| c.text == candidate.text && c.syllables == candidate.syllables)
+                {
+                    // Never turn a dictionary/personal whole word into a synthetic sentence.
+                    if items[index].kind == CandidateKind::Sentence {
+                        let existing = items.remove(index);
+                        items.insert(0, existing);
+                    }
+                } else {
+                    items.insert(0, candidate);
+                }
+            }
             self.ranking.order_focused(input, &mut items, &self.memory);
             items = focused_candidates::select(input, query.as_ref(), items);
         } else {
