@@ -55,6 +55,8 @@ final class SettingsController: NSObject, NSWindowDelegate {
   func cleanupVocabulary() { vocabularyController?.cleanup() }
   private let body = NSView()
   private var tabs: [ActionButton] = []
+  private var appearanceFontButtons: [ActionButton] = []
+  private var appearanceFontStatus: NSTextField?
   private(set) var section = SettingsSection.account
   private let preview: Bool
 
@@ -110,7 +112,7 @@ final class SettingsController: NSObject, NSWindowDelegate {
     input.onChange = { [weak self] in
       guard let self else { return }
       if self.section == .input { self.showInput() }
-      if self.section == .appearance { self.showAppearance() }
+      if self.section == .appearance { self.refreshAppearanceInput() }
     }
     select(.account)
     input.refresh()
@@ -288,19 +290,38 @@ final class SettingsController: NSObject, NSWindowDelegate {
         button.toolTip = "汉字 \(value.rawValue) pt，英文与词性按比例调整"
         return button
       }
+      appearanceFontButtons = fontButtons
       let fontOptions = row(fontButtons)
       fontOptions.distribution = .fillEqually
       fontOptions.spacing = 4
       add(fontOptions, to: stack)
       add(NativeTheme.label("小 16 · 标准 18 · 大 20 · 特大 22 pt", size: 12, secondary: true), to: stack)
-      add(
-        NativeTheme.label(
-          input.snapshot == nil || input.waiting ? input.message : "英文与词性按比例调整，字号选择会保存。", size: 12,
-          secondary: true), to: stack)
+      let status = NativeTheme.label(
+        input.snapshot == nil || input.waiting ? input.message : "英文与词性按比例调整，字号选择会保存。", size: 12,
+        secondary: true)
+      status.heightAnchor.constraint(greaterThanOrEqualToConstant: 32).isActive = true
+      appearanceFontStatus = status
+      add(status, to: stack)
+      let opacity = CandidateOpacityControl()
+      add(opacity, to: stack)
       let update = ActionButton("检查版本更新…") { MacUpdates.launch() }
       update.isEnabled = !preview
       add(update, to: stack)
     }
+  }
+  private func refreshAppearanceInput() {
+    // Refresh runtime controls in place: remounting would discard slider focus and scroll.
+    let size = input.snapshot?.fontSize ?? CandidatePreferences.current.fontSize
+    for (value, button) in zip(CandidateFontSize.allCases, appearanceFontButtons) {
+      let selected = size == value
+      button.title = (selected ? "✓ " : "") + value.title
+      button.style = selected ? .subtle : .plain
+      button.state = selected ? .on : .off
+      button.isEnabled = input.snapshot != nil && !input.waiting
+    }
+    appearanceFontStatus?.stringValue =
+      input.snapshot == nil || input.waiting
+      ? input.message : "英文与词性按比例调整，字号选择会保存。"
   }
   private func resizeDocument() {
     window.contentView?.layoutSubtreeIfNeeded()

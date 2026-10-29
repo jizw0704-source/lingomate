@@ -65,9 +65,8 @@ final class CandidatePanel: NSPanel {
   }
 
   private func surface() -> NSView {
-    let view = CandidateDocumentView()
+    let view = CandidateSurfaceView()
     view.wantsLayer = true
-    view.fill = NativeTheme.background
     view.layer?.cornerRadius = 16
     view.layer?.borderWidth = 1
     view.border = NativeTheme.divider
@@ -106,7 +105,10 @@ final class CandidatePanel: NSPanel {
     let width = min(maximumWidth, wantedWidth, bounds.width - 16)
     let bodyWidth = width - 16
     let narrow = width < 500
-    let content = surface()
+    // The fixed outer frame owns the sole background fill; the scroll document is clear.
+    let content = CandidateDocumentView()
+    content.wantsLayer = true
+    content.fill = .clear
     let stack = column([], spacing: 0)
     stack.translatesAutoresizingMaskIntoConstraints = false
     content.addSubview(stack)

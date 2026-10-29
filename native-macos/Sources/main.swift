@@ -3,6 +3,15 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if let index = arguments.firstIndex(of: "--opacity-notification-test"), arguments.count == index + 2
+{
+  CandidateOpacityTests.notificationProbe(arguments[index + 1])
+  exit(0)
+}
+if let index = arguments.firstIndex(of: "--opacity-readback-test"), arguments.count == index + 3 {
+  CandidateOpacityTests.readback(arguments[index + 1], expected: arguments[index + 2])
+  exit(0)
+}
 if arguments.contains("--symbol-candidate-test") {
   SymbolCandidateTests.run()
   exit(0)

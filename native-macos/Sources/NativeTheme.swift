@@ -41,7 +41,7 @@ enum NativeTheme {
 }
 
 // CGColor 不会自动解析动态外观，随视图的实际 appearance 更新图层。
-final class CandidateDocumentView: NSView {
+class CandidateDocumentView: NSView {
   var fill: NSColor? { didSet { updateColors() } }
   var border: NSColor? { didSet { updateColors() } }
   override var isFlipped: Bool { true }
