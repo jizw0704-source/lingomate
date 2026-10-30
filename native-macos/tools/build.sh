@@ -22,6 +22,7 @@ iconutil --convert icns "$NATIVE_DIR/build/input-icons/GuoApp.iconset" --output 
 cp "$RESEARCH_DIR/upstream/qingjian/target/release/bilingual-ime-bridge" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/data/generated/dict.tsv" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/data/generated/glossary-en.tsv" "$APP/Contents/Resources/"
+cp "$RESEARCH_DIR/data/COLLOCATION-NOTICE.md" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/data/math-symbols.json" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/prototype/data/details.json" "$APP/Contents/Resources/"
 cp "$RESEARCH_DIR/prototype/LICENSE" "$APP/Contents/Resources/LICENSE"

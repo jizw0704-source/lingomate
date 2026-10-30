@@ -47,7 +47,12 @@ impl Ranking {
         query: Option<&qingjian_core::engine::Query>,
         memory: &Memory,
     ) -> Option<Candidate> {
-        if !memory.has_sentence_preference(input) {
+        let query = query?;
+        if !memory.has_sentence_preference(input)
+            && !query.segmentations.iter().take(4).any(|s| {
+                (3..=32).contains(&s.syllables.len()) && s.syllables.iter().all(|t| t.complete)
+            })
+        {
             return None;
         }
         self.sentences
@@ -57,7 +62,7 @@ impl Ranking {
                     .map(|source| crate::learned_sentence::Words::new(&self.weights, &source))
             })
             .as_ref()?
-            .candidate(input, query, memory)
+            .candidate(input, Some(query), memory)
     }
 
     fn weight(&self, candidate: &Candidate) -> Option<u32> {
@@ -144,17 +149,14 @@ impl Ranking {
                     return base;
                 };
                 let freshness = if frequency && count >= 2 {
-                    // Repeated choices fade gradually rather than disappear at choice 256.
-                    1.0 / (1.0 + age as f64 / 256.0)
+                    // Keep repeated choices stable for 1024 confirmations, then fade the
+                    // entire uplift so obsolete choices cannot dominate indefinitely.
+                    1.0 / (1.0 + age.saturating_sub(1024) as f64 / 256.0)
                 } else {
                     1.0 - (age.min(256) as f64 / 256.0)
                 };
-                if frequency && count >= 2 {
-                    maximum + 0.8 * f64::from(count.min(20)).ln_1p() * freshness
-                } else {
-                    base + ((maximum - base).max(0.0) + 0.8 * f64::from(count.min(20)).ln_1p())
-                        * freshness
-                }
+                base + ((maximum - base).max(0.0) + 0.8 * f64::from(count.min(20)).ln_1p())
+                    * freshness
             };
             let mut choices: Vec<_> = indices
                 .iter()

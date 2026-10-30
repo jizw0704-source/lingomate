@@ -179,10 +179,11 @@ def main():
     parser.add_argument("--resources", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--baseline", type=Path)
+    parser.add_argument(
+        "--cases", type=Path, default=ROOT / "native-macos/evaluation/cases.json"
+    )
     args = parser.parse_args()
-    cases = json.loads(
-        (ROOT / "native-macos/evaluation/cases.json").read_text(encoding="utf-8")
-    )["cases"]
+    cases = json.loads(args.cases.read_text(encoding="utf-8"))["cases"]
     report = evaluate(args.bridge.resolve(), args.resources.resolve(), cases)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

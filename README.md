@@ -209,3 +209,5 @@ MSVC 构建、格式、all-targets Clippy、75 项 Rust（共享 8／Windows 67�
 Mac 0.12.15 进一步补齐感叹号、问号、逗号、冒号、分号、句号、顿号和破折号候选；中文候选优先及现有输入规则保留，见 Mac 指南。
 
 Mac 0.12.16 按 14 个类别补齐常用数学符号、函数记号及别称，含加／加号、减／减号、乘／乘号、大于／大于号等，普通中文优先；完整范围见 [覆盖清单](docs/MATH_SYMBOLS.md)。
+
+Mac 0.12.19 本地体验版增加有界搭配评分、跨分音整句候选比较与过旧个人偏好衰减；保留混合输入、确认后记忆及透明度设置。算法、评测与许可边界见 native-macos/evaluation/README.md 和 data/COLLOCATION-NOTICE.md。

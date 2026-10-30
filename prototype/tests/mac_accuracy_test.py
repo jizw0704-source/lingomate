@@ -119,6 +119,42 @@ class AccuracyTests(unittest.TestCase):
             self.request("womenkaishishiyan")["candidates"][0]["text"], first["text"]
         )
 
+    def test_very_old_repeated_preference_does_not_dominate_forever(self):
+        self.train("试验", "shiyan")
+        self.assertEqual(self.request("shiyan")["candidates"][0]["text"], "试验")
+        self.stop()
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        data["sequence"] += 100000
+        self.path.write_text(json.dumps(data), encoding="utf-8")
+        self.start()
+        self.assertEqual(self.request("shiyan")["candidates"][0]["text"], "实验")
+        self.assertTrue(
+            any(c["text"] == "试验" for c in self.request("shiyan")["candidates"])
+        )
+
+    def test_collocation_sentence_confirmation_and_cancel(self):
+        before = self.path.read_bytes() if self.path.exists() else None
+        raw = "womenxuyaoyanjiucailiao"
+        candidate = next(
+            c
+            for c in self.request(raw)["candidates"]
+            if c["text"] == "我们需要研究材料"
+        )
+        self.request(action="cancel")
+        self.assertEqual(self.path.read_bytes() if self.path.exists() else None, before)
+        result = self.request(
+            raw, "commit", candidate=candidate["text"], syllables=candidate["syllables"]
+        )
+        self.assertEqual(result["committed"], candidate["text"])
+        self.assertEqual(result["input"], "")
+        self.assertEqual(self.path.read_bytes() if self.path.exists() else None, before)
+        self.request(action="confirm", learning_token=result["learningToken"])
+        self.stop()
+        self.start()
+        self.assertTrue(
+            any(c["text"] == candidate["text"] for c in self.request(raw)["candidates"])
+        )
+
     def test_apostrophe_partial_consumption_and_single_accident(self):
         self.train("试验", "shiyan")
         words = self.request("women'kaishi'shiyan")["candidates"]
