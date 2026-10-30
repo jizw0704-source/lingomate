@@ -103,7 +103,7 @@ final class CandidatePanel: NSPanel {
     }
     let wantedWidth = inline ? inlineWidth(state, bilingual: bilingual) : maximumWidth
     let width = min(maximumWidth, wantedWidth, bounds.width - 16)
-    let bodyWidth = width - 16
+    let bodyWidth = width - 68
     let narrow = width < 500
     // The fixed outer frame owns the sole background fill; the scroll document is clear.
     let content = CandidateDocumentView()
@@ -111,84 +111,76 @@ final class CandidatePanel: NSPanel {
     content.fill = .clear
     let stack = column([], spacing: 0)
     stack.translatesAutoresizingMaskIntoConstraints = false
-    content.addSubview(stack)
+    let root = column([], spacing: 0)
+    root.translatesAutoresizingMaskIntoConstraints = false
+    content.addSubview(root)
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 8),
-      stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -8),
-      stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 4),
-      stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -4),
+      root.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 8),
+      root.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -8),
+      root.topAnchor.constraint(equalTo: content.topAnchor, constant: 4),
+      root.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -4),
     ])
-    let settings = ActionButton("⚙", label: "打开设置：登录、学习、翻译、输入与外观") { [weak self] in
-      self?.onSettings?()
-    }
-    settings.symbolName = "gearshape"
-    settings.symbolSize = 20
-    settings.widthAnchor.constraint(equalToConstant: 44).isActive = true
-    settings.toolTip = "设置 · 中文/英文切换 · 双语 · 标点 · 外观 · 学习"
-    let details = ActionButton(
-      state.expanded ? "收起" : "译法",
-      label: state.expanded ? "收起其他译法，Tab" : "选择候选并展开其他译法，Tab"
-    ) {}
-    details.widthAnchor.constraint(equalToConstant: 44).isActive = true
-    details.symbolName = state.expanded ? "chevron.up" : "chevron.down"
-    details.symbolSize = 16
-    details.toolTip = state.expanded ? "收起其他译法 · Tab" : "展开其他译法 · Tab"
-    details.font = NativeTheme.font(textSize(12))
-    details.horizontalPadding = 8
-    details.isEnabled =
-      bilingual
-      && state.visibleIndices.contains {
-        state.frame?.candidates[$0].translations.isEmpty == false
-      }
-    details.invoke = { [weak self, weak details] in
-      guard let self, let details else { return }
-      if state.expanded {
-        self.onCollapse?()
-        return
-      }
-      let menu = NSMenu(title: "更多译法")
-      for index in state.visibleIndices {
-        guard let candidate = state.frame?.candidates[index], !candidate.translations.isEmpty else {
-          continue
-        }
+    let more = ActionButton("⋯", label: "更多：其他译法与设置") {}
+    more.symbolName = "ellipsis"
+    more.widthAnchor.constraint(equalToConstant: 44).isActive = true
+    more.toolTip = "更多译法 · 设置"
+    more.invoke = { [weak self, weak more] in
+      guard let self, let more else { return }
+      let menu = NSMenu(title: "更多")
+      for (title, direction, enabled) in [
+        ("上一页 · PageUp / −", -1, state.page > 0),
+        ("下一页 · PageDown / =", 1, state.page + 1 < state.pageCount),
+      ] {
         let item = NSMenuItem(
-          title: "\(index - state.visibleIndices.lowerBound + 1)  \(candidate.text)",
-          action: #selector(self.expandMenuItem(_:)), keyEquivalent: "")
+          title: title, action: #selector(self.pageMenuItem(_:)), keyEquivalent: "")
         item.target = self
-        item.tag = index
+        item.tag = direction
+        item.isEnabled = enabled
         menu.addItem(item)
       }
-      menu.popUp(positioning: nil, at: NSPoint(x: 0, y: details.bounds.minY), in: details)
+      menu.autoenablesItems = false
+      menu.addItem(.separator())
+      if state.expanded {
+        let collapse = NSMenuItem(
+          title: "收起其他译法 · Tab", action: #selector(self.collapseMenuItem(_:)), keyEquivalent: "")
+        collapse.target = self
+        menu.addItem(collapse)
+      } else {
+        let expand = NSMenuItem(title: "展开其他译法 · Tab", action: nil, keyEquivalent: "")
+        let senses = NSMenu(title: "选择候选")
+        if bilingual {
+          for index in state.visibleIndices {
+            guard let candidate = state.frame?.candidates[index], !candidate.translations.isEmpty
+            else { continue }
+            let item = NSMenuItem(
+              title: "\(index - state.visibleIndices.lowerBound + 1)  \(candidate.text)",
+              action: #selector(self.expandMenuItem(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = index
+            senses.addItem(item)
+          }
+        }
+        if senses.items.isEmpty { expand.isEnabled = false } else { expand.submenu = senses }
+        menu.addItem(expand)
+      }
+      menu.addItem(.separator())
+      let settings = NSMenuItem(
+        title: "设置…", action: #selector(self.settingsMenuItem(_:)), keyEquivalent: "")
+      settings.target = self
+      menu.addItem(settings)
+      menu.popUp(positioning: nil, at: NSPoint(x: 0, y: more.bounds.minY), in: more)
     }
-    let previous = ActionButton("‹", label: "上一页候选，PageUp 或减号") { [weak self] in
-      self?.onPage?(-1)
-    }
-    let next = ActionButton("›", label: "下一页候选，PageDown 或等号") { [weak self] in
-      self?.onPage?(1)
-    }
-    for button in [previous, next] {
-      button.widthAnchor.constraint(equalToConstant: 44).isActive = true
-      button.font = NativeTheme.font(textSize(20))
-    }
-    previous.symbolName = "chevron.left"
-    next.symbolName = "chevron.right"
-    previous.symbolSize = 13
-    next.symbolSize = 13
-    previous.isEnabled = state.page > 0
+    let next = ActionButton(
+      "\(state.pageCount > 0 ? state.page + 1 : 0)/\(state.pageCount) ›",
+      label: "下一页候选，当前第 \(state.page + 1) / \(state.pageCount) 页，PageDown 或等号"
+    ) { [weak self] in self?.onPage?(1) }
+    next.widthAnchor.constraint(equalToConstant: 44).isActive = true
+    next.font = NativeTheme.font(10)
+    next.horizontalPadding = 0
     next.isEnabled = state.page + 1 < state.pageCount
-    let page = NativeTheme.label(
-      state.pageCount > 0 ? "\(state.page + 1)/\(state.pageCount)" : "0/0",
-      size: textSize(11), secondary: true)
-    page.setContentCompressionResistancePriority(.required, for: .horizontal)
-    page.toolTip = "共 \(state.frame?.candidates.count ?? 0) 个候选 · −/= 翻页"
-    let mode = NativeTheme.label(bilingual ? "中英" : "中文", size: textSize(11), secondary: true)
-    mode.toolTip = "空格 中文 · 回车 原样字母 · Shift＋空格 译文 · Shift 英文直输 · \(punctuationLabel)"
-    // Pinyin is already marked in the host editor. Keep a stable, compact toolbar.
-    let header = row([previous, page, next, NSView(), details, settings])
-    header.toolTip = mode.toolTip
-    header.spacing = 0
-    add(header, to: stack)
-    if !inline { add(divider(), to: stack) }
+    next.toolTip = "点击下一页 · 上一页在更多菜单中 · −/= 翻页"
+    let controls = column([more, next], spacing: 0)
+    controls.widthAnchor.constraint(equalToConstant: 44).isActive = true
     if inline {
       addInlineCandidates(state, bilingual: bilingual, to: stack, width: bodyWidth)
       if let candidate = state.candidate {
@@ -302,10 +294,19 @@ final class CandidatePanel: NSPanel {
       bilingual
       ? "1–5 / 空格 选中文 · Shift＋空格 英文 · Tab 译法 · − / = 翻页"
       : "1–5 / 空格 选中文 · − / = 翻页 · F6 双语"
+    stack.widthAnchor.constraint(equalToConstant: bodyWidth).isActive = true
+    let layout = row([stack, controls])
+    layout.alignment = .top
+    layout.spacing = 8
+    add(layout, to: root)
     present(
-      content, stack: stack, width: width, anchor: anchor, bounds: bounds,
+      content, stack: root, width: width, anchor: anchor, bounds: bounds,
       maximumHeight: maximumHeight)
   }
+
+  @objc private func pageMenuItem(_ item: NSMenuItem) { onPage?(item.tag) }
+  @objc private func settingsMenuItem(_ item: NSMenuItem) { onSettings?() }
+  @objc private func collapseMenuItem(_ item: NSMenuItem) { onCollapse?() }
 
   @objc private func expandMenuItem(_ item: NSMenuItem) {
     onExpand?(item.tag)
@@ -373,7 +374,7 @@ final class CandidatePanel: NSPanel {
           english.secondaryFontSize = textSize(11)
           english.alignment = .left
           english.widthAnchor.constraint(equalToConstant: columnWidth).isActive = true
-          english.toolTip = "\(sense.displayWord) · 更多译法请点顶部展开按钮或按 Tab"
+          english.toolTip = "\(sense.displayWord) · 更多译法请点右侧更多菜单或按 Tab"
           cell.addArrangedSubview(english)
         } else {
           let missing = NativeTheme.label("—", size: textSize(12), secondary: true)

@@ -27,7 +27,8 @@ enum InputPresentation {
       RunLoop.current.run(until: Date().addingTimeInterval(0.1))
       precondition(app.activationPolicy() == .accessory)
       precondition(panel.isVisible && panel.frame.width <= width && panel.frame.width >= 400)
-      precondition(panel.frame.height <= 182)
+      precondition(
+        panel.frame.height <= 154, "Unexpected compact panel height: \(panel.frame.height)")
       func descendants(_ view: NSView) -> [NSView] {
         [view] + view.subviews.flatMap(descendants)
       }
@@ -35,7 +36,7 @@ enum InputPresentation {
       precondition(
         !views.compactMap { $0 as? NSTextField }.contains { $0.stringValue == state.markedInput })
       let buttons = views.compactMap { $0 as? ActionButton }
-      for symbol in ["chevron.left", "chevron.right", "chevron.down", "gearshape"] {
+      for symbol in ["ellipsis"] {
         precondition(
           buttons.contains {
             $0.symbolName == symbol && $0.bounds.width >= 44 && $0.bounds.height >= 44
@@ -43,12 +44,8 @@ enum InputPresentation {
       }
       var pageDelta = 0
       panel.onPage = { pageDelta = $0 }
-      buttons.first { $0.symbolName == "chevron.right" }?.invoke?()
+      buttons.first { $0.title.hasSuffix(" ›") }?.invoke?()
       precondition(pageDelta == 1)
-      var openedSettings = false
-      panel.onSettings = { openedSettings = true }
-      buttons.first { $0.symbolName == "gearshape" }?.invoke?()
-      precondition(openedSettings)
       precondition(!panel.canBecomeKey && !panel.canBecomeMain)
       precondition(!panel.isKeyWindow && !panel.isMainWindow && app.keyWindow == nil)
       precondition(NSWorkspace.shared.frontmostApplication?.processIdentifier == foreground)
