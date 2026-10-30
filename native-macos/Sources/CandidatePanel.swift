@@ -115,14 +115,9 @@ final class CandidatePanel: NSPanel {
     NSLayoutConstraint.activate([
       stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 8),
       stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -8),
-      stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
-      stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -8),
+      stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 4),
+      stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -4),
     ])
-    let pinyin = NativeTheme.label(state.markedInput, size: textSize(14), weight: .medium)
-    pinyin.maximumNumberOfLines = 1
-    pinyin.lineBreakMode = .byTruncatingTail
-    pinyin.toolTip = pinyin.stringValue
-    pinyin.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     let settings = ActionButton("⚙", label: "打开设置：登录、学习、翻译、输入与外观") { [weak self] in
       self?.onSettings?()
     }
@@ -188,10 +183,8 @@ final class CandidatePanel: NSPanel {
     page.toolTip = "共 \(state.frame?.candidates.count ?? 0) 个候选 · −/= 翻页"
     let mode = NativeTheme.label(bilingual ? "中英" : "中文", size: textSize(11), secondary: true)
     mode.toolTip = "空格 中文 · 回车 原样字母 · Shift＋空格 译文 · Shift 英文直输 · \(punctuationLabel)"
-    let tools: [NSView] =
-      state.pageCount > 1
-      ? [previous, page, next, details, settings] : [details, settings]
-    let header = row([pinyin, NSView()] + tools)
+    // Pinyin is already marked in the host editor. Keep a stable, compact toolbar.
+    let header = row([previous, page, next, NSView(), details, settings])
     header.toolTip = mode.toolTip
     header.spacing = 0
     add(header, to: stack)
@@ -492,7 +485,7 @@ final class CandidatePanel: NSPanel {
   ) {
     content.setFrameSize(NSSize(width: width, height: 400))
     content.layoutSubtreeIfNeeded()
-    let height = ceil(stack.fittingSize.height) + 16
+    let height = ceil(stack.fittingSize.height) + 8
     let actualHeight = min(height, maximumHeight ?? bounds.height - 16)
     content.setFrameSize(NSSize(width: width, height: height))
     let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: width, height: actualHeight))

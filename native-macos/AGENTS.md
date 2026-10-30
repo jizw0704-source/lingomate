@@ -107,3 +107,5 @@ MathSymbols.swift loads/caches the bundled math-symbols.json with bounded valida
 
 
 Candidate opacity: appearance settings use CandidateOpacityControl, 70–100 integer percent, default 100. CandidateSurfaceView changes only its background alpha; never set window or child alpha. Half-transparent candidate text uses high contrast ink. Reduce Transparency / Increase Contrast force effective 100 without overwriting the stored preference. CandidatePreferences opacity notifications accept only one bounded integer, ignore own echoes, and never redraw/commit/cancel composition. Settings tests use separate preference suites and notification names, never the installed service; no backdrop capture or blur.
+
+Candidate header omits duplicate markedInput; host marked text remains untouched. Keep stable previous/page/next on the left, details/settings on the right, 44pt hit targets, 4pt vertical panel insets and matching +8 measured height. InputPresentation checks absence of duplicate label and action callbacks, bounded height and nonactivation.
