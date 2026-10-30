@@ -5,6 +5,8 @@ final class CandidatePanel: NSPanel {
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }
   var onLearning: (() -> Void)?
+  var onFeedback: ((CandidateFeedback) -> Void)?
+  var feedbackNotice: String?
   var onSettings: (() -> Void)?
   var onAISettings: (() -> Void)?
   var onChinese: ((Int) -> Void)?
@@ -138,6 +140,7 @@ final class CandidatePanel: NSPanel {
         item.isEnabled = enabled
         menu.addItem(item)
       }
+      menu.addItem(CandidateFeedback.menu(state, action: self.onFeedback))
       menu.autoenablesItems = false
       menu.addItem(.separator())
       if state.expanded {
@@ -290,6 +293,9 @@ final class CandidatePanel: NSPanel {
     if state.frame?.candidates.isEmpty != false {
       add(NativeTheme.label("暂未找到候选\n继续输入，或按回车输出原样字母。", secondary: true), to: stack)
     }
+    if let feedbackNotice {
+      add(NativeTheme.label(feedbackNotice, size: 11, secondary: true), to: stack)
+    }
     stack.toolTip =
       bilingual
       ? "1–5 / 空格 选中文 · Shift＋空格 英文 · Tab 译法 · − / = 翻页"
@@ -439,6 +445,9 @@ final class CandidatePanel: NSPanel {
   }
 
   private func statusLabelTooltip(_ stack: NSStackView, text: String) {
+    if let feedbackNotice {
+      add(NativeTheme.label(feedbackNotice, size: 11, secondary: true), to: stack)
+    }
     stack.toolTip = text
   }
 

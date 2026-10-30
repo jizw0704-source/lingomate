@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 mod collocation;
 mod edited_word;
 mod expressions;
+mod feedback;
 pub mod ffi;
 mod focused_candidates;
 mod learned_sentence;
@@ -561,6 +562,10 @@ impl Adapter {
                     "syllables": c.syllables,
                     "translations": self.translations(c),
                     "hasDetails": self.details.contains_key(&c.text),
+                    "feedbackEligible": self.focused_candidates && c.syllables.concat() == memory::normalize(self.engine.composition().text())
+                        && (self.ranking.known(c.text.as_str(), &c.syllables) || remembered.iter().any(|m| m.text == c.text && m.syllables == c.syllables))
+                        && !self.expressions.is_completion(self.engine.composition().text(), c),
+                    "feedback": if self.focused_candidates { self.memory.feedback(c) } else { 0 },
                     "personal": remembered.iter().any(|m| m.text == c.text && m.syllables == c.syllables),
                 })
             })

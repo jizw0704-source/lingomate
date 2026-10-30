@@ -62,3 +62,6 @@ bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --sentence-state-test
 plutil -lint "$NATIVE_DIR/build/BilingualCompanion.app/Contents/Info.plist"
 codesign --verify --deep --strict "$NATIVE_DIR/build/BilingualCompanion.app"
+
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/candidate_feedback_test.py"
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --candidate-feedback-test

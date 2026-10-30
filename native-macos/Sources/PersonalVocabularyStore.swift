@@ -9,6 +9,7 @@ struct PersonalWord: Decodable {
   let count: UInt32
   let last: UInt64
   let prioritized: Bool
+  var feedback: Int? = nil
   var id: String { text + "\u{1f}" + syllables.joined(separator: "'") }
 }
 
@@ -50,6 +51,13 @@ final class PersonalVocabularyStore {
     if let temporaryDirectory { try? FileManager.default.removeItem(at: temporaryDirectory) }
   }
 
+  func feedback(_ candidate: EngineCandidate, value: Int) throws {
+    guard (-1...1).contains(value) else { throw failure("推荐操作无效。") }
+    _ = try perform([
+      "action": "feedback", "text": candidate.text, "syllables": candidate.syllables,
+      "feedback": value,
+    ])
+  }
   func snapshot() throws -> [PersonalWord] { try perform(["action": "list"]) }
   func delete(_ word: PersonalWord) throws -> [PersonalWord] {
     try perform(["action": "delete", "text": word.text, "syllables": word.syllables])

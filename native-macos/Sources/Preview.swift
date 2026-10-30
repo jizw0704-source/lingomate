@@ -132,6 +132,23 @@ enum Preview {
     if symbolsPreview, let frame = state.frame {
       state.frame = SymbolCandidates.augment(frame, enabled: true)
     }
+    if let directory = learningDirectory {
+      let store = PersonalVocabularyStore(
+        resources: Bundle.main.resourceURL!, file: directory.appendingPathComponent("words.json"))
+      panel?.onFeedback = { request in
+        guard request.matches(state) else { return }
+        do {
+          try store.feedback(request.candidate, value: request.value)
+          state.frame = try Runtime.engine?.request(
+            EngineRequest(action: "query", input: state.input))
+          panel?.feedbackNotice = "隔离推荐设置已保存，可恢复自动排序。"
+          draw()
+        } catch {
+          panel?.feedbackNotice = "隔离设置未保存。"
+          draw()
+        }
+      }
+    }
     panel?.onLearning = {
       window.orderOut(nil)
       panel?.orderOut(nil)

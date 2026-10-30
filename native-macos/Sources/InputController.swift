@@ -17,6 +17,9 @@ final class BilingualInputController: IMKInputController {
   private var wordEdit = WordEditState()
   private var wordEditReceipt: EngineFrame?
   private var wordEditNotice = UUID()
+  private var feedbackBusy = false
+  private var feedbackRevision = UUID()
+  private let feedbackQueue = DispatchQueue(label: "lingomate.candidate.feedback")
   private let learningContext = UUID().uuidString
   private let sentenceTranslator = SentenceTranslator()
   private lazy var panel: CandidatePanel = {
@@ -33,6 +36,7 @@ final class BilingualInputController: IMKInputController {
       self?.rawCommit()
       AISettingsWindow.launch()
     }
+    panel.onFeedback = { [weak self] in self?.applyFeedback($0) }
     panel.onChinese = { [weak self] in self?.submit(index: $0) }
     panel.onEnglish = { [weak self] in self?.submit(index: $0, sense: $1) }
     panel.onPage = { [weak self] in self?.changePage($0) }
@@ -348,7 +352,38 @@ final class BilingualInputController: IMKInputController {
     draw()
   }
 
+  private func applyFeedback(_ request: CandidateFeedback) {
+    guard !feedbackBusy, request.matches(state), isSessionActive, !IsSecureEventInputEnabled()
+    else { return }
+    feedbackBusy = true
+    let revision = feedbackRevision
+    feedbackQueue.async { [weak self] in
+      let result = Result {
+        try PersonalVocabularyStore(preview: false).feedback(
+          request.candidate, value: request.value)
+      }
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.feedbackBusy = false
+        guard request.matches(self.state), self.isSessionActive, self.feedbackRevision == revision
+        else { return }
+        switch result {
+        case .success:
+          self.refresh()
+          self.panel.feedbackNotice =
+            request.value == 1
+            ? "已优先推荐，可在更多菜单恢复自动排序。" : request.value == -1 ? "已减少推荐，可在更多菜单恢复自动排序。" : "已恢复自动排序。"
+        case .failure:
+          self.panel.feedbackNotice = "推荐设置未保存，请稍后重试；原词库保留。"
+        }
+        self.draw()
+      }
+    }
+  }
+
   private func refresh() {
+    panel.feedbackNotice = nil
+    feedbackRevision = UUID()
     if state.input.isEmpty {
       // A completed character keeps the bounded same-editor word run.
       sentenceTranslator.cancel()

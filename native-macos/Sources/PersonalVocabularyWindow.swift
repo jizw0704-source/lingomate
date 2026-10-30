@@ -164,8 +164,8 @@ final class PersonalVocabularyController: NSObject, NSTableViewDataSource, NSTab
     switch tableColumn?.identifier.rawValue {
     case "text": value = word.text
     case "reading": value = word.syllables.joined(separator: " ")
-    case "count": value = String(word.count)
-    default: value = word.prioritized ? "优先" : "自动"
+    case "count": value = word.count == 0 ? "—" : String(word.count)
+    default: value = word.feedback == -1 ? "减少" : (word.prioritized ? "优先" : "自动")
     }
     let label = NativeTheme.label(value, size: 13)
     // 原生选中行会向cell转发强调背景样式，系统label色保持选中文字可读。
@@ -192,13 +192,17 @@ final class PersonalVocabularyController: NSObject, NSTableViewDataSource, NSTab
     remove.isEnabled = selected != nil && !busy && !failed
     refresh.isEnabled = !busy
     search.isEnabled = !busy
-    priority.title = selected?.prioritized == true ? "取消优先" : "优先推荐"
+    priority.title =
+      selected?.feedback == -1 ? "恢复自动" : (selected?.prioritized == true ? "取消优先" : "优先推荐")
     priority.setAccessibilityLabel(priority.title)
   }
   func togglePriority() {
     guard let selected, !busy, !failed else { return }
-    perform(success: selected.prioritized ? "已恢复自动排序，下次查询生效。" : "已设置该读音的优先推荐，下次查询生效。") {
-      try $0.prioritize(selected, enabled: !selected.prioritized)
+    perform(
+      success: selected.prioritized || selected.feedback == -1
+        ? "已恢复自动排序，下次查询生效。" : "已设置该读音的优先推荐，下次查询生效。"
+    ) {
+      try $0.prioritize(selected, enabled: selected.feedback == -1 ? false : !selected.prioritized)
     }
   }
   private func confirmDelete() {
@@ -206,6 +210,10 @@ final class PersonalVocabularyController: NSObject, NSTableViewDataSource, NSTab
     let alert = NSAlert()
     alert.messageText = "删除“\(selected.text)”（\(selected.syllables.joined(separator: " "))）的记忆？"
     alert.informativeText = "全拼、简拼等记忆入口和优先推荐一并移除。基础词库不会删除；再次确认该词会重新建立记忆。"
+    if selected.count == 0 {
+      alert.messageText = "移除“\(selected.text)”的推荐设置？"
+      alert.informativeText = "这个词只有显式推荐设置，没有使用次数；基础词库不会删除。"
+    }
     alert.addButton(withTitle: "取消")
     alert.addButton(withTitle: "删除")
     alert.beginSheetModal(for: window) { [weak self] response in

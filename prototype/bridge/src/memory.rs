@@ -38,6 +38,8 @@ pub struct Memory {
     dirty: Vec<(String, Candidate)>,
     fingerprint: Option<(SystemTime, u64)>,
     priorities: crate::vocabulary::Priorities,
+    feedback: HashMap<(String, Vec<String>), i8>,
+    feedback_fingerprint: Option<(SystemTime, u64)>,
     priority_keys: HashSet<(String, Vec<String>)>,
     priority_fingerprint: Option<(SystemTime, u64)>,
 }
@@ -109,6 +111,8 @@ impl Memory {
             dirty: Vec::new(),
             fingerprint: None,
             priorities: Default::default(),
+            feedback: HashMap::new(),
+            feedback_fingerprint: None,
             priority_keys: HashSet::new(),
             priority_fingerprint: None,
         };
@@ -151,8 +155,24 @@ impl Memory {
         }
     }
 
+    pub fn feedback(&self, candidate: &Candidate) -> i8 {
+        self.feedback
+            .get(&(candidate.text.clone(), candidate.syllables.clone()))
+            .copied()
+            .unwrap_or(0)
+    }
     fn refresh_priorities(&mut self) {
         let Some(path) = &self.path else { return };
+        let observed = fingerprint(&crate::feedback::path(path));
+        if observed != self.feedback_fingerprint
+            && let Ok(entries) = crate::feedback::load(path)
+        {
+            self.feedback = entries
+                .into_iter()
+                .map(|e| ((e.text, e.syllables), e.value))
+                .collect();
+            self.feedback_fingerprint = observed;
+        }
         let path = crate::vocabulary::priority_path(path);
         let observed = fingerprint(&path);
         if observed != self.priority_fingerprint {

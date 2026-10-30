@@ -147,6 +147,10 @@ if let index = arguments.firstIndex(of: "--appearance-readback-test"), arguments
   AppearanceTests.readback(arguments[index + 1], expected: arguments[index + 2])
 }
 let app = NSApplication.shared
+if arguments.contains("--candidate-feedback-test") {
+  try CandidateFeedbackTests.run()
+  exit(0)
+}
 if arguments.contains("--input-window-test") {
   InputPresentation.checks()
   exit(0)

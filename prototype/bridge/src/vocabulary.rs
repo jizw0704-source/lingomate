@@ -81,6 +81,7 @@ struct Request {
     text: Option<String>,
     syllables: Option<Vec<String>>,
     prioritized: Option<bool>,
+    feedback: Option<i8>,
 }
 #[derive(Serialize)]
 struct Word {
@@ -90,6 +91,7 @@ struct Word {
     count: u32,
     last: u64,
     prioritized: bool,
+    feedback: i8,
 }
 
 fn lock(path: &Path) -> Result<fs::File, Error> {
@@ -121,7 +123,7 @@ fn lock(path: &Path) -> Result<fs::File, Error> {
         }
     }
 }
-fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), Error> {
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), Error> {
     let temporary = path.with_extension(format!(
         "{}-{}.tmp",
         std::process::id(),
@@ -145,8 +147,18 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), Error> {
     result
 }
 fn apply(path: &Path, request: Request) -> Result<Value, Error> {
-    if !matches!(request.action.as_str(), "list" | "delete" | "prioritize") {
+    if !matches!(
+        request.action.as_str(),
+        "list" | "delete" | "prioritize" | "feedback"
+    ) {
         return Err("invalid action".into());
+    }
+    if (request.action == "feedback"
+        && (!request.feedback.is_some_and(|v| (-1..=1).contains(&v))
+            || request.prioritized.is_some()))
+        || (request.action != "feedback" && request.feedback.is_some())
+    {
+        return Err("invalid feedback request".into());
     }
     if request.action == "list" {
         if request.text.is_some() || request.syllables.is_some() || request.prioritized.is_some() {
@@ -161,7 +173,7 @@ fn apply(path: &Path, request: Request) -> Result<Value, Error> {
         return Err("invalid identity".into());
     }
     // A missing store is a read-only empty list; no preferences or vocabulary created.
-    if request.action == "list" && !path.exists() {
+    if request.action == "list" && !path.exists() && !crate::feedback::path(path).exists() {
         // Broken symlinks must fail rather than appear to be an empty store.
         if fs::symlink_metadata(path).is_err_and(|e| e.kind() == std::io::ErrorKind::NotFound) {
             return Ok(json!({"words": []}));
@@ -171,13 +183,30 @@ fn apply(path: &Path, request: Request) -> Result<Value, Error> {
     let mut data = load_data(path)?;
     let preference_path = priority_path(path);
     let mut priorities = load_priorities(&preference_path)?;
+    let feedback = crate::feedback::load(path)?;
+    if request.action == "feedback" {
+        let text = request.text.as_deref().unwrap();
+        let syllables = request.syllables.as_ref().unwrap();
+        if request.feedback == Some(0) {
+            priorities
+                .entries
+                .retain(|p| p.text != text || p.syllables != *syllables);
+            atomic_write(&preference_path, &serde_json::to_vec(&priorities)?)?;
+        }
+        crate::feedback::set(path, feedback, text, syllables, request.feedback.unwrap())?;
+        return Ok(json!({"words": []}));
+    }
     if request.action != "list" {
         let text = request.text.as_deref().unwrap();
         let syllables = request.syllables.as_ref().unwrap();
+        let feedback_only = feedback
+            .iter()
+            .any(|e| e.text == text && e.syllables == *syllables);
         if !data
             .entries
             .iter()
             .any(|e| e.text == text && e.syllables == *syllables)
+            && !feedback_only
         {
             return Err("stale selection".into());
         }
@@ -202,6 +231,19 @@ fn apply(path: &Path, request: Request) -> Result<Value, Error> {
                 syllables: syllables.clone(),
             });
         }
+        if feedback_only {
+            crate::feedback::set(
+                path,
+                feedback.clone(),
+                text,
+                syllables,
+                if request.action == "prioritize" && request.prioritized == Some(true) {
+                    1
+                } else {
+                    0
+                },
+            )?;
+        }
         // Preserve legacy word schema. Prioritization never changes counts or receipts.
         atomic_write(&preference_path, &serde_json::to_vec(&priorities)?)?;
         if request.action == "delete" {
@@ -216,6 +258,7 @@ fn apply(path: &Path, request: Request) -> Result<Value, Error> {
             .entry((entry.text.clone(), entry.syllables.clone()))
             .or_insert_with(|| Word {
                 prioritized: priorities.contains(&entry.text, &entry.syllables),
+                feedback: 0,
                 text: entry.text,
                 syllables: entry.syllables,
                 aliases: Vec::new(),
@@ -228,6 +271,23 @@ fn apply(path: &Path, request: Request) -> Result<Value, Error> {
         // Aliases are the same selection, not separate usages.
         word.count = word.count.max(entry.count);
         word.last = word.last.max(entry.last);
+    }
+    // Explicit feedback-only rows have zero uses and never enter words.json.
+    let current_feedback = crate::feedback::load(path)?;
+    for entry in current_feedback {
+        let word = words
+            .entry((entry.text.clone(), entry.syllables.clone()))
+            .or_insert_with(|| Word {
+                text: entry.text,
+                syllables: entry.syllables,
+                aliases: Vec::new(),
+                count: 0,
+                last: 0,
+                prioritized: false,
+                feedback: 0,
+            });
+        word.feedback = entry.value;
+        word.prioritized = entry.value == 1;
     }
     let mut words: Vec<_> = words.into_values().collect();
     words.sort_by(|a, b| {

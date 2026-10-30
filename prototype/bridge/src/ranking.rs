@@ -160,10 +160,21 @@ impl Ranking {
             };
             let mut choices: Vec<_> = indices
                 .iter()
-                .map(|i| (items[*i].clone(), memory.prioritized(&items[*i]), score(*i)))
+                .map(|i| {
+                    (
+                        items[*i].clone(),
+                        memory.prioritized(&items[*i]),
+                        score(*i),
+                        if frequency {
+                            memory.feedback(&items[*i])
+                        } else {
+                            0
+                        },
+                    )
+                })
                 .collect();
-            choices.sort_by(|a, b| b.1.cmp(&a.1).then(b.2.total_cmp(&a.2)));
-            for (i, (candidate, _, _)) in indices.iter().zip(choices) {
+            choices.sort_by(|a, b| b.3.cmp(&a.3).then(b.1.cmp(&a.1)).then(b.2.total_cmp(&a.2)));
+            for (i, (candidate, _, _, _)) in indices.iter().zip(choices) {
                 items[*i] = candidate;
             }
         }

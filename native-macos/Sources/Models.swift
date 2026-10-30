@@ -25,6 +25,8 @@ struct EngineCandidate: Codable {
   let hasDetails: Bool
   var personal: Bool? = nil
   var symbol: Bool? = nil
+  var feedbackEligible: Bool? = nil
+  var feedback: Int? = nil
 }
 
 struct EngineFrame: Codable {
