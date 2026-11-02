@@ -6,6 +6,7 @@ import InputMethodKit
 @objc(BilingualInputController)
 final class BilingualInputController: IMKInputController {
   private var state = SessionState()
+  private var confirmedContext = ConfirmedContext()
   var hasComposition: Bool { !state.input.isEmpty }
   private(set) var isSessionActive = false
   var hasTextClient: Bool { textClient != nil }
@@ -81,6 +82,7 @@ final class BilingualInputController: IMKInputController {
         return false
       }
       if (textClient as AnyObject?) !== (client as AnyObject?) {
+        confirmedContext.reset()
         endLearning()
         englishFragment.reset()
         shiftTap.reset()
@@ -118,6 +120,7 @@ final class BilingualInputController: IMKInputController {
       }
       // Every normal key, including punctuation and shortcuts, belongs to the host in English.
       guard Runtime.typingMode == .chinese else {
+        confirmedContext.reset()
         if wordEdit.start != nil || wordEditReceipt != nil { endLearning() }
         englishFragment.reset()
         InputDiagnostics.englishPassThroughs += 1
@@ -144,6 +147,7 @@ final class BilingualInputController: IMKInputController {
       guard Runtime.engine != nil else { return false }
       switch event.keyCode {
       case 51:
+        confirmedContext.reset()
         guard !state.input.isEmpty else {
           punctuation.resetContext()
           englishFragment.reset()
@@ -159,7 +163,11 @@ final class BilingualInputController: IMKInputController {
         refresh()
         return true
       case 53:
-        if state.input.isEmpty { endLearning() }
+        confirmedContext.reset()
+        if state.input.isEmpty {
+          confirmedContext.reset()
+          endLearning()
+        }
         punctuation.resetContext()
         if state.expanded {
           state.expanded = false
@@ -170,7 +178,10 @@ final class BilingualInputController: IMKInputController {
         discard()
         return true
       case 125, 126:
-        if state.input.isEmpty { endLearning() }
+        if state.input.isEmpty {
+          confirmedContext.reset()
+          endLearning()
+        }
         guard !state.input.isEmpty else {
           punctuation.resetContext()
           englishFragment.reset()
@@ -182,6 +193,7 @@ final class BilingualInputController: IMKInputController {
         return true
       case 116, 121:
         guard !state.input.isEmpty else {
+          confirmedContext.reset()
           endLearning()
           englishFragment.reset()
           return false
@@ -206,6 +218,7 @@ final class BilingualInputController: IMKInputController {
       case 49:
         punctuation.clearLiteral()
         guard !state.input.isEmpty else {
+          confirmedContext.reset()
           endLearning(saveEdited: true)
           return false
         }
@@ -216,6 +229,7 @@ final class BilingualInputController: IMKInputController {
         }
         return true
       case 36, 76:
+        confirmedContext.reset()
         endLearning(saveEdited: state.input.isEmpty)
         punctuation.resetContext()
         guard !state.input.isEmpty else {
@@ -227,10 +241,12 @@ final class BilingualInputController: IMKInputController {
         punctuation.clearLiteral()
         return true
       case 123 where state.input.isEmpty, 124 where state.input.isEmpty:
+        confirmedContext.reset()
         punctuation.resetContext()
         englishFragment.reset()
         return false
       case 115, 119, 123, 124, 117:
+        confirmedContext.reset()
         endLearning()
         punctuation.resetContext()
         englishFragment.reset()
@@ -241,6 +257,7 @@ final class BilingualInputController: IMKInputController {
       default: break
       }
       guard let characters = event.characters, !characters.isEmpty else {
+        confirmedContext.reset()
         InputDiagnostics.emptyCharacterEvents += 1
         endLearning()
         return false
@@ -248,6 +265,7 @@ final class BilingualInputController: IMKInputController {
       if state.input.isEmpty, punctuation.isLatinLiteral,
         characters.utf8.allSatisfy({ (33...126).contains($0) })
       {
+        confirmedContext.reset()
         endLearning()
         punctuation.observeLiteral(characters)
         englishFragment.observe(characters)
@@ -395,10 +413,17 @@ final class BilingualInputController: IMKInputController {
     }
     do {
       guard let engine = Runtime.engine else { throw EngineFailure.unavailable }
+      let prefix = confirmedContext.preceding(identity: state.frame?.engineIdentity)
+      var queried = try engine.request(
+        EngineRequest(
+          action: "query", input: state.input, context: learningContext, preceding: prefix))
+      if prefix != nil, confirmedContext.preceding(identity: queried.engineIdentity) == nil {
+        // A replacement engine cannot inherit the prior process's ephemeral context.
+        queried = try engine.request(
+          EngineRequest(action: "query", input: state.input, context: learningContext))
+      }
       state.frame = SymbolCandidates.augment(
-        try engine.request(
-          EngineRequest(action: "query", input: state.input, context: learningContext)),
-        enabled: CandidatePreferences.current.showSymbols)
+        queried, enabled: CandidatePreferences.current.showSymbols)
       if wordEdit.discardIfGenerationChanged(
         previous: wordEditReceipt?.engineIdentity, current: state.frame?.engineIdentity)
       {
@@ -475,6 +500,7 @@ final class BilingualInputController: IMKInputController {
         let output = SymbolCandidates.output(candidate, input: state.input, sense: sense)
       else { return false }
       // Discard both pending receipts and word chains before literal insertion.
+      confirmedContext.reset()
       endLearning()
       state.clear()
       sentenceTranslator.cancel()
@@ -535,6 +561,7 @@ final class BilingualInputController: IMKInputController {
         : englishFragment.formatted(
           original, enabled: EnglishInputPreferences.current.capitalizeFragments)
       textClient.insertText(output, replacementRange: noReplacement)
+      confirmedContext.confirmed(output, chinese: sense == nil, identity: next.engineIdentity)
       englishFragment.observe(output)
       InputDiagnostics.insertCalls += 1
       punctuation.confirm(sense == nil ? .chinese : .english)
@@ -594,6 +621,7 @@ final class BilingualInputController: IMKInputController {
     case .symbol: break
     }
     guard let symbol = punctuation.render(key, mode: Runtime.punctuationMode) else { return false }
+    confirmedContext.reset()
     endLearning(saveEdited: true)
     if let textClient {
       textClient.insertText(symbol, replacementRange: noReplacement)
@@ -605,6 +633,7 @@ final class BilingualInputController: IMKInputController {
   }
 
   private func rawCommit(confirmedEnglish: Bool = false) {
+    confirmedContext.reset()
     endLearning()
     sentenceTranslator.cancel()
     let raw = state.takeRawInput()
@@ -622,6 +651,7 @@ final class BilingualInputController: IMKInputController {
   }
 
   private func discard() {
+    confirmedContext.reset()
     endLearning()
     sentenceTranslator.cancel()
     state.clear()
@@ -640,6 +670,7 @@ final class BilingualInputController: IMKInputController {
         && (textClient as AnyObject?) === (nextClient as AnyObject?)
       shiftTap.activate(sameSession: sameSession)
       if !sameSession {
+        confirmedContext.reset()
         endLearning()
         englishFragment.reset()
       }
@@ -670,6 +701,7 @@ final class BilingualInputController: IMKInputController {
     mainSync {
       if let client = sender as? IMKTextInput {
         if (textClient as AnyObject?) !== (client as AnyObject?) {
+          confirmedContext.reset()
           endLearning()
           englishFragment.reset()
         }

@@ -11,3 +11,5 @@ Google Books Ngram unigram-derived weights. Their attribution and terms remain
 in LEXICON-NOTICE.md. No new corpus, downloaded model, host context, clipboard
 content or personal typing dataset is incorporated into this distribution.
 User-confirmed word preferences remain local under the existing version-1 format.
+
+Mac session-context suffix compatibility pairs are also independently authored GPL-3.0-or-later rules. Confirmed session text is ephemeral local runtime input, not a distributed corpus or persisted context dataset.

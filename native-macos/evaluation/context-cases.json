@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "provenance": "Independently authored synthetic fixtures, GPL-3.0-or-later. Rule examples, not blind generalization evaluation or user input.",
+  "cases": [
+    {
+      "id": "context-00",
+      "category": "context",
+      "input": "gongshi",
+      "preceding": "发布",
+      "accepted": [
+        "公示"
+      ]
+    },
+    {
+      "id": "context-01",
+      "category": "context",
+      "input": "gongshi",
+      "preceding": "达成",
+      "accepted": [
+        "共识"
+      ]
+    },
+    {
+      "id": "context-02",
+      "category": "context",
+      "input": "shishi",
+      "preceding": "客观",
+      "accepted": [
+        "事实"
+      ]
+    },
+    {
+      "id": "context-03",
+      "category": "context",
+      "input": "shishi",
+      "preceding": "开始",
+      "accepted": [
+        "实施"
+      ]
+    },
+    {
+      "id": "context-04",
+      "category": "context",
+      "input": "diandao",
+      "preceding": "测量",
+      "accepted": [
+        "电导"
+      ]
+    },
+    {
+      "id": "context-05",
+      "category": "context",
+      "input": "yiyi",
+      "preceding": "提出",
+      "accepted": [
+        "异议"
+      ]
+    },
+    {
+      "id": "context-06",
+      "category": "context",
+      "input": "yiyi",
+      "preceding": "具有",
+      "accepted": [
+        "意义"
+      ]
+    },
+    {
+      "id": "context-07",
+      "category": "context",
+      "input": "jiyi",
+      "preceding": "增强",
+      "accepted": [
+        "记忆"
+      ]
+    },
+    {
+      "id": "context-08",
+      "category": "context",
+      "input": "shiyan",
+      "preceding": "临床",
+      "accepted": [
+        "试验"
+      ]
+    },
+    {
+      "id": "context-09",
+      "category": "context",
+      "input": "shiyan",
+      "preceding": "化学",
+      "accepted": [
+        "实验"
+      ]
+    },
+    {
+      "id": "context-10",
+      "category": "context",
+      "input": "zhishi",
+      "preceding": "学习",
+      "accepted": [
+        "知识"
+      ]
+    },
+    {
+      "id": "context-11",
+      "category": "context",
+      "input": "xiaolv",
+      "preceding": "提高",
+      "accepted": [
+        "效率"
+      ]
+    }
+  ]
+}

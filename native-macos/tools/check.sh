@@ -65,3 +65,6 @@ codesign --verify --deep --strict "$NATIVE_DIR/build/BilingualCompanion.app"
 
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/candidate_feedback_test.py"
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --candidate-feedback-test
+
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/session_context_test.py"
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --confirmed-context-test

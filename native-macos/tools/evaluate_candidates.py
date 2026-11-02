@@ -67,17 +67,22 @@ def evaluate(bridge, resources, cases):
                 reader = threading.Thread(target=read_lines, daemon=True)
                 reader.start()
 
-                def request(process=process, responses=responses, input_=case["input"]):
-                    process.stdin.write(
-                        json.dumps(
-                            {
-                                "action": "query",
-                                "input": input_,
-                                "context": "accuracy",
-                            }
-                        )
-                        + "\n"
-                    )
+                prefix = case.get("preceding")
+
+                def request(
+                    process=process,
+                    responses=responses,
+                    input_=case["input"],
+                    preceding=prefix,
+                ):
+                    payload = {
+                        "action": "query",
+                        "input": input_,
+                        "context": "accuracy",
+                    }
+                    if preceding is not None:
+                        payload["preceding"] = preceding
+                    process.stdin.write(json.dumps(payload) + "\n")
                     process.stdin.flush()
                     try:
                         frame = json.loads(responses.get(timeout=10))

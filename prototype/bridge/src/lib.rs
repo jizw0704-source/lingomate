@@ -58,6 +58,8 @@ struct Request {
     #[serde(default)]
     context: String,
     #[serde(default)]
+    preceding: Option<String>,
+    #[serde(default)]
     learning_token: Option<u64>,
     #[serde(default)]
     chinese_output: Option<bool>,
@@ -85,6 +87,8 @@ pub struct Adapter {
     retired: HashSet<String>,
     token: u64,
     focused_candidates: bool,
+    ranking_context: String,
+    ranking_scope: String,
     expressions: expressions::Expressions,
 }
 
@@ -118,6 +122,8 @@ impl Adapter {
             retired: HashSet::new(),
             token: 0,
             focused_candidates: false,
+            ranking_context: String::new(),
+            ranking_scope: String::new(),
             expressions: expressions::Expressions::default(),
         })
     }
@@ -206,7 +212,8 @@ impl Adapter {
                     items.insert(0, candidate);
                 }
             }
-            self.ranking.order_focused(input, &mut items, &self.memory);
+            self.ranking
+                .order_focused(input, &mut items, &self.memory, &self.ranking_context);
             items = focused_candidates::select(input, query.as_ref(), items);
         } else {
             self.ranking.order(input, &mut items, &self.memory);
@@ -261,6 +268,27 @@ impl Adapter {
         }
         if request.context.len() > 64 {
             return Err("无效输入会话。".into());
+        }
+        if request.action == "query" {
+            self.ranking_context.clear();
+            self.ranking_scope.clear();
+            if self.focused_candidates
+                && !request.input.is_empty()
+                && let Some(prefix) = &request.preceding
+            {
+                if prefix.chars().count() > 32
+                    || !prefix
+                        .chars()
+                        .all(|c| ('\u{3400}'..='\u{9fff}').contains(&c))
+                {
+                    return Err("上下文参数无效。".into());
+                }
+                self.ranking_context.clone_from(prefix);
+                self.ranking_scope.clone_from(&request.context);
+            }
+        } else if request.action != "commit" || request.context != self.ranking_scope {
+            self.ranking_context.clear();
+            self.ranking_scope.clear();
         }
         if request.action == "cancel" {
             self.chains.remove(&request.context);

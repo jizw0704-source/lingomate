@@ -48,6 +48,7 @@ struct EngineRequest: Encodable {
   var syllables: [String]?
   var english: String?
   var context: String? = nil
+  var preceding: String? = nil
   var learningToken: UInt64? = nil
   var chineseOutput: Bool? = nil
   var trackEdits: Bool? = nil
@@ -55,7 +56,7 @@ struct EngineRequest: Encodable {
   var editLength: Int? = nil
 
   enum CodingKeys: String, CodingKey {
-    case action, input, candidate, syllables, english, context
+    case action, input, candidate, syllables, english, context, preceding
     case learningToken = "learning_token"
     case chineseOutput = "chinese_output"
     case trackEdits = "track_edits"

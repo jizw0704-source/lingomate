@@ -77,11 +77,17 @@ impl Ranking {
     }
 
     pub fn order(&self, input: &str, items: &mut [Candidate], memory: &Memory) {
-        self.order_with_frequency(input, items, memory, false);
+        self.order_with_frequency(input, items, memory, false, "");
     }
 
-    pub fn order_focused(&self, input: &str, items: &mut [Candidate], memory: &Memory) {
-        self.order_with_frequency(input, items, memory, true);
+    pub fn order_focused(
+        &self,
+        input: &str,
+        items: &mut [Candidate],
+        memory: &Memory,
+        preceding: &str,
+    ) {
+        self.order_with_frequency(input, items, memory, true, preceding);
     }
 
     fn order_with_frequency(
@@ -90,6 +96,7 @@ impl Ranking {
         items: &mut [Candidate],
         memory: &Memory,
         frequency: bool,
+        preceding: &str,
     ) {
         let key = normalize(input);
         let mut preferences = memory.preferences(input);
@@ -145,8 +152,16 @@ impl Ranking {
             let maximum = indices.iter().map(|i| bases[*i]).fold(0.0_f64, f64::max);
             let score = |i: usize| {
                 let base = bases[i];
+                let contextual = if frequency
+                    && items[i].syllables.concat() == key
+                    && self.weight(&items[i]).is_some()
+                {
+                    crate::collocation::context_score(preceding, &items[i].text)
+                } else {
+                    0.0
+                };
                 let Some(&(count, age)) = selected[i] else {
-                    return base;
+                    return base + contextual;
                 };
                 let freshness = if frequency && count >= 2 {
                     // Keep repeated choices stable for 1024 confirmations, then fade the
@@ -157,6 +172,7 @@ impl Ranking {
                 };
                 base + ((maximum - base).max(0.0) + 0.8 * f64::from(count.min(20)).ln_1p())
                     * freshness
+                    + contextual
             };
             let mut choices: Vec<_> = indices
                 .iter()

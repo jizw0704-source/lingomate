@@ -48,6 +48,64 @@ pub fn preference_bonus(count: u32, age: u64) -> f64 {
     0.8 * f64::from(count.min(20)).ln_1p() / (1.0 + age as f64 / 256.0)
 }
 
+/// Independently authored compatibility rules, not a corpus or a text generator.
+/// No new candidates: callers only apply this to exact whole-word homophones.
+pub fn context_score(prefix: &str, word: &str) -> f64 {
+    if prefix.is_empty() {
+        return 0.0;
+    }
+    const PAIRS: &[(&str, &str)] = &[
+        ("数学", "公式"),
+        ("达成", "共识"),
+        ("发布", "公示"),
+        ("公开", "公示"),
+        ("临床", "试验"),
+        ("化学", "实验"),
+        ("物理", "实验"),
+        ("客观", "事实"),
+        ("开始", "实施"),
+        ("测量", "电导"),
+        ("提出", "异议"),
+        ("具有", "意义"),
+        ("增强", "记忆"),
+        ("精湛", "技艺"),
+        ("公民", "权利"),
+        ("行政", "权力"),
+        ("运行", "程序"),
+        ("提前", "预见"),
+        ("遵守", "纪律"),
+        ("创下", "纪录"),
+        ("面临", "挑战"),
+        ("表达", "谢意"),
+        ("两国", "协议"),
+        ("参加", "会议"),
+        ("提出", "建议"),
+        ("天气", "预报"),
+        ("申请", "专利"),
+        ("办理", "手续"),
+        ("制定", "计划"),
+        ("认真", "计划"),
+        ("学习", "知识"),
+        ("部门", "职责"),
+        ("拥有", "资金"),
+        ("规范", "管理"),
+    ];
+    if PAIRS
+        .iter()
+        .any(|(left, right)| word == *right && prefix.ends_with(left))
+    {
+        return 1.6;
+    }
+    VERBS
+        .iter()
+        .chain(PEOPLE)
+        .chain(TIME)
+        .chain(["一起", "打"].iter())
+        .filter(|left| prefix.ends_with(**left) && (left.chars().count() > 1 || prefix == **left))
+        .map(|left| score(left, word))
+        .fold(0.0_f64, f64::max)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
