@@ -3,10 +3,12 @@ import AppKit
 
 final class PreviewLifecycle: NSObject {
   static let flags: Set<String> = [
-    "--preview", "--preview-sentence", "--preview-paging", "--preview-learning",
+    "--preview-symbols", "--preview", "--preview-sentence", "--preview-paging",
+    "--preview-learning",
     "--preview-punctuation", "--preview-mixed", "--preview-typing", "--preview-expressions",
     "--account-preview",
-    "--ai-settings-preview", "--settings-preview", "--local-learning-preview", "--update-preview",
+    "--ai-settings-preview", "--settings-preview", "--personal-vocabulary-preview",
+    "--local-learning-preview", "--update-preview",
   ]
   private static var active: PreviewLifecycle?
   private var observer: NSObjectProtocol?

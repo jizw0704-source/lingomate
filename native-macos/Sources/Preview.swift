@@ -17,6 +17,7 @@ enum Preview {
   static let punctuationPreview = CommandLine.arguments.contains("--preview-punctuation")
   static let typingPreview = CommandLine.arguments.contains("--preview-typing")
   static let mixedPreview = CommandLine.arguments.contains("--preview-mixed")
+  static let symbolsPreview = CommandLine.arguments.contains("--preview-symbols")
   static let expressionsPreview = CommandLine.arguments.contains("--preview-expressions")
   static var shiftTap = ShiftTap()
   static var eventMonitor: Any?
@@ -48,6 +49,9 @@ enum Preview {
     Runtime.engine = try EngineClient(resources: resources, memoryURL: file)
   }
   static func start() {
+    if typingPreview, CommandLine.arguments.contains("--preview-english-mode") {
+      Runtime.typingMode = .english
+    }
     NSApplication.shared.setActivationPolicy(.regular)
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 660, height: 180),
@@ -85,6 +89,7 @@ enum Preview {
     if expressionsPreview {
       label.stringValue = "固定表达联想：chiputao → 吃葡萄不吐葡萄皮。候选需点击确认；本窗口仅使用隔离引擎。"
     }
+    if symbolsPreview { label.stringValue = "表情与符号候选：保留普通候选优先，点击符号直接输出；预览不读写个人词库。" }
     if fixture != nil { label.stringValue = "界面状态样例，内容为测试数据；不代表真实翻译结果。" }
     label.font = NativeTheme.font(13)
     label.textColor = NativeTheme.muted
@@ -110,6 +115,10 @@ enum Preview {
     panel = CandidatePanel()
     if mixedPreview {
       state.clear()
+    } else if symbolsPreview {
+      let args = CommandLine.arguments
+      let keyword = args.firstIndex(of: "--symbol-keyword")
+      state.input = keyword.flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil } ?? "yumaoqiu"
     } else if expressionsPreview {
       state.input = "chiputao"
     } else if CommandLine.arguments.contains("--preview-paging") || learningDirectory != nil {
@@ -120,6 +129,26 @@ enum Preview {
         ? "wojintianxiangxuexiyingyu" : "xuexi"
     }
     state.frame = try? Runtime.engine?.request(EngineRequest(action: "query", input: state.input))
+    if symbolsPreview, let frame = state.frame {
+      state.frame = SymbolCandidates.augment(frame, enabled: true)
+    }
+    if let directory = learningDirectory {
+      let store = PersonalVocabularyStore(
+        resources: Bundle.main.resourceURL!, file: directory.appendingPathComponent("words.json"))
+      panel?.onFeedback = { request in
+        guard request.matches(state) else { return }
+        do {
+          try store.feedback(request.candidate, value: request.value)
+          state.frame = try Runtime.engine?.request(
+            EngineRequest(action: "query", input: state.input))
+          panel?.feedbackNotice = "隔离推荐设置已保存，可恢复自动排序。"
+          draw()
+        } catch {
+          panel?.feedbackNotice = "隔离设置未保存。"
+          draw()
+        }
+      }
+    }
     panel?.onLearning = {
       window.orderOut(nil)
       panel?.orderOut(nil)
@@ -199,7 +228,7 @@ enum Preview {
     draw()
   }
   static func translateSentence() {
-    if mixedPreview || expressionsPreview {
+    if mixedPreview || expressionsPreview || symbolsPreview {
       sentenceTranslator.cancel()
       state.sentence = .none
       return
@@ -330,6 +359,9 @@ enum Preview {
   static func refreshMixed() {
     if !state.input.isEmpty {
       state.frame = try? Runtime.engine?.request(EngineRequest(action: "query", input: state.input))
+      if symbolsPreview, let frame = state.frame {
+        state.frame = SymbolCandidates.augment(frame, enabled: true)
+      }
     }
     draw()
   }

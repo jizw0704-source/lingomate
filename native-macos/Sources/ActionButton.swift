@@ -5,6 +5,12 @@ final class ActionButton: NSButton {
   enum Style { case plain, subtle, outlined, accent, selected }
   var invoke: (() -> Void)?
   var style = Style.plain { didSet { needsDisplay = true } }
+  var candidateContrast = false
+  private var secondaryInk: NSColor {
+    if style == .selected { return NativeTheme.background }
+    return candidateContrast && CandidateOpacity.effectivePercent < 100
+      ? NativeTheme.ink : NativeTheme.muted
+  }
   var wrapsTitle = false
   var horizontalPadding: CGFloat = 12
   var secondarySuffix = ""
@@ -101,7 +107,7 @@ final class ActionButton: NSButton {
       .foregroundColor: isEnabled
         ? (style == .selected
           ? NativeTheme.background
-          : pressed
+          : pressed || (candidateContrast && CandidateOpacity.effectivePercent < 100)
             ? NativeTheme.ink
             : style == .accent ? NativeTheme.green : contentTintColor ?? NativeTheme.ink)
         : NativeTheme.muted,
@@ -117,7 +123,7 @@ final class ActionButton: NSButton {
       height: ceil(height))
     if !secondarySuffix.isEmpty, title.hasSuffix(secondarySuffix) {
       let suffixAttributes: [NSAttributedString.Key: Any] = [
-        .font: NativeTheme.font(secondaryFontSize), .foregroundColor: NativeTheme.muted,
+        .font: NativeTheme.font(secondaryFontSize), .foregroundColor: secondaryInk,
         .paragraphStyle: paragraph,
       ]
       let suffix = secondarySuffix as NSString
@@ -142,7 +148,7 @@ final class ActionButton: NSButton {
       content.addAttributes(
         [
           .font: NativeTheme.font(slotFontSize),
-          .foregroundColor: style == .selected ? NativeTheme.background : NativeTheme.muted,
+          .foregroundColor: style == .selected ? NativeTheme.background : secondaryInk,
         ],
         range: NSRange(location: 0, length: (slotPrefix as NSString).length))
     }

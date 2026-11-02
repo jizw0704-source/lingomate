@@ -2,7 +2,7 @@
 import AppKit
 
 enum SettingsSection: Int, CaseIterable {
-  case account, translation, input, appearance, learning
+  case account, translation, input, appearance, learning, vocabulary
   var title: String {
     switch self {
     case .account: return "账号"
@@ -10,6 +10,7 @@ enum SettingsSection: Int, CaseIterable {
     case .input: return "输入"
     case .appearance: return "外观"
     case .learning: return "学习"
+    case .vocabulary: return "词库"
     }
   }
 }
@@ -20,7 +21,9 @@ enum SettingsWindow {
     guard !AppearanceSettings.current.isIsolated else { return }
     let process = Process()
     process.executableURL = Bundle.main.executableURL
-    process.arguments = section == .learning ? ["--settings", "--local-learning"] : ["--settings"]
+    process.arguments = ["--settings"]
+    if section == .learning { process.arguments!.append("--local-learning") }
+    if section == .vocabulary { process.arguments!.append("--personal-vocabulary") }
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
     try? process.run()
@@ -42,8 +45,18 @@ final class SettingsController: NSObject, NSWindowDelegate {
   let translation: AISettingsController
   let input: SettingsInputClient
   let localLearning: LocalLearningController
+  private var vocabularyController: PersonalVocabularyController?
+  var personalVocabulary: PersonalVocabularyController {
+    if let vocabularyController { return vocabularyController }
+    let controller = PersonalVocabularyController(store: PersonalVocabularyStore(preview: preview))
+    vocabularyController = controller
+    return controller
+  }
+  func cleanupVocabulary() { vocabularyController?.cleanup() }
   private let body = NSView()
   private var tabs: [ActionButton] = []
+  private var appearanceFontButtons: [ActionButton] = []
+  private var appearanceFontStatus: NSTextField?
   private(set) var section = SettingsSection.account
   private let preview: Bool
 
@@ -99,7 +112,7 @@ final class SettingsController: NSObject, NSWindowDelegate {
     input.onChange = { [weak self] in
       guard let self else { return }
       if self.section == .input { self.showInput() }
-      if self.section == .appearance { self.showAppearance() }
+      if self.section == .appearance { self.refreshAppearanceInput() }
     }
     select(.account)
     input.refresh()
@@ -127,7 +140,8 @@ final class SettingsController: NSObject, NSWindowDelegate {
   func select(_ section: SettingsSection) {
     account.prepareForNavigation()
     self.section = section
-    window.minSize = NSSize(width: 440, height: section == .learning ? 560 : 440)
+    window.minSize = NSSize(
+      width: 440, height: section == .learning || section == .vocabulary ? 560 : 440)
     for (index, tab) in tabs.enumerated() {
       tab.style = index == section.rawValue ? .subtle : .plain
       tab.state = index == section.rawValue ? .on : .off
@@ -140,6 +154,9 @@ final class SettingsController: NSObject, NSWindowDelegate {
     case .learning:
       localLearning.reload()
       mount(localLearning.contentView)
+    case .vocabulary:
+      personalVocabulary.reload()
+      mount(personalVocabulary.contentView)
     }
   }
   private func mount(_ view: NSView) {
@@ -273,19 +290,38 @@ final class SettingsController: NSObject, NSWindowDelegate {
         button.toolTip = "汉字 \(value.rawValue) pt，英文与词性按比例调整"
         return button
       }
+      appearanceFontButtons = fontButtons
       let fontOptions = row(fontButtons)
       fontOptions.distribution = .fillEqually
       fontOptions.spacing = 4
       add(fontOptions, to: stack)
       add(NativeTheme.label("小 16 · 标准 18 · 大 20 · 特大 22 pt", size: 12, secondary: true), to: stack)
-      add(
-        NativeTheme.label(
-          input.snapshot == nil || input.waiting ? input.message : "英文与词性按比例调整，字号选择会保存。", size: 12,
-          secondary: true), to: stack)
+      let status = NativeTheme.label(
+        input.snapshot == nil || input.waiting ? input.message : "英文与词性按比例调整，字号选择会保存。", size: 12,
+        secondary: true)
+      status.heightAnchor.constraint(greaterThanOrEqualToConstant: 32).isActive = true
+      appearanceFontStatus = status
+      add(status, to: stack)
+      let opacity = CandidateOpacityControl()
+      add(opacity, to: stack)
       let update = ActionButton("检查版本更新…") { MacUpdates.launch() }
       update.isEnabled = !preview
       add(update, to: stack)
     }
+  }
+  private func refreshAppearanceInput() {
+    // Refresh runtime controls in place: remounting would discard slider focus and scroll.
+    let size = input.snapshot?.fontSize ?? CandidatePreferences.current.fontSize
+    for (value, button) in zip(CandidateFontSize.allCases, appearanceFontButtons) {
+      let selected = size == value
+      button.title = (selected ? "✓ " : "") + value.title
+      button.style = selected ? .subtle : .plain
+      button.state = selected ? .on : .off
+      button.isEnabled = input.snapshot != nil && !input.waiting
+    }
+    appearanceFontStatus?.stringValue =
+      input.snapshot == nil || input.waiting
+      ? input.message : "英文与词性按比例调整，字号选择会保存。"
   }
   private func resizeDocument() {
     window.contentView?.layoutSubtreeIfNeeded()
@@ -302,6 +338,7 @@ final class SettingsController: NSObject, NSWindowDelegate {
   func windowDidBecomeKey(_ notification: Notification) {
     if !input.waiting { input.refresh() }
     if section == .learning { localLearning.reload() }
+    if section == .vocabulary { personalVocabulary.reload() }
   }
   func windowWillClose(_ notification: Notification) { NSApplication.shared.stop(nil) }
 }

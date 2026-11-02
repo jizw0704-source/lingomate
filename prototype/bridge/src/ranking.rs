@@ -2,10 +2,13 @@
 use crate::memory::{Memory, normalize};
 use qingjian_core::candidate::Candidate;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 pub struct Ranking {
     weights: HashMap<(String, String), u32>,
+    sentences: OnceLock<Option<crate::learned_sentence::Words>>,
+    dictionary_path: PathBuf,
 }
 
 impl Ranking {
@@ -31,7 +34,35 @@ impl Ranking {
         if weights.is_empty() {
             return Err("empty ranking dictionary".into());
         }
-        Ok(Self { weights })
+        Ok(Self {
+            weights,
+            sentences: OnceLock::new(),
+            dictionary_path: path.to_owned(),
+        })
+    }
+
+    pub fn learned_sentence(
+        &self,
+        input: &str,
+        query: Option<&qingjian_core::engine::Query>,
+        memory: &Memory,
+    ) -> Option<Candidate> {
+        let query = query?;
+        if !memory.has_sentence_preference(input)
+            && !query.segmentations.iter().take(4).any(|s| {
+                (3..=32).contains(&s.syllables.len()) && s.syllables.iter().all(|t| t.complete)
+            })
+        {
+            return None;
+        }
+        self.sentences
+            .get_or_init(|| {
+                std::fs::read_to_string(&self.dictionary_path)
+                    .ok()
+                    .map(|source| crate::learned_sentence::Words::new(&self.weights, &source))
+            })
+            .as_ref()?
+            .candidate(input, Some(query), memory)
     }
 
     fn weight(&self, candidate: &Candidate) -> Option<u32> {
@@ -46,11 +77,17 @@ impl Ranking {
     }
 
     pub fn order(&self, input: &str, items: &mut [Candidate], memory: &Memory) {
-        self.order_with_frequency(input, items, memory, false);
+        self.order_with_frequency(input, items, memory, false, "");
     }
 
-    pub fn order_focused(&self, input: &str, items: &mut [Candidate], memory: &Memory) {
-        self.order_with_frequency(input, items, memory, true);
+    pub fn order_focused(
+        &self,
+        input: &str,
+        items: &mut [Candidate],
+        memory: &Memory,
+        preceding: &str,
+    ) {
+        self.order_with_frequency(input, items, memory, true, preceding);
     }
 
     fn order_with_frequency(
@@ -59,6 +96,7 @@ impl Ranking {
         items: &mut [Candidate],
         memory: &Memory,
         frequency: bool,
+        preceding: &str,
     ) {
         let key = normalize(input);
         let mut preferences = memory.preferences(input);
@@ -114,19 +152,45 @@ impl Ranking {
             let maximum = indices.iter().map(|i| bases[*i]).fold(0.0_f64, f64::max);
             let score = |i: usize| {
                 let base = bases[i];
-                let Some(&(count, age)) = selected[i] else {
-                    return base;
+                let contextual = if frequency
+                    && items[i].syllables.concat() == key
+                    && self.weight(&items[i]).is_some()
+                {
+                    crate::collocation::context_score(preceding, &items[i].text)
+                } else {
+                    0.0
                 };
-                let freshness = 1.0 - (age.min(256) as f64 / 256.0);
+                let Some(&(count, age)) = selected[i] else {
+                    return base + contextual;
+                };
+                let freshness = if frequency && count >= 2 {
+                    // Keep repeated choices stable for 1024 confirmations, then fade the
+                    // entire uplift so obsolete choices cannot dominate indefinitely.
+                    1.0 / (1.0 + age.saturating_sub(1024) as f64 / 256.0)
+                } else {
+                    1.0 - (age.min(256) as f64 / 256.0)
+                };
                 base + ((maximum - base).max(0.0) + 0.8 * f64::from(count.min(20)).ln_1p())
                     * freshness
+                    + contextual
             };
             let mut choices: Vec<_> = indices
                 .iter()
-                .map(|i| (items[*i].clone(), score(*i)))
+                .map(|i| {
+                    (
+                        items[*i].clone(),
+                        memory.prioritized(&items[*i]),
+                        score(*i),
+                        if frequency {
+                            memory.feedback(&items[*i])
+                        } else {
+                            0
+                        },
+                    )
+                })
                 .collect();
-            choices.sort_by(|a, b| b.1.total_cmp(&a.1));
-            for (i, (candidate, _)) in indices.iter().zip(choices) {
+            choices.sort_by(|a, b| b.3.cmp(&a.3).then(b.1.cmp(&a.1)).then(b.2.total_cmp(&a.2)));
+            for (i, (candidate, _, _, _)) in indices.iter().zip(choices) {
                 items[*i] = candidate;
             }
         }

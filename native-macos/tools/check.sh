@@ -16,8 +16,12 @@ export SDKROOT="$DEVELOPER_DIR/SDKs/MacOSX.sdk"
   -framework AppKit -framework InputMethodKit -framework Carbon -framework Translation -framework SwiftUI
 "$RESEARCH_DIR/runtime/python/bin/ruff" format --check "$NATIVE_DIR/tools"
 "$RESEARCH_DIR/runtime/python/bin/ruff" check "$NATIVE_DIR/tools"
+"$RESEARCH_DIR/runtime/python/bin/ruff" format --check "$RESEARCH_DIR/tools/check_math_symbols.py"
+"$RESEARCH_DIR/runtime/python/bin/ruff" check "$RESEARCH_DIR/tools/check_math_symbols.py"
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/check_math_symbols.py"
 "$RESEARCH_DIR/runtime/python/bin/python" -m compileall -q "$NATIVE_DIR/tools"
 "$RESEARCH_DIR/runtime/python/bin/python" "$NATIVE_DIR/tools/test_install.py"
+"$RESEARCH_DIR/runtime/python/bin/python" "$NATIVE_DIR/tools/test_evaluate_candidates.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/test_prepare_lexicon.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/test_frequency.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/tools/test_part_of_speech.py"
@@ -31,10 +35,15 @@ bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/engine_test.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/expressions_test.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/memory_test.py"
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/vocabulary_test.py"
 "$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/ranking_test.py"
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --symbol-candidate-test
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/mac_accuracy_test.py"
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --appearance-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --local-learning-test
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --personal-vocabulary-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --character-memory-test
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --word-edit-memory-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --account-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --ai-test
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --input-diagnostic-test
@@ -53,3 +62,9 @@ bash "$RESEARCH_DIR/prototype/tools/cargo.sh" test --release --locked
 "$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --sentence-state-test
 plutil -lint "$NATIVE_DIR/build/BilingualCompanion.app/Contents/Info.plist"
 codesign --verify --deep --strict "$NATIVE_DIR/build/BilingualCompanion.app"
+
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/candidate_feedback_test.py"
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --candidate-feedback-test
+
+"$RESEARCH_DIR/runtime/python/bin/python" "$RESEARCH_DIR/prototype/tests/session_context_test.py"
+"$NATIVE_DIR/build/BilingualCompanion.app/Contents/MacOS/BilingualCompanion" --confirmed-context-test

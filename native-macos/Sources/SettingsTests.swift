@@ -5,6 +5,7 @@ enum SettingsTests {
   static func run() {
     CandidatePreferencesTests.run()
     CandidateFontTests.run()
+    CandidateOpacityTests.run()
     for value in [
       InputSetting.typing(.chinese), .typing(.english), .bilingual(true), .bilingual(false),
       .punctuation(.automatic), .punctuation(.chinese), .punctuation(.english),
@@ -98,6 +99,12 @@ enum SettingsTests {
         precondition(controller.input.snapshot?.fontSize == size)
       }
       controller.input.request(.fontSize(.standard))
+      let opacity = allViews(controller.window.contentView!).compactMap { $0 as? OpacitySlider }
+        .first!
+      precondition(controller.window.makeFirstResponder(opacity))
+      controller.input.refresh()
+      precondition(controller.window.firstResponder === opacity)
+      precondition(allViews(controller.window.contentView!).contains { $0 === opacity })
       let dark = allViews(controller.window.contentView!).compactMap { $0 as? ActionButton }
         .first { $0.title == "黑色" }!
       dark.performClick(nil)

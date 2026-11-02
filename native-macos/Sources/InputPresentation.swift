@@ -27,12 +27,41 @@ enum InputPresentation {
       RunLoop.current.run(until: Date().addingTimeInterval(0.1))
       precondition(app.activationPolicy() == .accessory)
       precondition(panel.isVisible && panel.frame.width <= width && panel.frame.width >= 400)
-      precondition(panel.frame.height <= 190)
+      precondition(
+        panel.frame.height <= 154, "Unexpected compact panel height: \(panel.frame.height)")
+      func descendants(_ view: NSView) -> [NSView] {
+        [view] + view.subviews.flatMap(descendants)
+      }
+      let views = descendants(panel.contentView!)
+      precondition(
+        !views.compactMap { $0 as? NSTextField }.contains { $0.stringValue == state.markedInput })
+      let buttons = views.compactMap { $0 as? ActionButton }
+      for symbol in ["ellipsis"] {
+        precondition(
+          buttons.contains {
+            $0.symbolName == symbol && $0.bounds.width >= 44 && $0.bounds.height >= 44
+          })
+      }
+      var pageDelta = 0
+      panel.onPage = { pageDelta = $0 }
+      buttons.first { $0.title.hasSuffix(" ›") }?.invoke?()
+      precondition(pageDelta == 1)
       precondition(!panel.canBecomeKey && !panel.canBecomeMain)
       precondition(!panel.isKeyWindow && !panel.isMainWindow && app.keyWindow == nil)
       precondition(NSWorkspace.shared.frontmostApplication?.processIdentifier == foreground)
       panel.orderOut(nil)
       precondition(!panel.isVisible)
+    }
+    for appearance in [AppearanceChoice.light, .dark] {
+      AppearanceSettings.current.select(appearance)
+      for mode in [TypingMode.chinese, .english] {
+        panel.showTypingMode(mode, anchor: NSRect(x: 100, y: 200, width: 1, height: 20))
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        precondition(panel.isVisible && panel.frame.width == 360 && panel.frame.height == 68)
+        precondition(!panel.isKeyWindow && !panel.isMainWindow && app.keyWindow == nil)
+        precondition(NSWorkspace.shared.frontmostApplication?.processIdentifier == foreground)
+        panel.orderOut(nil)
+      }
     }
     print("PASS 输入服务窗口模式：560/440宽候选可见、可隐藏、不抢前台/键盘焦点；独立词库")
   }

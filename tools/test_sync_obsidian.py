@@ -25,7 +25,12 @@ class SyncTests(unittest.TestCase):
             self.assertEqual(self.run_sync(vault).returncode, 0)
             notes = vault / "10 项目/中英输入法"
             before = {p.name: p.read_bytes() for p in notes.glob("*.md")}
-            self.assertEqual(len(before), 14)
+            self.assertEqual(len(before), 15)
+            self.assertIn("数学符号覆盖清单.md", before)
+            self.assertIn(
+                "[[数学符号覆盖清单|",
+                (notes / "使用指南.md").read_text(encoding="utf-8"),
+            )
             self.assertIn("Windows功能外观对齐.md", before)
             self.assertIn(
                 "https://github.com/LightningFlashEvE",

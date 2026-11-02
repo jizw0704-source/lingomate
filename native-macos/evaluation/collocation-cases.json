@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "provenance": "Independently authored synthetic cases, GPL-3.0-or-later; no corpus or personal input.",
+  "cases": [
+    {
+      "id": "collocation-00",
+      "category": "collocation",
+      "input": "womenxuyaoyanjiucailiao",
+      "accepted": [
+        "我们需要研究材料"
+      ]
+    },
+    {
+      "id": "collocation-01",
+      "category": "collocation",
+      "input": "womenxuyaoceshixingneng",
+      "accepted": [
+        "我们需要测试性能"
+      ]
+    },
+    {
+      "id": "collocation-02",
+      "category": "collocation",
+      "input": "womenxuyaofenxishuju",
+      "accepted": [
+        "我们需要分析数据"
+      ]
+    },
+    {
+      "id": "collocation-03",
+      "category": "collocation",
+      "input": "womenxuyaojiejuewenti",
+      "accepted": [
+        "我们需要解决问题"
+      ]
+    },
+    {
+      "id": "collocation-04",
+      "category": "collocation",
+      "input": "dajiayiqixuexi",
+      "accepted": [
+        "大家一起学习"
+      ]
+    },
+    {
+      "id": "collocation-05",
+      "category": "collocation",
+      "input": "mingtianwomenyiqidawangqiu",
+      "accepted": [
+        "明天我们一起打网球"
+      ]
+    },
+    {
+      "id": "collocation-06",
+      "category": "collocation",
+      "input": "jintianwomenyiqidalanqiu",
+      "accepted": [
+        "今天我们一起打篮球"
+      ]
+    },
+    {
+      "id": "collocation-07",
+      "category": "collocation",
+      "input": "nimenxuyaojianchaxitong",
+      "accepted": [
+        "你们需要检查系统"
+      ]
+    },
+    {
+      "id": "collocation-08",
+      "category": "collocation",
+      "input": "tamenxuyaokaifagongneng",
+      "accepted": [
+        "他们需要开发功能"
+      ]
+    },
+    {
+      "id": "collocation-09",
+      "category": "collocation",
+      "input": "womenxuyaozhunbeishiyan",
+      "accepted": [
+        "我们需要准备实验"
+      ]
+    },
+    {
+      "id": "collocation-10",
+      "category": "collocation",
+      "input": "xianzaiwomenxuyaofangfa",
+      "accepted": [
+        "现在我们需要方法"
+      ]
+    },
+    {
+      "id": "collocation-11",
+      "category": "collocation",
+      "input": "womenxuyaotigaoxiaolv",
+      "accepted": [
+        "我们需要提高效率"
+      ]
+    }
+  ]
+}

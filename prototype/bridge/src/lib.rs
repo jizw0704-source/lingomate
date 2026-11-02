@@ -1,19 +1,24 @@
 //! Local experimental adapter over Qingjian, GPL-3.0-or-later.
 use qingjian_core::Engine;
-use qingjian_core::candidate::{Candidate, Language, Sense, Translation};
+use qingjian_core::candidate::{Candidate, CandidateKind, Language, Sense, Translation};
 use qingjian_dictionary::Dictionary;
 use qingjian_translate::Glossary;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
+mod collocation;
+mod edited_word;
 mod expressions;
+mod feedback;
 pub mod ffi;
 mod focused_candidates;
+mod learned_sentence;
 mod memory;
 mod part_of_speech;
 mod ranking;
 mod sequence;
+pub mod vocabulary;
 
 struct Pending {
     token: u64,
@@ -53,11 +58,19 @@ struct Request {
     #[serde(default)]
     context: String,
     #[serde(default)]
+    preceding: Option<String>,
+    #[serde(default)]
     learning_token: Option<u64>,
     #[serde(default)]
     chinese_output: Option<bool>,
     #[serde(default)]
     deferred_output: bool,
+    #[serde(default)]
+    track_edits: bool,
+    #[serde(default)]
+    edit_start: Option<usize>,
+    #[serde(default)]
+    edit_length: Option<usize>,
 }
 
 /// The shared local engine used by both the line-JSON CLI and native clients.
@@ -70,9 +83,12 @@ pub struct Adapter {
     pending: HashMap<String, VecDeque<Pending>>,
     chains: HashMap<String, Chain>,
     sequences: HashMap<String, sequence::Sequence>,
+    edited_words: HashMap<String, edited_word::EditedWord>,
     retired: HashSet<String>,
     token: u64,
     focused_candidates: bool,
+    ranking_context: String,
+    ranking_scope: String,
     expressions: expressions::Expressions,
 }
 
@@ -102,9 +118,12 @@ impl Adapter {
             pending: HashMap::new(),
             chains: HashMap::new(),
             sequences: HashMap::new(),
+            edited_words: HashMap::new(),
             retired: HashSet::new(),
             token: 0,
             focused_candidates: false,
+            ranking_context: String::new(),
+            ranking_scope: String::new(),
             expressions: expressions::Expressions::default(),
         })
     }
@@ -176,7 +195,25 @@ impl Adapter {
         }
         items.retain(|c| !self.expressions.is_completion(input, c));
         if self.focused_candidates {
-            self.ranking.order_focused(input, &mut items, &self.memory);
+            if let Some(candidate) =
+                self.ranking
+                    .learned_sentence(input, query.as_ref(), &self.memory)
+            {
+                if let Some(index) = items
+                    .iter()
+                    .position(|c| c.text == candidate.text && c.syllables == candidate.syllables)
+                {
+                    // Never turn a dictionary/personal whole word into a synthetic sentence.
+                    if items[index].kind == CandidateKind::Sentence {
+                        let existing = items.remove(index);
+                        items.insert(0, existing);
+                    }
+                } else {
+                    items.insert(0, candidate);
+                }
+            }
+            self.ranking
+                .order_focused(input, &mut items, &self.memory, &self.ranking_context);
             items = focused_candidates::select(input, query.as_ref(), items);
         } else {
             self.ranking.order(input, &mut items, &self.memory);
@@ -225,15 +262,37 @@ impl Adapter {
         }
         if !matches!(
             request.action.as_str(),
-            "query" | "commit" | "confirm" | "cancel"
+            "query" | "commit" | "confirm" | "cancel" | "edit-memory" | "finish-memory"
         ) {
             return Err("不支持的操作".into());
         }
         if request.context.len() > 64 {
             return Err("无效输入会话。".into());
         }
+        if request.action == "query" {
+            self.ranking_context.clear();
+            self.ranking_scope.clear();
+            if self.focused_candidates
+                && !request.input.is_empty()
+                && let Some(prefix) = &request.preceding
+            {
+                if prefix.chars().count() > 32
+                    || !prefix
+                        .chars()
+                        .all(|c| ('\u{3400}'..='\u{9fff}').contains(&c))
+                {
+                    return Err("上下文参数无效。".into());
+                }
+                self.ranking_context.clone_from(prefix);
+                self.ranking_scope.clone_from(&request.context);
+            }
+        } else if request.action != "commit" || request.context != self.ranking_scope {
+            self.ranking_context.clear();
+            self.ranking_scope.clear();
+        }
         if request.action == "cancel" {
             self.chains.remove(&request.context);
+            self.edited_words.remove(&request.context);
             if request.deferred_output {
                 // A retired TSF scope may still own already-queued host edits. It
                 // never receives new commits; its FIFO receipts require host success.
@@ -255,6 +314,62 @@ impl Adapter {
                 self.pending.remove(&request.context);
                 self.sequences.remove(&request.context);
                 self.retired.remove(&request.context);
+            }
+            return Ok(self.frame(None, None));
+        }
+        if matches!(request.action.as_str(), "edit-memory" | "finish-memory") {
+            if !request.input.is_empty()
+                || request.context.is_empty()
+                || request.deferred_output
+                || request.track_edits
+                || !request.candidate.is_empty()
+                || !request.syllables.is_empty()
+                || request.english.is_some()
+                || request.chinese_output.is_some()
+                || (request.action == "finish-memory"
+                    && (request.edit_start.is_some() || request.edit_length.is_some()))
+            {
+                return Err("删改操作只能用于当前已确认的词组。".into());
+            }
+            let token = request.learning_token.ok_or("缺少删改确认。")?;
+            if self.pending.contains_key(&request.context)
+                || self.retired.contains(&request.context)
+            {
+                return Err("删改会话已失效。".into());
+            }
+            let run = self
+                .edited_words
+                .get_mut(&request.context)
+                .ok_or("删改会话已失效。")?;
+            if !run.valid_token(token) {
+                return Err("删改确认已失效。".into());
+            }
+            if request.action == "edit-memory" {
+                let start = request.edit_start.ok_or("缺少删除位置。")?;
+                let length = request.edit_length.ok_or("缺少删除长度。")?;
+                if !run.delete(token, start, length) {
+                    return Err("删除范围不属于本次已确认的词组。".into());
+                }
+                self.token = self.token.saturating_add(1);
+                run.renew_token(self.token);
+                let edit_token = if run.is_empty() {
+                    self.edited_words.remove(&request.context);
+                    None
+                } else {
+                    Some(self.token)
+                };
+                // Legacy character/partial-composition chains cannot cross a host edit.
+                self.sequences.remove(&request.context);
+                self.chains.remove(&request.context);
+                let mut frame = self.frame(None, None);
+                frame["editToken"] = json!(edit_token);
+                return Ok(frame);
+            }
+            let run = self.edited_words.remove(&request.context).unwrap();
+            if let Some(word) = run.candidate(|text, syllables| self.ranking.known(text, syllables))
+            {
+                self.memory.remember(&word.syllables.concat(), &word);
+                self.memory.save();
             }
             return Ok(self.frame(None, None));
         }
@@ -282,13 +397,36 @@ impl Adapter {
                 self.pending.remove(&request.context);
             }
             pending.chinese &= request.chinese_output.unwrap_or(true);
+            let mut edit_token = None;
+            if request.track_edits
+                && pending.chinese
+                && !pending.deferred
+                && pending.remaining.is_empty()
+            {
+                if self
+                    .edited_words
+                    .entry(request.context.clone())
+                    .or_default()
+                    .append(&pending.candidate, token)
+                {
+                    edit_token = Some(token);
+                } else {
+                    self.edited_words.remove(&request.context);
+                }
+            } else {
+                self.edited_words.remove(&request.context);
+            }
             self.confirm(&request.context, pending);
             if !self.pending.contains_key(&request.context) && self.retired.remove(&request.context)
             {
                 self.sequences.remove(&request.context);
                 self.chains.remove(&request.context);
             }
-            return Ok(self.frame(None, None));
+            let mut frame = self.frame(None, None);
+            if request.track_edits {
+                frame["editToken"] = json!(edit_token);
+            }
+            return Ok(frame);
         }
         if self
             .chains
@@ -349,10 +487,12 @@ impl Adapter {
                 if self.pending.values().map(VecDeque::len).sum::<usize>() >= 128
                     || self.chains.len() >= 128
                     || self.sequences.len() >= 128
+                    || self.edited_words.len() >= 128
                 {
                     self.pending.clear();
                     self.chains.clear();
                     self.sequences.clear();
+                    self.edited_words.clear();
                     self.retired.clear();
                 }
                 self.pending
@@ -380,7 +520,11 @@ impl Adapter {
         let independent_character = pending.chinese
             && pending.remaining.is_empty()
             && pending.candidate.text.chars().count() == 1
-            && !self.chains.contains_key(context);
+            && !self.chains.contains_key(context)
+            && !self
+                .edited_words
+                .get(context)
+                .is_some_and(|run| run.was_edited());
         if independent_character {
             let ranking = &self.ranking;
             for word in self
@@ -446,6 +590,10 @@ impl Adapter {
                     "syllables": c.syllables,
                     "translations": self.translations(c),
                     "hasDetails": self.details.contains_key(&c.text),
+                    "feedbackEligible": self.focused_candidates && c.syllables.concat() == memory::normalize(self.engine.composition().text())
+                        && (self.ranking.known(c.text.as_str(), &c.syllables) || remembered.iter().any(|m| m.text == c.text && m.syllables == c.syllables))
+                        && !self.expressions.is_completion(self.engine.composition().text(), c),
+                    "feedback": if self.focused_candidates { self.memory.feedback(c) } else { 0 },
                     "personal": remembered.iter().any(|m| m.text == c.text && m.syllables == c.syllables),
                 })
             })

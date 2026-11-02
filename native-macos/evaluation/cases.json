@@ -1,0 +1,547 @@
+{
+  "version": 1,
+  "provenance": "Independently authored synthetic engineering fixtures; project GPL-3.0-or-later. No personal typing or external corpus.",
+  "cases": [
+    {
+      "id": "common-00",
+      "category": "common",
+      "input": "shi",
+      "accepted": [
+        "是"
+      ]
+    },
+    {
+      "id": "common-01",
+      "category": "common",
+      "input": "shishi",
+      "accepted": [
+        "事实"
+      ]
+    },
+    {
+      "id": "common-02",
+      "category": "common",
+      "input": "gongshi",
+      "accepted": [
+        "公式"
+      ]
+    },
+    {
+      "id": "common-03",
+      "category": "common",
+      "input": "shiyan",
+      "accepted": [
+        "实验",
+        "试验"
+      ]
+    },
+    {
+      "id": "common-04",
+      "category": "common",
+      "input": "yiyi",
+      "accepted": [
+        "意义"
+      ]
+    },
+    {
+      "id": "common-05",
+      "category": "common",
+      "input": "xian",
+      "accepted": [
+        "先",
+        "西安"
+      ]
+    },
+    {
+      "id": "common-06",
+      "category": "common",
+      "input": "gongsi",
+      "accepted": [
+        "公司"
+      ]
+    },
+    {
+      "id": "common-07",
+      "category": "common",
+      "input": "jishu",
+      "accepted": [
+        "技术"
+      ]
+    },
+    {
+      "id": "common-08",
+      "category": "common",
+      "input": "shijian",
+      "accepted": [
+        "时间",
+        "实践"
+      ]
+    },
+    {
+      "id": "common-09",
+      "category": "common",
+      "input": "gongzuo",
+      "accepted": [
+        "工作"
+      ]
+    },
+    {
+      "id": "common-10",
+      "category": "common",
+      "input": "xuexi",
+      "accepted": [
+        "学习"
+      ]
+    },
+    {
+      "id": "common-11",
+      "category": "common",
+      "input": "yuyan",
+      "accepted": [
+        "语言"
+      ]
+    },
+    {
+      "id": "common-12",
+      "category": "common",
+      "input": "shuru",
+      "accepted": [
+        "输入"
+      ]
+    },
+    {
+      "id": "common-13",
+      "category": "common",
+      "input": "fanyi",
+      "accepted": [
+        "翻译"
+      ]
+    },
+    {
+      "id": "common-14",
+      "category": "common",
+      "input": "kaifa",
+      "accepted": [
+        "开发"
+      ]
+    },
+    {
+      "id": "common-15",
+      "category": "common",
+      "input": "sheji",
+      "accepted": [
+        "设计"
+      ]
+    },
+    {
+      "id": "common-16",
+      "category": "common",
+      "input": "xiangmu",
+      "accepted": [
+        "项目"
+      ]
+    },
+    {
+      "id": "common-17",
+      "category": "common",
+      "input": "moxing",
+      "accepted": [
+        "模型"
+      ]
+    },
+    {
+      "id": "common-18",
+      "category": "common",
+      "input": "shuju",
+      "accepted": [
+        "数据"
+      ]
+    },
+    {
+      "id": "common-19",
+      "category": "common",
+      "input": "denglu",
+      "accepted": [
+        "登录",
+        "登陆"
+      ]
+    },
+    {
+      "id": "common-20",
+      "category": "common",
+      "input": "tongbu",
+      "accepted": [
+        "同步"
+      ]
+    },
+    {
+      "id": "common-21",
+      "category": "common",
+      "input": "gengxin",
+      "accepted": [
+        "更新"
+      ]
+    },
+    {
+      "id": "common-22",
+      "category": "common",
+      "input": "ceshi",
+      "accepted": [
+        "测试"
+      ]
+    },
+    {
+      "id": "common-23",
+      "category": "common",
+      "input": "ziliao",
+      "accepted": [
+        "资料"
+      ]
+    },
+    {
+      "id": "common-24",
+      "category": "common",
+      "input": "wenti",
+      "accepted": [
+        "问题"
+      ]
+    },
+    {
+      "id": "common-25",
+      "category": "common",
+      "input": "zhishi",
+      "accepted": [
+        "知识"
+      ]
+    },
+    {
+      "id": "common-26",
+      "category": "common",
+      "input": "shijie",
+      "accepted": [
+        "世界"
+      ]
+    },
+    {
+      "id": "common-27",
+      "category": "common",
+      "input": "dianhua",
+      "accepted": [
+        "电话"
+      ]
+    },
+    {
+      "id": "common-28",
+      "category": "common",
+      "input": "zhanghao",
+      "accepted": [
+        "账号",
+        "帐号"
+      ]
+    },
+    {
+      "id": "common-29",
+      "category": "common",
+      "input": "yonghu",
+      "accepted": [
+        "用户"
+      ]
+    },
+    {
+      "id": "sentence-00",
+      "category": "sentence",
+      "input": "wojintianxiangxuexiyingyu",
+      "accepted": [
+        "我今天想学习英语"
+      ]
+    },
+    {
+      "id": "sentence-01",
+      "category": "sentence",
+      "input": "womenmingtianqugongsi",
+      "accepted": [
+        "我们明天去公司"
+      ]
+    },
+    {
+      "id": "sentence-02",
+      "category": "sentence",
+      "input": "zhegexiangmuxuyaoceshigongneng",
+      "accepted": [
+        "这个项目需要测试功能"
+      ]
+    },
+    {
+      "id": "sentence-03",
+      "category": "sentence",
+      "input": "woxiangxuexizhongwen",
+      "accepted": [
+        "我想学习中文"
+      ]
+    },
+    {
+      "id": "sentence-04",
+      "category": "sentence",
+      "input": "womenyongdiannaogongzuo",
+      "accepted": [
+        "我们用电脑工作"
+      ]
+    },
+    {
+      "id": "sentence-05",
+      "category": "sentence",
+      "input": "qingtongbuzuixinshuju",
+      "accepted": [
+        "请同步最新数据"
+      ]
+    },
+    {
+      "id": "sentence-06",
+      "category": "sentence",
+      "input": "wozhengzaikaifashurufa",
+      "accepted": [
+        "我正在开发输入法"
+      ]
+    },
+    {
+      "id": "sentence-07",
+      "category": "sentence",
+      "input": "jintiantianqihenhao",
+      "accepted": [
+        "今天天气很好"
+      ]
+    },
+    {
+      "id": "sentence-08",
+      "category": "sentence",
+      "input": "mingtianwomenyiqidapingpangqiu",
+      "accepted": [
+        "明天我们一起打乒乓球"
+      ]
+    },
+    {
+      "id": "sentence-09",
+      "category": "sentence",
+      "input": "zhegeshiyanjieguohenhao",
+      "accepted": [
+        "这个实验结果很好"
+      ]
+    },
+    {
+      "id": "sentence-10",
+      "category": "sentence",
+      "input": "womenxuyaoxindefangfa",
+      "accepted": [
+        "我们需要新的方法"
+      ]
+    },
+    {
+      "id": "sentence-11",
+      "category": "sentence",
+      "input": "qingbaocunwenjian",
+      "accepted": [
+        "请保存文件"
+      ]
+    },
+    {
+      "id": "technical-00",
+      "category": "technical",
+      "input": "cailiao",
+      "accepted": [
+        "材料"
+      ]
+    },
+    {
+      "id": "technical-01",
+      "category": "technical",
+      "input": "jingtijiegou",
+      "accepted": [
+        "晶体结构"
+      ]
+    },
+    {
+      "id": "technical-02",
+      "category": "technical",
+      "input": "bandaoti",
+      "accepted": [
+        "半导体"
+      ]
+    },
+    {
+      "id": "technical-03",
+      "category": "technical",
+      "input": "diandao",
+      "accepted": [
+        "电导"
+      ]
+    },
+    {
+      "id": "technical-04",
+      "category": "technical",
+      "input": "shiyan",
+      "accepted": [
+        "实验"
+      ]
+    },
+    {
+      "id": "technical-05",
+      "category": "technical",
+      "input": "jisuan",
+      "accepted": [
+        "计算"
+      ]
+    },
+    {
+      "id": "boundary-00",
+      "category": "boundary",
+      "input": "xue'xi",
+      "accepted": [
+        "学习"
+      ]
+    },
+    {
+      "id": "boundary-01",
+      "category": "boundary",
+      "input": "xx",
+      "accepted": [
+        "学习"
+      ]
+    },
+    {
+      "id": "boundary-02",
+      "category": "boundary",
+      "input": "gs",
+      "accepted": [
+        "公司"
+      ]
+    },
+    {
+      "id": "boundary-03",
+      "category": "boundary",
+      "input": "xueix",
+      "accepted": [
+        "学习"
+      ]
+    },
+    {
+      "id": "boundary-04",
+      "category": "boundary",
+      "input": "kaifazhe",
+      "accepted": [
+        "开发者"
+      ]
+    },
+    {
+      "id": "boundary-05",
+      "category": "boundary",
+      "input": "xian",
+      "accepted": [
+        "先"
+      ]
+    },
+    {
+      "id": "learning-00",
+      "category": "learning",
+      "input": "gongshi",
+      "accepted": [
+        "公示"
+      ],
+      "memory": {
+        "text": "公示",
+        "syllables": [
+          "gong",
+          "shi"
+        ],
+        "count": 1,
+        "age": 0
+      }
+    },
+    {
+      "id": "learning-01",
+      "category": "learning",
+      "input": "gongshi",
+      "accepted": [
+        "公示"
+      ],
+      "memory": {
+        "text": "公示",
+        "syllables": [
+          "gong",
+          "shi"
+        ],
+        "count": 8,
+        "age": 300
+      }
+    },
+    {
+      "id": "learning-02",
+      "category": "learning",
+      "input": "shiyan",
+      "accepted": [
+        "试验"
+      ],
+      "memory": {
+        "text": "试验",
+        "syllables": [
+          "shi",
+          "yan"
+        ],
+        "count": 8,
+        "age": 300
+      }
+    },
+    {
+      "id": "learning-03",
+      "category": "learning",
+      "input": "shishi",
+      "accepted": [
+        "实施"
+      ],
+      "memory": {
+        "text": "实施",
+        "syllables": [
+          "shi",
+          "shi"
+        ],
+        "count": 1,
+        "age": 300
+      }
+    },
+    {
+      "id": "learned-sentence-00",
+      "category": "learned-sentence",
+      "input": "womenxuyaogongshi",
+      "accepted": [
+        "我们需要公示"
+      ],
+      "memory": {
+        "text": "公示",
+        "syllables": [
+          "gong",
+          "shi"
+        ],
+        "pinyin": "gongshi",
+        "count": 8,
+        "age": 300
+      }
+    },
+    {
+      "id": "learned-sentence-01",
+      "category": "learned-sentence",
+      "input": "womenkaishishiyan",
+      "accepted": [
+        "我们开始试验"
+      ],
+      "memory": {
+        "text": "试验",
+        "syllables": [
+          "shi",
+          "yan"
+        ],
+        "pinyin": "shiyan",
+        "count": 8,
+        "age": 300
+      }
+    }
+  ]
+}

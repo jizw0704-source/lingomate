@@ -3,6 +3,23 @@ import AppKit
 import InputMethodKit
 
 let arguments = CommandLine.arguments
+if let index = arguments.firstIndex(of: "--opacity-notification-test"), arguments.count == index + 2
+{
+  CandidateOpacityTests.notificationProbe(arguments[index + 1])
+  exit(0)
+}
+if let index = arguments.firstIndex(of: "--opacity-readback-test"), arguments.count == index + 3 {
+  CandidateOpacityTests.readback(arguments[index + 1], expected: arguments[index + 2])
+  exit(0)
+}
+if arguments.contains("--symbol-candidate-test") {
+  SymbolCandidateTests.run()
+  exit(0)
+}
+if arguments.contains("--word-edit-memory-test") {
+  WordEditMemoryTests.run()
+  exit(0)
+}
 if arguments.contains("--fixed-expression-test") {
   FixedExpressionTests.run()
   exit(0)
@@ -130,6 +147,14 @@ if let index = arguments.firstIndex(of: "--appearance-readback-test"), arguments
   AppearanceTests.readback(arguments[index + 1], expected: arguments[index + 2])
 }
 let app = NSApplication.shared
+if arguments.contains("--confirmed-context-test") {
+  try ConfirmedContextTests.run()
+  exit(0)
+}
+if arguments.contains("--candidate-feedback-test") {
+  try CandidateFeedbackTests.run()
+  exit(0)
+}
 if arguments.contains("--input-window-test") {
   InputPresentation.checks()
   exit(0)
@@ -174,7 +199,8 @@ if arguments.contains("--sentence-state-test") || arguments.contains("--sentence
   exit(0)
 }
 let isPreview =
-  arguments.contains("--preview") || arguments.contains("--preview-sentence")
+  arguments.contains("--preview") || arguments.contains("--preview-symbols")
+  || arguments.contains("--preview-sentence")
   || arguments.contains("--preview-paging") || arguments.contains("--preview-learning")
   || arguments.contains("--preview-punctuation")
   || arguments.contains("--preview-mixed")
@@ -183,6 +209,8 @@ let isPreview =
   || arguments.contains("--ai-settings-preview")
   || arguments.contains("--settings-preview") || arguments.contains("--settings-test")
   || arguments.contains("--local-learning-preview") || arguments.contains("--local-learning-test")
+  || arguments.contains("--personal-vocabulary-preview")
+  || arguments.contains("--personal-vocabulary-test")
   || arguments.contains("--update-preview") || arguments.contains("--update-window-test")
 if let previewDuration { PreviewLifecycle.start(seconds: previewDuration) }
 let previewTheme: AppearanceChoice? = {
@@ -258,15 +286,27 @@ if arguments.contains("--local-learning-preview") {
   try? FileManager.default.removeItem(at: learningDirectory)
   exit(0)
 }
+if arguments.contains("--personal-vocabulary-test") {
+  PersonalVocabularyTests.run()
+  try? FileManager.default.removeItem(at: learningDirectory)
+  try? FileManager.default.removeItem(at: aiDirectory)
+  exit(0)
+}
 if arguments.contains("--settings") || arguments.contains("--settings-preview")
+  || arguments.contains("--personal-vocabulary-preview")
   || arguments.contains("--settings-test")
 {
   if arguments.contains("--settings-test") {
     SettingsTests.run()
   } else {
     SettingsWindow.start(
-      preview: isPreview, section: arguments.contains("--local-learning") ? .learning : .account)
+      preview: isPreview,
+      section:
+        arguments.contains("--personal-vocabulary")
+        || arguments.contains("--personal-vocabulary-preview")
+        ? .vocabulary : arguments.contains("--local-learning") ? .learning : .account)
     app.run()
+    SettingsWindow.controller?.cleanupVocabulary()
   }
   if isPreview { try? FileManager.default.removeItem(at: learningDirectory) }
   if isPreview { try? FileManager.default.removeItem(at: aiDirectory) }

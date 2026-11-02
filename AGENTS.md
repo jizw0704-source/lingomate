@@ -46,6 +46,8 @@ runtime/python/bin/python tools/test_part_of_speech.py
 runtime/python/bin/python tools/test_prepare_expressions.py
 runtime/python/bin/python prototype/tests/expressions_test.py
 runtime/python/bin/python prototype/tests/ranking_test.py
+runtime/python/bin/python prototype/tests/mac_accuracy_test.py
+runtime/python/bin/python native-macos/tools/test_evaluate_candidates.py
 runtime/python/bin/python tools/prepare_lexicon.py --check
 runtime/python/bin/ruff format --check backend
 runtime/python/bin/ruff check backend
@@ -63,3 +65,7 @@ runtime/python/bin/python tools/sync_obsidian.py --vault '/path/to/Obsidian Vaul
 ```
 
 Sync only project notes under 10 项目/中英输入法. The script preserves manual edits and does not create an automation.
+
+Math symbol mappings are independently curated in data/math-symbols.json under the project GPL-3.0-or-later license, not imported corpus/artwork. `runtime/python/bin/python tools/check_math_symbols.py` validates category/alias coverage and docs/MATH_SYMBOLS.md; regenerate the table with `--write-doc` after intentional catalog changes. Mac packages this resource; Windows must explicitly integrate it. Keep literal selection outside Chinese/English learning and preserve first-two ordinary candidates.
+
+Mac collocation priors in prototype/bridge/src/collocation.rs are independently authored GPL rules, not corpus statistics. Package data/COLLOCATION-NOTICE.md. Keep bounded complete-syllable beams Mac-opt-in; no host context or new memory schema. Compare unchanged accuracy fixtures and supplementary collocation-cases.json with evaluate_candidates.py --cases before installation.
